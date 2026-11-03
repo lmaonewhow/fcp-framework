@@ -6,7 +6,7 @@
   "preimages": {
     "src/api/workflow/definition/types.ts": "93d081e8dff4f92c1a363240aed70792f06cc6fb",
     "src/api/workflow/instance/types.ts": "7cb7f9713819a4ce3f0f2fca03dc337e4f417ecb",
-    "src/api/workflow/task/types.ts": "482bd33830c6bf08404d23f8e73ffc1e7d6cb54",
+    "src/api/workflow/task/types.ts": "482bd33830c6bf08404d23f8e73ffc1e7d6dcb54",
     "src/components/FileUpload/index.vue": "3cbb4b263fefa6f56aad89d1d83658e285871131",
     "src/components/Process/processMeddle.vue": "444bbdc1ad453a08f6d05ec67a50b2597bc98a89",
     "src/components/Process/submitVerify.vue": "b958d8edc3252efe44f834920cfc16a7b74e524d",
