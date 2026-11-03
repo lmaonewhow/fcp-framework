@@ -60,9 +60,10 @@ public final class Migrations {
                 if(!match.matches()||Files.isSymbolicLink(path)||!Files.isRegularFile(path)||Files.size(path)>2_097_152)throw new IllegalArgumentException("Unsafe migration file");
                 int version=Integer.parseInt(match.group(1));byte[] bytes=Files.readAllBytes(path);String hash=digest(bytes);
                 if(!hash.equals(hashes.get(name))||!versions.add(version))throw new IllegalArgumentException("Migration drift or duplicate version");
-                // Baseline V001/V002 are checksum-checked but cannot execute through this incremental runner.
-                List<String> commands=version>=3?statements(new String(bytes,java.nio.charset.StandardCharsets.UTF_8)):List.of();
-                if(version>=3&&commands.isEmpty())throw new IllegalArgumentException("Empty migration");
+                // Baseline tables and native grant scripts are checksum-checked, never executed by this DDL-only runner.
+                boolean grants=name.equals("V004__ingestion_permissions.sql");
+                List<String> commands=version>=3&&!grants?statements(new String(bytes,java.nio.charset.StandardCharsets.UTF_8)):List.of();
+                if(version>=3&&!grants&&commands.isEmpty())throw new IllegalArgumentException("Empty migration");
                 result.add(new Script(version,name,hash,commands));
             }
         }
@@ -99,7 +100,9 @@ public final class Migrations {
             if(row==null)row=legacy.get(script.name());
             if(row!=null && (!row.name().equals(script.name())||!row.hash().equals(script.sha256())||!row.status().equals("APPLIED")))
                 throw new SQLException("Migration history is dirty or changed; operator review required");
-            if(script.version()<3){if(row==null)throw new SQLException("Baseline initialization is incomplete");continue;}
+            if(script.version()<3||script.name().equals("V004__ingestion_permissions.sql")){
+                if(row==null)throw new SQLException("Native baseline/grants must be installed by the reviewed deployment installer");continue;
+            }
             actions.add(Json.obj("version",script.version(),"name",script.name(),"sha256",script.sha256(),
                 "action",current?"ALREADY_APPLIED":row!=null?"ADOPT_VERIFIED_INSTALL":"APPLY","statements",script.statements().size()));
         }

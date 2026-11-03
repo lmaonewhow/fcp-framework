@@ -3,6 +3,7 @@
   "files": {
     "V001__fcp_tables.sql": "911b19aaf9a7f122a23b6e3f34253ffae004705da7fbf8c184e2d8aedc6edddd",
     "V002__fcp_permissions.sql": "33e29c549258bc8fb9c546c1d844623ce56c42d6200d632a73fe65e2d0d7115b",
-    "V003__persistent_plugin_state.sql": "f18c459efb0c0b203a53d56e4c3b01cb0dd5abfdc67a2798051ba106713e6392"
+    "V003__persistent_plugin_state.sql": "f18c459efb0c0b203a53d56e4c3b01cb0dd5abfdc67a2798051ba106713e6392",
+    "V004__ingestion_permissions.sql": "1bc8309b9838eec1f23769585583fcae6b7c6c542f1e0ff868fe7f25182b139f"
   }
 }

@@ -1,16 +1,16 @@
 {
   "format": 1,
-  "packageVersion": "0.4.2-integration-candidate",
+  "packageVersion": "0.6.0-dev.1",
   "upstreams": {
     "backend": {
       "repo": "https://github.com/dromara/RuoYi-Vue-Plus.git",
-      "tag": "v5.4.1",
-      "commit": "64100cf1ffaeec78e36344d4617f6cb828ef093f"
+      "tag": "v5.6.2",
+      "commit": "8136a0191a2258c0e1b36a8146a1c5ebc070c139"
     },
     "admin": {
       "repo": "https://github.com/CrazyLionCat/plus-ui.git",
-      "tag": "v5.4.1-v2.4.1",
-      "commit": "b000788785dd0d294e03cb650a0cfbf33bc1c758"
+      "tag": "v5.6.2-v2.6.2",
+      "commit": "d0d451967676707021b9857df529c395b27e90a7"
     },
     "teacher": {
       "repo": "https://github.com/m-xlsea/ruoyi-plus-soybean.git",
