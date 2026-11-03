@@ -239,7 +239,15 @@ class Fixture:
                                 self.check('teacher imports assigned class through real UI', receipt['imported'] == 3)
                         page.screenshot(path=str(self.output/(role+'-desktop.png')), full_page=True)
                         page.set_viewport_size(dict(width=390, height=844))
-                        page.wait_for_function('document.documentElement.scrollWidth <= innerWidth + 2', timeout=5000)
+                        page.wait_for_function("""() => {
+                            const root = document.querySelector('[data-testid="fcp-ingestion"]');
+                            if (!root || document.documentElement.scrollWidth > innerWidth + 2) return false;
+                            return [root, ...root.querySelectorAll('.panel, button, input, select')].every(element => {
+                                const box = element.getBoundingClientRect();
+                                return !box.width || (box.left >= -2 && box.right <= innerWidth + 2);
+                            });
+                        }""", timeout=5000)
+                        self.check(role+' mobile panels and controls fit viewport', True)
                         page.screenshot(path=str(self.output/(role+'-mobile.png')), full_page=True)
                         self.check(role+' no JavaScript exceptions', not errors)
                         self.check(role+' no browser console errors', not console_errors)
