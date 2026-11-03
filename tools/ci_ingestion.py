@@ -26,6 +26,16 @@ def fixture_password() -> str:
     return secrets.token_urlsafe(18)
 
 
+def safe_diagnostic(value, secrets_to_hide=()):
+    text = str(value)
+    for secret in sorted(secrets_to_hide, key=len, reverse=True):
+        if secret:
+            text = text.replace(secret, '[REDACTED]')
+    text = re.sub(r'(https?://[^\s?#]+)\?[^\s]*', r'\1?[REDACTED_QUERY]', text)
+    text = re.sub(r'Bearer\s+[A-Za-z0-9._~-]+', 'Bearer [REDACTED]', text, flags=re.IGNORECASE)
+    return text[:600]
+
+
 def redis_get(password: str, key: str):
     with socket.create_connection(('127.0.0.1', 36379), timeout=5) as sock:
         stream = sock.makefile('rb')
@@ -54,6 +64,7 @@ class Fixture:
         self.database, self.sql, self.private_dir = database, sql, private_dir
         self.redis_password, self.redis_prefix = redis_password, redis_prefix
         self.password = fixture_password()
+        self.diagnostic_secrets = [self.password]
         hashed = bcrypt.hashpw(self.password.encode(), bcrypt.gensalt(rounds=10, prefix=b'2a')).decode()
         sql(f"USE `{database}`; UPDATE sys_user SET password='{hashed}' WHERE user_id=1; INSERT INTO sys_user_role VALUES(1,942101);")
         for uid, name, role in [(950001, 'fcp_teacher_ci', 942102), (950002, 'fcp_viewer_ci', 942103)]:
@@ -106,6 +117,7 @@ class Fixture:
                 page.locator('.login-form button.el-button--primary').click()
             self.check(role+' uses native encrypted login', bool(response.value.request.headers.get('encrypt-key')))
             page.wait_for_function("Boolean(localStorage.getItem('FCP-Host-Token'))", timeout=30000)
+            self.diagnostic_secrets.append(page.evaluate("localStorage.getItem('FCP-Host-Token')"))
             state = context.storage_state()
             # The genuine login state remains in memory only, never in an artifact or log.
             return state
@@ -127,8 +139,13 @@ class Fixture:
                         contexts.append(context)
                         page = context.new_page()
                         errors, console_errors = [], []
-                        page.on('pageerror', lambda error: errors.append(type(error).__name__))
-                        page.on('console', lambda message: console_errors.append(message.type) if message.type == 'error' else None)
+                        self.report.setdefault('browserDiagnostics', {})[role] = dict(pageErrors=errors, consoleErrors=console_errors)
+                        def watch_page(current_page):
+                            current_page.on('pageerror', lambda error: errors.append(safe_diagnostic(error, self.diagnostic_secrets)))
+                            current_page.on('console', lambda message: console_errors.append(dict(
+                                text=safe_diagnostic(message.text, self.diagnostic_secrets),
+                                location=safe_diagnostic(message.location.get('url', ''), self.diagnostic_secrets))) if message.type == 'error' else None)
+                        watch_page(page)
                         page.goto(base+'/'+shell+'/fcp/ingestion', wait_until='domcontentloaded')
                         marker = page.get_by_test_id('fcp-ingestion')
                         expect(marker).to_be_visible(timeout=30000)
@@ -188,10 +205,22 @@ class Fixture:
                             toggle_ui('roster.business')
                             self.check('stop terminates Python child', not Path('/proc/'+str(pid)).exists())
                             self.check('stop blocks dependent input plugins', all(not p['effective'] for p in snapshot()['plugins'] if p['entity'] == 'roster'))
+                            self.check('admin no JavaScript exceptions before planned restart', not errors)
+                            self.check('admin no console errors before planned restart', not console_errors)
+                            # Close the live SSE client before intentionally stopping its server.
+                            # Retain all diagnostics, then verify a fresh page against the restarted host.
+                            before_video = page.video
+                            page.close()
+                            if before_video: before_video.save_as(str(self.output/'admin-before-restart.webm'))
                             restart()
                             self.check('JVM restart preserves stopped state', not next(p for p in snapshot()['plugins'] if p['id'] == 'roster.business')['enabled'])
                             self.check('JVM restart preserves MySQL attendance', len(dataset('attendance')['records']) == 4)
-                            page.reload(wait_until='domcontentloaded'); expect(marker).to_have_attribute('aria-busy', 'false')
+                            page = context.new_page(); watch_page(page)
+                            page.goto(base+'/admin/fcp/ingestion', wait_until='domcontentloaded')
+                            marker = page.get_by_test_id('fcp-ingestion')
+                            expect(marker).to_be_visible(timeout=30000)
+                            expect(marker).to_have_attribute('aria-busy', 'false')
+                            self.check('same native build after restart', marker.get_attribute('data-build-id') == build_id)
                             toggle_ui('roster.business')
                             self.check('re-enable restores MySQL roster', len(dataset('roster')['records']) == 4)
                         else:
