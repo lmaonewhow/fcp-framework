@@ -21,6 +21,11 @@ from native_client import NativeClient, envelope
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def fixture_password() -> str:
+    # 144 random bits encoded as 24 URL-safe characters; native DTO allows 5..30.
+    return secrets.token_urlsafe(18)
+
+
 def redis_get(password: str, key: str):
     with socket.create_connection(('127.0.0.1', 36379), timeout=5) as sock:
         stream = sock.makefile('rb')
@@ -48,7 +53,7 @@ class Fixture:
         import bcrypt
         self.database, self.sql, self.private_dir = database, sql, private_dir
         self.redis_password, self.redis_prefix = redis_password, redis_prefix
-        self.password = secrets.token_hex(16)
+        self.password = fixture_password()
         hashed = bcrypt.hashpw(self.password.encode(), bcrypt.gensalt(rounds=10, prefix=b'2a')).decode()
         sql(f"USE `{database}`; UPDATE sys_user SET password='{hashed}' WHERE user_id=1; INSERT INTO sys_user_role VALUES(1,942101);")
         for uid, name, role in [(950001, 'fcp_teacher_ci', 942102), (950002, 'fcp_viewer_ci', 942103)]:
