@@ -1,0 +1,94 @@
+name: Native ingestion acceptance
+on:
+  push:
+    branches: [feat/ruoyi-5.6-plugin-ingestion]
+    paths:
+      - '.github/workflows/native-ingestion.yml'
+      - 'tools/ci_native.py'
+      - 'tools/ci_ingestion.py'
+      - 'tools/native.py'
+      - 'integration/**'
+      - 'runtime/ingestion/**'
+      - 'business/src/main/java/dev/fcp/ingestion/**'
+      - 'sql/native/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: native-ingestion-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: FcpDisposableCi_2026_only
+        ports: ['33306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pFcpDisposableCi_2026_only"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+      redis:
+        image: redis:7.4
+        ports: ['36379:6379']
+        options: --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=3s --health-retries=12
+    env:
+      FCP_CI_MYSQL_PASSWORD: FcpDisposableCi_2026_only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.npm
+            ~/.local/share/pnpm/store
+          key: fcp-native56-${{ runner.os }}-${{ hashFiles('upstreams.lock.json', 'integration/plus-ui/compat-5.6/manifest.json') }}
+          restore-keys: fcp-native56-${{ runner.os }}-
+      - name: Install verification tools
+        run: |
+          npm install --global pnpm@9.15.9 typescript@5.8.3
+          python3 -m pip install --break-system-packages -r e2e/requirements.txt bcrypt==4.3.0
+          python3 -m playwright install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: upstream56-probe
+          run-id: 41584514997
+          github-token: ${{ github.token }}
+          path: baseline-lock
+      - name: Restore exact admin dependency resolution
+        run: mkdir -p locks && cp baseline-lock/upstream/package-lock.json locks/admin-package-lock.json
+      - name: Component checks and real native build
+        shell: bash
+        run: |
+          mkdir -p reports
+          git rev-parse HEAD > reports/native-source-commit.txt
+          python3 tools/verify_components.py
+          python3 tools/verify_ingestion.py
+          python3 tools/ci_native.py 2>&1 | tee reports/native-ci-console.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ingestion-evidence
+          path: |
+            reports/native-source-commit.txt
+            reports/ci-native.json
+            reports/native-build.json
+            reports/native-ci-console.log
+            reports/native-startup-redacted.log
+            reports/components.json
+            reports/ingestion.json
+            reports/native-ingestion/
+            work/ci-native/release/BUILD-EVIDENCE.json
+            work/ci-native/release/admin-package-lock.json
+            work/ci-native/release/teacher-pnpm-lock.yaml
+          retention-days: 14
