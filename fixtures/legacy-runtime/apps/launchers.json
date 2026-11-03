@@ -1,0 +1,16 @@
+{
+  "repair.python": {
+    "argv": [
+      "{python}",
+      "-I",
+      "-S",
+      "-u",
+      "{root}/plugins/repair.py"
+    ],
+    "cwd": ".",
+    "requires": [
+      "{root}/plugins/repair.py"
+    ],
+    "env": {}
+  }
+}

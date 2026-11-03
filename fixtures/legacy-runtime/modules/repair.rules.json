@@ -1,0 +1,19 @@
+{
+  "protocol": "fcp/0.3",
+  "kind": "module",
+  "id": "repair.rules",
+  "version": "0.3.2",
+  "provides": {
+    "api": "repair.rules.v1"
+  },
+  "requires": {},
+  "runtime": {
+    "provider": "stdio",
+    "launcher": "repair.python",
+    "timeout": 2,
+    "methods": {
+      "api.plan": "repair.plan"
+    }
+  },
+  "config": {}
+}

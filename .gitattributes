@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.jar -text
+*.bundle -text
+*.png -text
+*.webm -text

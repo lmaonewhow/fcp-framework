@@ -1,0 +1,38 @@
+{
+  "protocol": "fcp/0.3",
+  "kind": "composition",
+  "id": "ruoyi.dual",
+  "title": "若依双业务验证",
+  "includes": [],
+  "modules": [
+    "purchase.rules",
+    "purchase.workflow",
+    "repair.rules",
+    "repair.workflow"
+  ],
+  "bindings": {
+    "purchase.workflow/rules": "purchase.rules/api",
+    "repair.workflow/rules": "repair.rules/api"
+  },
+  "exports": {
+    "purchase": "purchase.workflow/api",
+    "repair": "repair.workflow/api"
+  },
+  "ui": [
+    {
+      "id": "purchase-flow",
+      "title": "采购审批",
+      "component": "purchase-flow",
+      "capability": "purchase",
+      "operation": "list"
+    },
+    {
+      "id": "repair-flow",
+      "title": "报修处理",
+      "component": "repair-flow",
+      "capability": "repair",
+      "operation": "list"
+    }
+  ],
+  "profile": {}
+}

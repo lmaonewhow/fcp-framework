@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Isolated component regressions; none of these dependencies are runtime distribution requirements",
+  "devDependencies": {
+    "@vue/test-utils": "2.4.6",
+    "jsdom": "26.0.0",
+    "vue": "3.5.13"
+  }
+}

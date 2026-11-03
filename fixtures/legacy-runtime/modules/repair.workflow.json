@@ -1,0 +1,18 @@
+{
+  "protocol": "fcp/0.3",
+  "kind": "module",
+  "id": "repair.workflow",
+  "version": "0.3.2",
+  "provides": {
+    "api": "repair.workflow.v1"
+  },
+  "requires": {
+    "rules": {
+      "contract": "repair.rules.v1"
+    }
+  },
+  "runtime": {
+    "provider": "repair-workflow"
+  },
+  "config": {}
+}

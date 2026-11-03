@@ -1,0 +1,24 @@
+{
+  "protocol": "fcp/0.3",
+  "kind": "composition",
+  "id": "school.java-only",
+  "title": "课堂评价验证场景",
+  "includes": [],
+  "modules": [
+    "evaluation.workflow"
+  ],
+  "bindings": {},
+  "exports": {
+    "evaluation": "evaluation.workflow/api"
+  },
+  "ui": [
+    {
+      "id": "evaluation-records",
+      "component": "evaluation-table",
+      "capability": "evaluation",
+      "operation": "list",
+      "title": "评价记录"
+    }
+  ],
+  "profile": {}
+}

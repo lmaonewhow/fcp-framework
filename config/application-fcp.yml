@@ -1,0 +1,89 @@
+# The production assembler selects prod,fcp; FCP must be last. For overrides use --spring.profiles.active=prod,fcp.
+# All passwords and JWT secrets come from the environment; no database is started by the JVM.
+server:
+  shutdown: graceful
+  address: ${FCP_BIND:127.0.0.1}
+  port: ${FCP_PORT:8080}
+  undertow:
+    max-http-post-size: 20971520
+    threads:
+      io: 2
+      worker: 32
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  config:
+    import: optional:file:./fcp-runtime.properties
+  boot:
+    admin:
+      client:
+        enabled: false
+        username: ${FCP_MONITOR_USER:fcp-monitor}
+        password: ${FCP_MONITOR_PASSWORD}
+  datasource:
+    dynamic:
+      p6spy: false
+      datasource:
+        master:
+          url: ${FCP_JDBC_URL}
+          username: ${FCP_DB_USER}
+          password: ${FCP_DB_PASSWORD}
+      hikari:
+        maxPoolSize: 8
+        minIdle: 1
+        connectionTimeout: 10000
+        idleTimeout: 60000
+  data:
+    redis:
+      host: ${FCP_REDIS_HOST:127.0.0.1}
+      port: ${FCP_REDIS_PORT:6379}
+      database: ${FCP_REDIS_DB:0}
+      password: ${FCP_REDIS_PASSWORD}
+redisson:
+  keyPrefix: ${FCP_REDIS_PREFIX:fcp050}
+  threads: 2
+  nettyThreads: 2
+  singleServerConfig:
+    connectionMinimumIdleSize: 1
+    connectionPoolSize: 8
+    subscriptionConnectionMinimumIdleSize: 1
+    subscriptionConnectionPoolSize: 4
+snail-job:
+  enabled: false
+sa-token:
+  jwt-secret-key: ${FCP_JWT_SECRET}
+api-decrypt:
+  enabled: true
+  publicKey: ${FCP_RESPONSE_PUBLIC_KEY}
+  privateKey: ${FCP_REQUEST_PRIVATE_KEY}
+captcha:
+  enable: true
+security:
+  excludes:
+    - /
+    - /admin
+    - /admin/**
+    - /teacher
+    - /teacher/**
+    - /*.html
+    - /**/*.html
+    - /**/*.css
+    - /**/*.js
+    - /favicon.ico
+    - /error
+    - /warm-flow-ui/config
+    - /*/api-docs
+    - /*/api-docs/**
+springdoc:
+  api-docs:
+    enabled: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true

@@ -1,0 +1,20 @@
+{
+  "review": "0.5.0-dev.1-review1",
+  "baseCommit": "55eb7f7e47323ac2e96c2166eb0abc34796cd47f",
+  "scope": "source review and local components; native integration pending",
+  "components": 190,
+  "retainedRegression": 105,
+  "frameworkExample": 13,
+  "nativeStatus": "BLOCKED",
+  "knownUnresolved": [
+    "native Vue/Spring/MySQL/Redis execution not done",
+    "new row may not be visible on first UUID-sorted page after 25 rows",
+    "statistics limited to 1000 authorized records; no UI report-window selector",
+    "Windows/macOS process cleanup not run"
+  ],
+  "notClaimed": [
+    "zero defects",
+    "production readiness",
+    "native performance improvement"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "protocol": "fcp/0.3",
+  "kind": "module",
+  "id": "evaluation.workflow",
+  "version": "0.4.0-rc1",
+  "provides": {
+    "api": "evaluation.v1"
+  },
+  "requires": {
+    "stats": {
+      "contract": "stats.v1",
+      "optional": true
+    }
+  },
+  "runtime": {
+    "provider": "evaluation-java"
+  }
+}

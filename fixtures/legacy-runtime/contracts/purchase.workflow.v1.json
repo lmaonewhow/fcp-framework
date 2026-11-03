@@ -1,0 +1,663 @@
+{
+  "id": "purchase.workflow.v1",
+  "operations": {
+    "list": {
+      "input": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "scope": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "kind": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 16
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000000
+                },
+                "body": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "amount": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "owner": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "status": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "decision": {
+                      "type": "string",
+                      "maxLength": 500
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "amount",
+                    "owner",
+                    "status",
+                    "decision"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "scope",
+                "kind",
+                "version",
+                "body"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 10000
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "read"
+    },
+    "get": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000000
+          },
+          "body": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "amount": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "status": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "decision": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "title",
+              "amount",
+              "owner",
+              "status",
+              "decision"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "scope",
+          "kind",
+          "version",
+          "body"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "read"
+    },
+    "history": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "maxItems": 10000
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "read"
+    },
+    "create": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "requestKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{7,99}$"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "amount": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              }
+            },
+            "required": [
+              "title",
+              "amount"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "requestKey",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000000
+          },
+          "body": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "amount": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "status": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "decision": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "title",
+              "amount",
+              "owner",
+              "status",
+              "decision"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "scope",
+          "kind",
+          "version",
+          "body"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "write"
+    },
+    "submit": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "requestKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{7,99}$"
+          },
+          "data": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000000
+          }
+        },
+        "required": [
+          "requestKey",
+          "data",
+          "id",
+          "expectedVersion"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000000
+          },
+          "body": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "amount": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "status": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "decision": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "title",
+              "amount",
+              "owner",
+              "status",
+              "decision"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "scope",
+          "kind",
+          "version",
+          "body"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "write"
+    },
+    "approve": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "requestKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{7,99}$"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "comment": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "comment"
+            ],
+            "additionalProperties": false
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000000
+          }
+        },
+        "required": [
+          "requestKey",
+          "data",
+          "id",
+          "expectedVersion"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000000
+          },
+          "body": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "amount": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "status": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "decision": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "title",
+              "amount",
+              "owner",
+              "status",
+              "decision"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "scope",
+          "kind",
+          "version",
+          "body"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "write"
+    },
+    "reject": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "requestKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{7,99}$"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "comment": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "comment"
+            ],
+            "additionalProperties": false
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000000
+          }
+        },
+        "required": [
+          "requestKey",
+          "data",
+          "id",
+          "expectedVersion"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000000
+          },
+          "body": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "amount": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "status": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "decision": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "title",
+              "amount",
+              "owner",
+              "status",
+              "decision"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "scope",
+          "kind",
+          "version",
+          "body"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "write"
+    }
+  }
+}

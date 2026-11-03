@@ -1,0 +1,19 @@
+{
+  "protocol": "fcp/0.3",
+  "kind": "module",
+  "id": "evaluation.stats",
+  "version": "0.4.0-rc1",
+  "provides": {
+    "api": "stats.v1"
+  },
+  "requires": {},
+  "runtime": {
+    "provider": "stdio",
+    "launcher": "stats.python",
+    "timeout": 3,
+    "idleTimeoutMs": 3000,
+    "methods": {
+      "api.analyze": "stats.analyze"
+    }
+  }
+}

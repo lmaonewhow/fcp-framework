@@ -1,0 +1,27 @@
+{
+  "protocol": "fcp/0.3",
+  "kind": "composition",
+  "id": "ruoyi.java-only",
+  "title": "若依双业务验证",
+  "includes": [],
+  "modules": [
+    "purchase.rules",
+    "purchase.workflow"
+  ],
+  "bindings": {
+    "purchase.workflow/rules": "purchase.rules/api"
+  },
+  "exports": {
+    "purchase": "purchase.workflow/api"
+  },
+  "ui": [
+    {
+      "id": "purchase-flow",
+      "title": "采购审批",
+      "component": "purchase-flow",
+      "capability": "purchase",
+      "operation": "list"
+    }
+  ],
+  "profile": {}
+}

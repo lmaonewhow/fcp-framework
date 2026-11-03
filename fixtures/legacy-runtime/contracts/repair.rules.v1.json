@@ -1,0 +1,142 @@
+{
+  "id": "repair.rules.v1",
+  "operations": {
+    "plan": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "enum": [
+              "create",
+              "assign",
+              "resolve",
+              "close"
+            ]
+          },
+          "actor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "record": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "severity": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "status": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "assignee": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "resolution": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "action",
+          "actor",
+          "record",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "severity": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "status": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "assignee": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "resolution": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "title",
+              "description",
+              "severity",
+              "owner",
+              "status",
+              "assignee",
+              "resolution"
+            ],
+            "additionalProperties": false
+          },
+          "engine": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        "required": [
+          "body",
+          "engine"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "read"
+    }
+  }
+}

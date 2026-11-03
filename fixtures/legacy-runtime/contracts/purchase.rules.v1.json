@@ -1,0 +1,122 @@
+{
+  "id": "purchase.rules.v1",
+  "operations": {
+    "plan": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "enum": [
+              "create",
+              "submit",
+              "approve",
+              "reject"
+            ]
+          },
+          "actor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "record": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "amount": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "status": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "decision": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "action",
+          "actor",
+          "record",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "amount": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "status": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "decision": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "title",
+              "amount",
+              "owner",
+              "status",
+              "decision"
+            ],
+            "additionalProperties": false
+          },
+          "engine": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        "required": [
+          "body",
+          "engine"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "read"
+    }
+  }
+}

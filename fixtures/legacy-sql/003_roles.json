@@ -1,0 +1,47 @@
+{
+  "note": "Create isolated test accounts through RuoYi user management; assign these permissions through real roles. No passwords or users are auto-created.",
+  "requester": [
+    "fcp:dual:view",
+    "fcp:purchase:list",
+    "fcp:purchase:get",
+    "fcp:purchase:history",
+    "fcp:purchase:create",
+    "fcp:purchase:submit",
+    "fcp:repair:list",
+    "fcp:repair:get",
+    "fcp:repair:history",
+    "fcp:repair:create",
+    "fcp:repair:close"
+  ],
+  "reviewer": [
+    "fcp:dual:view",
+    "fcp:dual:manage",
+    "fcp:purchase:list",
+    "fcp:purchase:get",
+    "fcp:purchase:history",
+    "fcp:purchase:listAll",
+    "fcp:purchase:approve",
+    "fcp:purchase:reject",
+    "fcp:repair:list",
+    "fcp:repair:get",
+    "fcp:repair:history",
+    "fcp:repair:listAll",
+    "fcp:repair:assign"
+  ],
+  "technician": [
+    "fcp:dual:view",
+    "fcp:repair:list",
+    "fcp:repair:get",
+    "fcp:repair:history",
+    "fcp:repair:resolve"
+  ],
+  "reader": [
+    "fcp:dual:view",
+    "fcp:purchase:list",
+    "fcp:purchase:get",
+    "fcp:purchase:history",
+    "fcp:repair:list",
+    "fcp:repair:get",
+    "fcp:repair:history"
+  ]
+}

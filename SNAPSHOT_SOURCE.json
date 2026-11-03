@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "importMode": "source-snapshot-without-prior-git-history",
+  "upstreamSourceCommit": "e0330fad94b2e27b18d2a3cd7d5a1bdaf1c28829",
+  "preparedSourceCommit": "e040fa95c65067f8bcd5c3023d4c12bfd773c8d6",
+  "correspondingLocalJarSha256": "aa9498fb44bc76f616fc1b5548c6c9115e40b537c2b3583143f30cd4061270ca",
+  "oldHistoryIncluded": false,
+  "actionsWorkflowsIncluded": false,
+  "binaryArtifactsIncluded": false,
+  "privateRuntimeConfigurationIncluded": false,
+  "acceptanceStatus": "FAIL_WRITE_P95_FINAL_ARTIFACT_24H_NOT_RUN",
+  "statusDocument": "docs/LOCAL_ACCEPTANCE_STATUS.md"
+}

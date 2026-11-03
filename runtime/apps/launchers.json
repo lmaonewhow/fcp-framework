@@ -1,0 +1,16 @@
+{
+  "stats.python": {
+    "argv": [
+      "{python}",
+      "-I",
+      "-S",
+      "-u",
+      "{root}/plugins/statistics.py"
+    ],
+    "cwd": ".",
+    "requires": [
+      "{root}/plugins/statistics.py"
+    ],
+    "env": {}
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "protocol": "fcp/0.3",
+  "kind": "module",
+  "id": "purchase.workflow",
+  "version": "0.3.2",
+  "provides": {
+    "api": "purchase.workflow.v1"
+  },
+  "requires": {
+    "rules": {
+      "contract": "purchase.rules.v1"
+    }
+  },
+  "runtime": {
+    "provider": "purchase-workflow"
+  },
+  "config": {}
+}

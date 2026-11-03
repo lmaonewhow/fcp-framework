@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "scope": "Windows standalone FilePluginStateStore only; native RuoYi MySQL does not load this dependency",
+  "artifact": "org.xerial:sqlite-jdbc:3.54.1.0",
+  "filename": "sqlite-jdbc-3.54.1.0.jar",
+  "url": "https://repo.maven.apache.org/maven2/org/xerial/sqlite-jdbc/3.54.1.0/sqlite-jdbc-3.54.1.0.jar",
+  "bytes": 12132578,
+  "sha256": "f8dce420a6016278497f4f0560f65602b9db858de141b541cf91a4644ebe4639",
+  "windowsX64DllSha256": "4896f8ba8824a85f10f31383e38b9542b6043886a0c834e0d6c8606b02f82308",
+  "upstream": "https://github.com/xerial/sqlite-jdbc/releases/tag/3.54.1.0",
+  "license": "Apache-2.0 OR BSD-2-Clause; bundled SQLite notices retained",
+  "verification": "Pinned SHA256 matched Maven Central over HTTPS; detached signature retained as evidence, not claimed cryptographically verified"
+}

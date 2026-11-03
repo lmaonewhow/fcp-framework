@@ -1,0 +1,217 @@
+{
+  "id": "evaluation.v1",
+  "operations": {
+    "list": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "object"
+            }
+          },
+          "nextCursor": {}
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "read"
+    },
+    "get": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object"
+      },
+      "effect": "read"
+    },
+    "history": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "read"
+    },
+    "create": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "requestKey": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 100
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "student": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "classId": {
+                "type": "string",
+                "enum": [
+                  "class-a",
+                  "class-b"
+                ]
+              },
+              "indicator": {
+                "type": "string",
+                "enum": [
+                  "课堂参与",
+                  "合作交流",
+                  "实践活动"
+                ]
+              },
+              "score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "comment": {
+                "type": "string",
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "student",
+              "classId",
+              "indicator",
+              "score",
+              "comment"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "requestKey",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object"
+      },
+      "effect": "write"
+    },
+    "analyze": {
+      "input": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "average": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "maximum": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "minimum": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "engine": {
+            "type": "string",
+            "enum": [
+              "python-stdlib"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "arithmetic-summary"
+            ]
+          },
+          "pid": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "count",
+          "average",
+          "minimum",
+          "maximum",
+          "engine",
+          "method",
+          "pid"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "read"
+    }
+  }
+}

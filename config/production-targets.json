@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "scope": "Linux x86_64; single Java RuoYi 5.4.1 host; two trusted native Vue shells; trusted Python statistics plugin; independent MySQL/Redis; target hardware 4 vCPU/8 GiB/SSD. No untrusted-plugin sandbox or cluster guarantee.",
+  "startupSeconds": 45,
+  "javaIdleRssMiB": 1024,
+  "pythonRssMiB": 128,
+  "readP95Ms": 300,
+  "writeP95Ms": 500,
+  "successRatio": 0.999,
+  "concurrentUsers": 50,
+  "recordCount": 100000,
+  "tenantCount": 2,
+  "durationSeconds": 1800,
+  "soakSeconds": 86400,
+  "maxRssGrowthRatio": 0.1,
+  "rtoSeconds": 3600,
+  "rpoSeconds": 900
+}

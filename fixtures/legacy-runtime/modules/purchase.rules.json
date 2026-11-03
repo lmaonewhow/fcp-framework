@@ -1,0 +1,14 @@
+{
+  "protocol": "fcp/0.3",
+  "kind": "module",
+  "id": "purchase.rules",
+  "version": "0.3.2",
+  "provides": {
+    "api": "purchase.rules.v1"
+  },
+  "requires": {},
+  "runtime": {
+    "provider": "purchase-rules"
+  },
+  "config": {}
+}

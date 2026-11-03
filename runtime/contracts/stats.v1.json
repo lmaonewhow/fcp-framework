@@ -1,0 +1,77 @@
+{
+  "id": "stats.v1",
+  "operations": {
+    "analyze": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "scores": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            }
+          }
+        },
+        "required": [
+          "scores"
+        ],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "average": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "maximum": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "minimum": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "engine": {
+            "type": "string",
+            "enum": [
+              "python-stdlib"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "arithmetic-summary"
+            ]
+          },
+          "pid": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "count",
+          "average",
+          "minimum",
+          "maximum",
+          "engine",
+          "method",
+          "pid"
+        ],
+        "additionalProperties": false
+      },
+      "effect": "read"
+    }
+  }
+}

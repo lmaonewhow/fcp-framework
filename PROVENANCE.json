@@ -1,0 +1,48 @@
+{
+  "recordScope": "Historical baseline delivery provenance; current source-snapshot status is documented in docs/LOCAL_ACCEPTANCE_STATUS.md",
+  "packageVersion": "0.5.0-dev.1",
+  "baselineArchive": "FCP_0.4.2_真实宿主接入源码.zip",
+  "baselineSha256": "3db05391df83a234d070c98b390de895dc491efb8880b836a74cbb732429b941",
+  "localBranch": "feat/production-hardening-0.5.0",
+  "remoteWritesPerformed": false,
+  "ciWorkflowExecuted": false,
+  "completeUpstreamReposVendored": false,
+  "referenceHttpHostIncluded": false,
+  "nativeRunnableJarIncluded": false,
+  "nativeReleaseStatus": "BLOCKED",
+  "upstreams": {
+    "format": 1,
+    "packageVersion": "0.4.2-integration-candidate",
+    "upstreams": {
+      "backend": {
+        "repo": "https://github.com/dromara/RuoYi-Vue-Plus.git",
+        "tag": "v5.4.1",
+        "commit": "64100cf1ffaeec78e36344d4617f6cb828ef093f"
+      },
+      "admin": {
+        "repo": "https://github.com/CrazyLionCat/plus-ui.git",
+        "tag": "v5.4.1-v2.4.1",
+        "commit": "b000788785dd0d294e03cb650a0cfbf33bc1c758"
+      },
+      "teacher": {
+        "repo": "https://github.com/m-xlsea/ruoyi-plus-soybean.git",
+        "tag": "v1.1.3",
+        "commit": "4e625111ce173e5c2f40dbfc47475f2849c58feb"
+      }
+    }
+  },
+  "verification": {
+    "componentChecks": 173,
+    "preservedCoreChecks": 105,
+    "frameworkOnlyExampleChecks": 13,
+    "nativeSpring": "NOT_RUN",
+    "nativeMySQL": "NOT_RUN",
+    "nativeVueBuilds": "NOT_RUN",
+    "browserE2E": "NOT_RUN",
+    "nativePerformance": "NOT_RUN",
+    "securityAudit": "NOT_RUN",
+    "backupRestore": "NOT_RUN",
+    "soak24h": "NOT_RUN"
+  },
+  "claim": "Implemented production foundations and locally tested components. Native production integration is blocked; no production-readiness claim."
+}
