@@ -28,13 +28,13 @@ jobs:
         image: mysql:8.4
         env:
           MYSQL_ROOT_PASSWORD: FcpDisposableCi_2026_only
-        ports: ['33306:3306']
+        ports: ['127.0.0.1:33306:3306']
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1 -pFcpDisposableCi_2026_only"
           --health-interval=10s --health-timeout=5s --health-retries=12
       redis:
         image: redis:7.4
-        ports: ['36379:6379']
+        ports: ['127.0.0.1:36379:6379']
         options: --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=3s --health-retries=12
     env:
       FCP_CI_MYSQL_PASSWORD: FcpDisposableCi_2026_only
@@ -51,11 +51,12 @@ jobs:
             ~/.m2/repository
             ~/.npm
             ~/.local/share/pnpm/store
-          key: fcp-native56-${{ runner.os }}-${{ hashFiles('upstreams.lock.json', 'integration/plus-ui/compat-5.6/manifest.json') }}
+          key: fcp-native56-pnpm10-${{ runner.os }}-${{ hashFiles('upstreams.lock.json', 'integration/plus-ui/compat-5.6/manifest.json') }}
           restore-keys: fcp-native56-${{ runner.os }}-
       - name: Install verification tools
         run: |
-          npm install --global pnpm@9.15.9 typescript@5.8.3
+          npm install --global pnpm@10.5.2 typescript@5.8.3
+          test "$(pnpm --version)" = '10.5.2'
           python3 -m pip install --break-system-packages -r e2e/requirements.txt bcrypt==4.3.0
           python3 -m playwright install --with-deps chromium
       - uses: actions/download-artifact@v4
