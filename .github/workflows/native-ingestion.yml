@@ -4,18 +4,21 @@ on:
     branches: [feat/ruoyi-5.6-plugin-ingestion]
     paths:
       - '.github/workflows/native-ingestion.yml'
-      - 'tools/ci_native.py'
-      - 'tools/ci_ingestion.py'
-      - 'tools/mysql_install.py'
-      - 'tools/native.py'
+      - 'tools/**'
+      - 'tests/**'
+      - 'core/**'
+      - 'business/**'
+      - 'host/**'
+      - 'deploy/**'
       - 'integration/**'
-      - 'runtime/ingestion/**'
-      - 'business/src/main/java/dev/fcp/ingestion/**'
-      - 'sql/native/**'
+      - 'runtime/**'
+      - 'sql/**'
+      - 'config/**'
+      - 'locks/**'
+      - 'upstreams.lock.json'
   workflow_dispatch:
 permissions:
   contents: read
-  actions: read
 concurrency:
   group: native-ingestion-${{ github.ref }}
   cancel-in-progress: true
@@ -59,14 +62,8 @@ jobs:
           test "$(pnpm --version)" = '10.5.2'
           python3 -m pip install --break-system-packages -r e2e/requirements.txt bcrypt==4.3.0
           python3 -m playwright install --with-deps chromium
-      - uses: actions/download-artifact@v4
-        with:
-          name: upstream56-probe
-          run-id: 41584514997
-          github-token: ${{ github.token }}
-          path: baseline-lock
-      - name: Restore exact admin dependency resolution
-        run: mkdir -p locks && cp baseline-lock/upstream/package-lock.json locks/admin-package-lock.json
+      - name: Verify the committed and accepted dependency lock
+        run: python3 tools/check_ingestion_lock.py
       - name: Component checks and real native acceptance
         shell: bash
         run: |
