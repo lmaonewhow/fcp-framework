@@ -36,7 +36,7 @@ public class FcpSchoolConfiguration {
                 throw new FcpException("FORBIDDEN","Teaching scope changed; refresh before retrying");
         },new JdbcPluginStateStore(dataSource),false,128,identity::assertCurrent);
     }
-    private static void verifySchema(DataSource dataSource) throws Exception {
+    static void verifySchema(DataSource dataSource) throws Exception {
         try (var connection=dataSource.getConnection()) {
             var metadata=connection.getMetaData();
             if (!metadata.getDatabaseProductName().equalsIgnoreCase("MySQL") || metadata.getDatabaseMajorVersion()<8)

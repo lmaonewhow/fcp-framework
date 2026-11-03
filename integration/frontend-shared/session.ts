@@ -41,12 +41,13 @@ export async function ensureShell(shell: Shell, clientId: string): Promise<boole
   const allowed: unknown = body.data?.allowedShells;
   if (!Array.isArray(allowed)) throw new Error('界面授权响应无效');
   if (allowed.includes(shell)) return false;
+  const page = typeof body.data?.home === 'string' && ['/admin/fcp/ingestion','/teacher/fcp/ingestion'].includes(body.data.home) ? 'ingestion' : 'school';
   // Server chooses among fixed internal destinations; never follow an arbitrary URL in a response.
   if (allowed.includes('teacher')) {
-    window.location.replace('/teacher/fcp/school'); return true;
+    window.location.replace(`/teacher/fcp/${page}`); return true;
   }
   if (allowed.includes('admin')) {
-    window.location.replace('/admin/fcp/school'); return true;
+    window.location.replace(`/admin/fcp/${page}`); return true;
   }
   throw new Error('当前账号未获授权访问工作台');
 }
