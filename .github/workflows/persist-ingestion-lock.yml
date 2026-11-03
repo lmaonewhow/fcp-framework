@@ -1,0 +1,40 @@
+name: Preserve accepted ingestion lock
+on:
+  push:
+    branches: [feat/ruoyi-5.6-plugin-ingestion]
+    paths: ['.github/workflows/persist-ingestion-lock.yml']
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: persist-ingestion-lock
+  cancel-in-progress: false
+jobs:
+  preserve:
+    if: github.repository == 'lmaonewhow/fcp-framework'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/ruoyi-5.6-plugin-ingestion
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-ingestion-evidence
+          run-id: 41597238830
+          github-token: ${{ github.token }}
+          path: accepted-evidence
+      - name: Verify exact accepted bytes and preserve in source control
+        shell: bash
+        run: |
+          set -euo pipefail
+          file=accepted-evidence/work/ci-native/release/admin-package-lock.json
+          echo "ae581b28b46e756ef06d73f58807e997e76f877a993da174c1e2a2873c2dc8c5  $file" | sha256sum --check --strict
+          mkdir -p locks
+          cp "$file" locks/admin-package-lock.json
+          git add -- locks/admin-package-lock.json
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'build: pin the admin lock verified by native acceptance 680c19f'
+          git push origin HEAD:feat/ruoyi-5.6-plugin-ingestion
