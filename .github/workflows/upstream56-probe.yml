@@ -1,0 +1,38 @@
+name: Upstream 5.6 compatibility probe
+on:
+  push:
+    branches: [feat/ruoyi-5.6-plugin-ingestion]
+    paths: ['.github/workflows/upstream56-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  admin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: CrazyLionCat/plus-ui
+          ref: d0d451967676707021b9857df529c395b27e90a7
+          path: upstream
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Resolve initial dependency lock and build genuine source
+        shell: bash
+        run: |
+          mkdir -p evidence
+          cd upstream
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund 2>&1 | tee ../evidence/resolve.log
+          npm ci --no-audit --no-fund 2>&1 | tee ../evidence/install.log
+          npm run build:prod 2>&1 | tee ../evidence/build.log
+          npm exec -- vue-tsc --noEmit 2>&1 | tee ../evidence/typecheck.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: upstream56-probe
+          path: |
+            evidence/
+            upstream/package-lock.json
+          retention-days: 14
