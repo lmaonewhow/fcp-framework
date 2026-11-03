@@ -1,0 +1,500 @@
+diff --git a/src/api/workflow/definition/types.ts b/src/api/workflow/definition/types.ts
+index 93d081e..b49a11c 100644
+--- a/src/api/workflow/definition/types.ts
++++ b/src/api/workflow/definition/types.ts
+@@ -21,7 +21,7 @@ export interface FlowDefinitionForm {
+   id: string;
+   flowName: string;
+   flowCode: string;
+-  category: string;
++  category: string | number;
+   ext: string;
+   formPath: string;
+   formCustom: string;
+diff --git a/src/api/workflow/instance/types.ts b/src/api/workflow/instance/types.ts
+index 7cb7f97..74341bf 100644
+--- a/src/api/workflow/instance/types.ts
++++ b/src/api/workflow/instance/types.ts
+@@ -5,7 +5,7 @@ export interface FlowInstanceQuery extends PageQuery {
+   nodeName?: string;
+   flowCode?: string;
+   flowName?: string;
+-  createByIds?: string[] | number[];
++  createByIds?: (string | number)[];
+   businessId?: string;
+ }
+ 
+diff --git a/src/api/workflow/task/types.ts b/src/api/workflow/task/types.ts
+index 482bd33..03cd345 100644
+--- a/src/api/workflow/task/types.ts
++++ b/src/api/workflow/task/types.ts
+@@ -2,7 +2,7 @@ export interface TaskQuery extends PageQuery {
+   nodeName?: string;
+   flowCode?: string;
+   flowName?: string;
+-  createByIds?: string[] | number[];
++  createByIds?: (string | number)[];
+ }
+ 
+ export interface ParticipantVo {
+diff --git a/src/components/FileUpload/index.vue b/src/components/FileUpload/index.vue
+index 3cbb4b2..3568c78 100644
+--- a/src/components/FileUpload/index.vue
++++ b/src/components/FileUpload/index.vue
+@@ -92,6 +92,8 @@ watch(
+       let list: any[] = [];
+       if (Array.isArray(val)) {
+         list = val;
++      } else if (typeof val === 'object') {
++        list = [val];
+       } else {
+         const res = await listByIds(val);
+         list = res.data.map((oss) => {
+diff --git a/src/components/Process/processMeddle.vue b/src/components/Process/processMeddle.vue
+index 444bbdc..4226e2b 100644
+--- a/src/components/Process/processMeddle.vue
++++ b/src/components/Process/processMeddle.vue
+@@ -52,7 +52,7 @@
+ <script setup lang="ts">
+ import { propTypes } from '@/utils/propTypes';
+ import { FlowTaskVO, TaskOperationBo } from '@/api/workflow/task/types';
+-import UserSelect from '@/components/UserSelect';
++import UserSelect from '@/components/UserSelect/index.vue';
+ const { proxy } = getCurrentInstance() as ComponentInternalInstance;
+ import { getTask, taskOperation, currentTaskAllUser, terminationTask } from '@/api/workflow/task';
+ const props = defineProps({
+@@ -81,6 +81,8 @@ const task = ref<FlowTaskVO>({
+   instanceId: undefined,
+   flowName: undefined,
+   businessId: undefined,
++  businessCode: undefined,
++  businessTitle: undefined,
+   nodeCode: undefined,
+   nodeName: undefined,
+   flowCode: undefined,
+diff --git a/src/components/Process/submitVerify.vue b/src/components/Process/submitVerify.vue
+index b958d8e..dc6760f 100644
+--- a/src/components/Process/submitVerify.vue
++++ b/src/components/Process/submitVerify.vue
+@@ -152,7 +152,7 @@ import {
+   currentTaskAllUser,
+   getNextNodeList
+ } from '@/api/workflow/task';
+-import UserSelect from '@/components/UserSelect';
++import UserSelect from '@/components/UserSelect/index.vue';
+ 
+ const { proxy } = getCurrentInstance() as ComponentInternalInstance;
+ import { FlowCopyVo, FlowTaskVO, TaskOperationBo } from '@/api/workflow/task/types';
+diff --git a/src/layout/components/Navbar.vue b/src/layout/components/Navbar.vue
+index 906ed6f..3bf1a86 100644
+--- a/src/layout/components/Navbar.vue
++++ b/src/layout/components/Navbar.vue
+@@ -106,7 +106,7 @@ import router from '@/router';
+ import { ElMessageBoxOptions } from 'element-plus/es/components/message-box/src/message-box.type';
+ import { NavTypeEnum } from '@/enums/NavTypeEnum';
+ import Logo from "@/layout/components/Sidebar/Logo.vue";
+-import TopBar from './TopBar'
++import TopBar from './TopBar/index.vue'
+ 
+ const appStore = useAppStore();
+ const userStore = useUserStore();
+diff --git a/src/layout/components/Settings/index.vue b/src/layout/components/Settings/index.vue
+index 7c6cb11..558c948 100644
+--- a/src/layout/components/Settings/index.vue
++++ b/src/layout/components/Settings/index.vue
+@@ -42,7 +42,7 @@
+         <img src="@/assets/images/dark.svg" alt="dark" />
+         <div v-if="sideTheme === 'theme-dark'" class="setting-drawer-block-checbox-selectIcon" style="display: block">
+           <i aria-label="图标: check" class="anticon anticon-check">
+-            <svg viewBox="64 64 896 896" data-icon="check" width="1em" height="1em" :fill="theme" aria-hidden="true" focusable="false" class>
++            <svg viewBox="64 64 896 896" data-icon="check" width="1em" height="1em" :fill="theme" aria-hidden="true" focusable="false">
+               <path
+                 d="M912 190h-69.9c-9.8 0-19.1 4.5-25.1 12.2L404.7 724.5 207 474a32 32 0 0 0-25.1-12.2H112c-6.7 0-10.4 7.7-6.3 12.9l273.9 347c12.8 16.2 37.4 16.2 50.3 0l488.4-618.9c4.1-5.1.4-12.8-6.3-12.8z"
+               />
+@@ -54,7 +54,7 @@
+         <img src="@/assets/images/light.svg" alt="light" />
+         <div v-if="sideTheme === 'theme-light'" class="setting-drawer-block-checbox-selectIcon" style="display: block">
+           <i aria-label="图标: check" class="anticon anticon-check">
+-            <svg viewBox="64 64 896 896" data-icon="check" width="1em" height="1em" :fill="theme" aria-hidden="true" focusable="false" class>
++            <svg viewBox="64 64 896 896" data-icon="check" width="1em" height="1em" :fill="theme" aria-hidden="true" focusable="false">
+               <path
+                 d="M912 190h-69.9c-9.8 0-19.1 4.5-25.1 12.2L404.7 724.5 207 474a32 32 0 0 0-25.1-12.2H112c-6.7 0-10.4 7.7-6.3 12.9l273.9 347c12.8 16.2 37.4 16.2 50.3 0l488.4-618.9c4.1-5.1.4-12.8-6.3-12.8z"
+               />
+@@ -168,15 +168,15 @@ const toggleDark = () => useToggle(isDark);
+ 
+ /** 菜单导航设置 */
+ watch(
+-  () => navType,
+-  (val: string) => {
+-    if (val.value === NavTypeEnum.TOP) {
++  navType,
++  (val: NavTypeEnum) => {
++    if (val === NavTypeEnum.TOP) {
+       appStore.toggleSideBarHide(true);
+       permissionStore.setSidebarRouters(permissionStore.defaultRoutes as any);
+-    } else if (val.value === NavTypeEnum.LEFT) {
++    } else if (val === NavTypeEnum.LEFT) {
+       appStore.toggleSideBarHide(false);
+       permissionStore.setSidebarRouters(permissionStore.defaultRoutes as any);
+-    } else if (val.value === NavTypeEnum.MIX) {
++    } else if (val === NavTypeEnum.MIX) {
+       appStore.toggleSideBarHide(false);
+     }
+   },
+diff --git a/src/layout/components/Sidebar/Logo.vue b/src/layout/components/Sidebar/Logo.vue
+index df2a403..3301cf3 100644
+--- a/src/layout/components/Sidebar/Logo.vue
++++ b/src/layout/components/Sidebar/Logo.vue
+@@ -36,11 +36,12 @@ defineProps({
+ 
+ const title = import.meta.env.VITE_APP_LOGO_TITLE;
+ const settingsStore = useSettingsStore();
++const isDark = useDark({ storageKey: 'useDarkKey', valueDark: 'dark', valueLight: 'light' });
+ const sideTheme = computed(() => settingsStore.sideTheme);
+ 
+ // 获取Logo背景色
+ const getLogoBackground = computed(() => {
+-  if (settingsStore.isDark) {
++  if (isDark.value) {
+     return 'var(--sidebar-bg)'
+   }
+   if (settingsStore.navType == NavTypeEnum.TOP) {
+@@ -51,7 +52,7 @@ const getLogoBackground = computed(() => {
+ 
+ // 获取Logo文字颜色
+ const getLogoTextColor = computed(() => {
+-  if (settingsStore.isDark) {
++  if (isDark.value) {
+     return 'var(--sidebar-text)'
+   }
+   if (settingsStore.navType == NavTypeEnum.TOP) {
+diff --git a/src/layout/components/TagsView/index.vue b/src/layout/components/TagsView/index.vue
+index 2d74581..4e6c73c 100644
+--- a/src/layout/components/TagsView/index.vue
++++ b/src/layout/components/TagsView/index.vue
+@@ -6,7 +6,7 @@
+         :key="tag.path"
+         :data-path="tag.path"
+         :class="{ 'active': isActive(tag), 'has-icon': tagsIcon }"
+-        :to="{ path: tag.path ? tag.path : '', query: tag.query, fullPath: tag.fullPath ? tag.fullPath : '' }"
++        :to="{ path: tag.path ? tag.path : '', query: tag.query }"
+         class="tags-view-item"
+         :style="activeStyle(tag)"
+         @click.middle="!isAffix(tag) ? closeSelectedTag(tag) : ''"
+diff --git a/src/types/global.d.ts b/src/types/global.d.ts
+index 10dc843..bd26ccd 100644
+--- a/src/types/global.d.ts
++++ b/src/types/global.d.ts
+@@ -60,7 +60,7 @@ declare global {
+   declare interface DictDataOption {
+     label: string;
+     value: string;
+-    elTagType?: ElTagType;
++    elTagType?: ElTagType | 'default' | '';
+     elTagClass?: string;
+   }
+ 
+diff --git a/src/types/router.d.ts b/src/types/router.d.ts
+index 11a60a0..900ec5f 100644
+--- a/src/types/router.d.ts
++++ b/src/types/router.d.ts
+@@ -21,7 +21,6 @@ declare module 'vue-router' {
+ 
+   interface _RouteLocationBase {
+     children?: _RouteRecordBase[];
+-    path?: string;
+     title?: string;
+   }
+ 
+diff --git a/src/views/monitor/logininfor/index.vue b/src/views/monitor/logininfor/index.vue
+index da928cc..2c712ec 100644
+--- a/src/views/monitor/logininfor/index.vue
++++ b/src/views/monitor/logininfor/index.vue
+@@ -121,7 +121,7 @@ const single = ref(true);
+ const multiple = ref(true);
+ const selectName = ref<Array<string>>([]);
+ const total = ref(0);
+-const dateRange = ref<[DateModelType, DateModelType]>(['', '']);
++const dateRange = ref<[string, string]>(['', '']);
+ const defaultSort = ref<any>({ prop: 'loginTime', order: 'descending' });
+ 
+ const queryFormRef = ref<ElFormInstance>();
+diff --git a/src/views/monitor/operlog/index.vue b/src/views/monitor/operlog/index.vue
+index dc66371..9ad3af0 100644
+--- a/src/views/monitor/operlog/index.vue
++++ b/src/views/monitor/operlog/index.vue
+@@ -142,7 +142,7 @@ const showSearch = ref(true);
+ const ids = ref<Array<number | string>>([]);
+ const multiple = ref(true);
+ const total = ref(0);
+-const dateRange = ref<[DateModelType, DateModelType]>(['', '']);
++const dateRange = ref<[string, string]>(['', '']);
+ const defaultSort = ref<any>({ prop: 'operTime', order: 'descending' });
+ 
+ const operLogTableRef = ref<ElTableInstance>();
+diff --git a/src/views/register.vue b/src/views/register.vue
+index 45f7a38..300f474 100644
+--- a/src/views/register.vue
++++ b/src/views/register.vue
+@@ -138,7 +138,6 @@ const handleRegister = () => {
+       if (!err) {
+         const username = registerForm.value.username;
+         await ElMessageBox.alert('<span style="color: red; ">' + t('register.registerSuccess', { username }) + '</font>', '系统提示', {
+-          app: undefined,
+           dangerouslyUseHTMLString: true,
+           type: 'success'
+         });
+diff --git a/src/views/system/config/index.vue b/src/views/system/config/index.vue
+index 7401494..b412baa 100644
+--- a/src/views/system/config/index.vue
++++ b/src/views/system/config/index.vue
+@@ -136,7 +136,7 @@ const ids = ref<Array<number | string>>([]);
+ const single = ref(true);
+ const multiple = ref(true);
+ const total = ref(0);
+-const dateRange = ref<[DateModelType, DateModelType]>(['', '']);
++const dateRange = ref<[string, string]>(['', '']);
+ 
+ const queryFormRef = ref<ElFormInstance>();
+ const configFormRef = ref<ElFormInstance>();
+diff --git a/src/views/system/dict/index.vue b/src/views/system/dict/index.vue
+index 23fb3da..d2304af 100644
+--- a/src/views/system/dict/index.vue
++++ b/src/views/system/dict/index.vue
+@@ -293,7 +293,7 @@ const typeIds = ref<Array<number | string>>([]);
+ const typeSingle = ref(true);
+ const typeMultiple = ref(true);
+ const typeTotal = ref(0);
+-const dateRange = ref<[DateModelType, DateModelType]>(['', '']);
++const dateRange = ref<[string, string]>(['', '']);
+ 
+ const typeFormRef = ref<ElFormInstance>();
+ const typeQueryFormRef = ref<ElFormInstance>();
+diff --git a/src/views/system/menu/index.vue b/src/views/system/menu/index.vue
+index e34f9d0..dac3579 100644
+--- a/src/views/system/menu/index.vue
++++ b/src/views/system/menu/index.vue
+@@ -494,7 +494,7 @@ const handleDelete = async (row: MenuVO) => {
+ const deleteLoading = ref<boolean>(false);
+ const menuTreeRef = ref<ElTreeInstance>();
+ 
+-const deleteDialog = reactive<DialogOption>({
++const deleteDialog = ref<DialogOption>({
+   visible: false,
+   title: '级联删除菜单'
+ });
+@@ -503,13 +503,13 @@ const deleteDialog = reactive<DialogOption>({
+ const handleCascadeDelete = () => {
+   menuTreeRef.value?.setCheckedKeys([]);
+   getTreeselect();
+-  deleteDialog.visible = true;
++  deleteDialog.value.visible = true;
+ };
+ 
+ /** 取消按钮 */
+ const cancelCascade = () => {
+   menuTreeRef.value?.setCheckedKeys([]);
+-  deleteDialog.visible = false;
++  deleteDialog.value.visible = false;
+ };
+ 
+ /** 删除提交按钮 */
+@@ -524,7 +524,7 @@ const submitDeleteForm = async () => {
+   await cascadeDelMenu(menuIds).finally(() => (deleteLoading.value = false));
+   await getList();
+   proxy?.$modal.msgSuccess('删除成功');
+-  deleteDialog.visible = false;
++  deleteDialog.value.visible = false;
+ };
+ 
+ onMounted(() => {
+diff --git a/src/views/system/oss/index.vue b/src/views/system/oss/index.vue
+index f5966d7..49adb3b 100644
+--- a/src/views/system/oss/index.vue
++++ b/src/views/system/oss/index.vue
+@@ -150,7 +150,7 @@ const multiple = ref(true);
+ const total = ref(0);
+ const type = ref(0);
+ const previewListResource = ref(true);
+-const dateRangeCreateTime = ref<[DateModelType, DateModelType]>(['', '']);
++const dateRangeCreateTime = ref<[string, string]>(['', '']);
+ 
+ const dialog = reactive<DialogOption>({
+   visible: false,
+diff --git a/src/views/system/role/index.vue b/src/views/system/role/index.vue
+index 702bc58..158e9b9 100644
+--- a/src/views/system/role/index.vue
++++ b/src/views/system/role/index.vue
+@@ -126,7 +126,7 @@
+         <el-form-item label="菜单权限">
+           <el-checkbox v-model="menuExpand" @change="handleCheckedTreeExpand($event, 'menu')">展开/折叠</el-checkbox>
+           <el-checkbox v-model="menuNodeAll" @change="handleCheckedTreeNodeAll($event, 'menu')">全选/全不选</el-checkbox>
+-          <el-checkbox v-model="form.menuCheckStrictly" @change="handleCheckedTreeConnect($event, 'menu')">父子联动</el-checkbox>
++          <el-checkbox v-model="form.menuCheckStrictly" @change="handleCheckedTreeConnect($event === true, 'menu')">父子联动</el-checkbox>
+           <el-tree
+             ref="menuRef"
+             class="tree-border"
+@@ -167,7 +167,7 @@
+         <el-form-item v-show="form.dataScope === '2'" label="数据权限">
+           <el-checkbox v-model="deptExpand" @change="handleCheckedTreeExpand($event, 'dept')">展开/折叠</el-checkbox>
+           <el-checkbox v-model="deptNodeAll" @change="handleCheckedTreeNodeAll($event, 'dept')">全选/全不选</el-checkbox>
+-          <el-checkbox v-model="form.deptCheckStrictly" @change="handleCheckedTreeConnect($event, 'dept')">父子联动</el-checkbox>
++          <el-checkbox v-model="form.deptCheckStrictly" @change="handleCheckedTreeConnect($event === true, 'dept')">父子联动</el-checkbox>
+           <el-tree
+             ref="deptRef"
+             class="tree-border"
+@@ -208,7 +208,7 @@ const ids = ref<Array<string | number>>([]);
+ const single = ref(true);
+ const multiple = ref(true);
+ const total = ref(0);
+-const dateRange = ref<[DateModelType, DateModelType]>(['', '']);
++const dateRange = ref<[string, string]>(['', '']);
+ const menuOptions = ref<MenuTreeOption[]>([]);
+ const menuExpand = ref(false);
+ const menuNodeAll = ref(false);
+diff --git a/src/views/system/user/index.vue b/src/views/system/user/index.vue
+index da8c5bc..37a6277 100644
+--- a/src/views/system/user/index.vue
++++ b/src/views/system/user/index.vue
+@@ -310,7 +310,7 @@ const ids = ref<Array<number | string>>([]);
+ const single = ref(true);
+ const multiple = ref(true);
+ const total = ref(0);
+-const dateRange = ref<[DateModelType, DateModelType]>(['', '']);
++const dateRange = ref<[string, string]>(['', '']);
+ const deptName = ref('');
+ const deptOptions = ref<DeptTreeVO[]>([]);
+ const enabledDeptOptions = ref<DeptTreeVO[]>([]);
+diff --git a/src/views/tool/gen/index.vue b/src/views/tool/gen/index.vue
+index ef69684..f1948e7 100644
+--- a/src/views/tool/gen/index.vue
++++ b/src/views/tool/gen/index.vue
+@@ -128,7 +128,7 @@ const ids = ref<Array<string | number>>([]);
+ const single = ref(true);
+ const multiple = ref(true);
+ const total = ref(0);
+-const dateRange = ref<[DateModelType, DateModelType]>(['', '']);
++const dateRange = ref<[string, string]>(['', '']);
+ const uniqueId = ref('');
+ const dataNameList = ref<Array<string>>([]);
+ 
+diff --git a/src/views/workflow/processDefinition/index.vue b/src/views/workflow/processDefinition/index.vue
+index e7a45a1..a54f052 100644
+--- a/src/views/workflow/processDefinition/index.vue
++++ b/src/views/workflow/processDefinition/index.vue
+@@ -352,7 +352,7 @@ const handleSelectionChange = (selection: any) => {
+ //分页
+ const getPageList = async () => {
+   const query = proxy.$route.query;
+-  if (query.activeName) {
++  if (typeof query.activeName === 'string' && query.activeName) {
+     activeName.value = query.activeName;
+     proxy.$route.query.activeName = '';
+   }
+@@ -462,7 +462,7 @@ const design = async (row: FlowDefinitionVo) => {
+     path: `/workflow/design/index`,
+     query: {
+       definitionId: row.id,
+-      disabled: false,
++      disabled: 'false',
+       activeName: activeName.value
+     }
+   });
+@@ -477,7 +477,7 @@ const designView = async (row: FlowDefinitionVo) => {
+     path: `/workflow/design/index`,
+     query: {
+       definitionId: row.id,
+-      disabled: true,
++      disabled: 'true',
+       activeName: activeName.value
+     }
+   });
+@@ -521,8 +521,7 @@ const handleSubmit = async () => {
+   defFormRef.value.validate(async (valid: boolean) => {
+     if (valid) {
+       loading.value = true;
+-      const ext = {};
+-      ext.autoPass = autoPass.value;
++      const ext = { autoPass: autoPass.value };
+       form.value.ext = JSON.stringify(ext);
+       if (form.value.id) {
+         await edit(form.value).finally(() => (loading.value = false));
+diff --git a/src/views/workflow/processInstance/index.vue b/src/views/workflow/processInstance/index.vue
+index 0e21a00..bc7d372 100644
+--- a/src/views/workflow/processInstance/index.vue
++++ b/src/views/workflow/processInstance/index.vue
+@@ -241,7 +241,7 @@ const processDefinitionName = ref();
+ // 模型定义表格数据
+ const processInstanceList = ref<FlowInstanceVO[]>([]);
+ const processDefinitionHistoryList = ref<Array<any>>([]);
+-const categoryOptions = ref<CategoryOption[]>([]);
++const categoryOptions = ref<CategoryTreeVO[]>([]);
+ const categoryName = ref('');
+ 
+ const processDefinitionDialog = reactive<DialogOption>({
+@@ -348,8 +348,8 @@ const getProcessInstanceFinishList = () => {
+ };
+ 
+ /** 删除按钮操作 */
+-const handleDelete = async (row: FlowInstanceVO) => {
+-  const instanceIdList = row.id || instanceIds.value;
++const handleDelete = async (row: FlowInstanceVO | MouseEvent) => {
++  const instanceIdList = ('id' in row ? row.id : undefined) || instanceIds.value;
+   await proxy?.$modal.confirm('是否确认删除？');
+   loading.value = true;
+   if ('running' === tab.value) {
+@@ -361,7 +361,7 @@ const handleDelete = async (row: FlowInstanceVO) => {
+   }
+   proxy?.$modal.msgSuccess('删除成功');
+ };
+-const changeTab = async (data: string) => {
++const changeTab = async (data: import('element-plus').TabsPaneContext) => {
+   processInstanceList.value = [];
+   queryParams.value.pageNum = 1;
+   if ('running' === data.paneName) {
+diff --git a/src/views/workflow/task/allTaskWaiting.vue b/src/views/workflow/task/allTaskWaiting.vue
+index 1610559..96788b7 100644
+--- a/src/views/workflow/task/allTaskWaiting.vue
++++ b/src/views/workflow/task/allTaskWaiting.vue
+@@ -116,12 +116,12 @@
+ 
+ <script setup lang="ts">
+ import { pageByAllTaskWait, pageByAllTaskFinish, updateAssignee, urgeTask } from '@/api/workflow/task';
+-import UserSelect from '@/components/UserSelect';
++import UserSelect from '@/components/UserSelect/index.vue';
+ import { TaskQuery } from '@/api/workflow/task/types';
+ import workflowCommon from '@/api/workflow/workflowCommon';
+ import { RouterJumpVo } from '@/api/workflow/workflowCommon/types';
+-import processMeddle from '@/components/Process/processMeddle';
+-import messageType from '@/components/Process/MessageType';
++import processMeddle from '@/components/Process/processMeddle.vue';
++import messageType from '@/components/Process/MessageType.vue';
+ import { UserVO } from '@/api/system/user/types';
+ import { TabsPaneContext } from 'element-plus';
+ //选人组件
+diff --git a/src/views/workflow/task/taskFinish.vue b/src/views/workflow/task/taskFinish.vue
+index 38925b4..524b518 100644
+--- a/src/views/workflow/task/taskFinish.vue
++++ b/src/views/workflow/task/taskFinish.vue
+@@ -93,7 +93,7 @@ const queryFormRef = ref<ElFormInstance>();
+ const { proxy } = getCurrentInstance() as ComponentInternalInstance;
+ const { wf_business_status } = toRefs<any>(proxy?.useDict('wf_business_status'));
+ const { wf_task_status } = toRefs<any>(proxy?.useDict('wf_task_status'));
+-import UserSelect from '@/components/UserSelect';
++import UserSelect from '@/components/UserSelect/index.vue';
+ import { ref } from 'vue';
+ import { UserVO } from '@/api/system/user/types';
+ 
+diff --git a/src/views/workflow/task/taskWaiting.vue b/src/views/workflow/task/taskWaiting.vue
+index 434c674..d2c8d25 100644
+--- a/src/views/workflow/task/taskWaiting.vue
++++ b/src/views/workflow/task/taskWaiting.vue
+@@ -88,7 +88,7 @@ import { RouterJumpVo } from '@/api/workflow/workflowCommon/types';
+ 
+ const { proxy } = getCurrentInstance() as ComponentInternalInstance;
+ const { wf_business_status } = toRefs<any>(proxy?.useDict('wf_business_status'));
+-import UserSelect from '@/components/UserSelect';
++import UserSelect from '@/components/UserSelect/index.vue';
+ import { ref } from 'vue';
+ import { UserVO } from '@/api/system/user/types';
+ 
