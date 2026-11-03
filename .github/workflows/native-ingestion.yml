@@ -6,6 +6,7 @@ on:
       - '.github/workflows/native-ingestion.yml'
       - 'tools/ci_native.py'
       - 'tools/ci_ingestion.py'
+      - 'tools/mysql_install.py'
       - 'tools/native.py'
       - 'integration/**'
       - 'runtime/ingestion/**'
@@ -40,13 +41,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
+        with: {distribution: temurin, java-version: '21'}
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - uses: actions/cache@v4
+        with: {node-version: '22'}
+      - uses: actions/cache/restore@v4
+        id: dependencies
         with:
           path: |
             ~/.m2/repository
@@ -67,14 +66,22 @@ jobs:
           path: baseline-lock
       - name: Restore exact admin dependency resolution
         run: mkdir -p locks && cp baseline-lock/upstream/package-lock.json locks/admin-package-lock.json
-      - name: Component checks and real native build
+      - name: Component checks and real native acceptance
         shell: bash
         run: |
           mkdir -p reports
           git rev-parse HEAD > reports/native-source-commit.txt
           python3 tools/verify_components.py
           python3 tools/verify_ingestion.py
-          python3 tools/ci_native.py 2>&1 | tee reports/native-ci-console.log
+          python3 tools/ci_native.py --ingestion 2>&1 | tee reports/native-ci-console.log
+      - uses: actions/cache/save@v4
+        if: always() && steps.dependencies.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.npm
+            ~/.local/share/pnpm/store
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

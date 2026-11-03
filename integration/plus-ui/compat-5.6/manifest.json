@@ -2,7 +2,7 @@
   "format": 1,
   "upstreamCommit": "d0d451967676707021b9857df529c395b27e90a7",
   "patchFile": "types.patch",
-  "sha256": "c029ed19b66dbf93e9c69d8521e97661d6c17dd89e8f356c02c6a92d98a35ff7",
+  "sha256": "609c6aba6b35c3e480707d685908bb30f68d0c9deffc3afb077673ebf9e71e02",
   "preimages": {
     "src/api/workflow/definition/types.ts": "93d081e8dff4f92c1a363240aed70792f06cc6fb",
     "src/api/workflow/instance/types.ts": "7cb7f9713819a4ce3f0f2fca03dc337e4f417ecb",

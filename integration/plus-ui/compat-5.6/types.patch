@@ -322,21 +322,27 @@ index f5966d7..49adb3b 100644
  const dialog = reactive<DialogOption>({
    visible: false,
 diff --git a/src/views/system/role/index.vue b/src/views/system/role/index.vue
-index 702bc58..158e9b9 100644
+index 702bc58..35fea67 100644
 --- a/src/views/system/role/index.vue
 +++ b/src/views/system/role/index.vue
-@@ -126,7 +126,7 @@
+@@ -124,9 +124,9 @@
+           </el-radio-group>
+         </el-form-item>
          <el-form-item label="菜单权限">
-           <el-checkbox v-model="menuExpand" @change="handleCheckedTreeExpand($event, 'menu')">展开/折叠</el-checkbox>
+-          <el-checkbox v-model="menuExpand" @change="handleCheckedTreeExpand($event, 'menu')">展开/折叠</el-checkbox>
++          <el-checkbox v-model="menuExpand" @change="handleCheckedTreeExpand($event === true, 'menu')">展开/折叠</el-checkbox>
            <el-checkbox v-model="menuNodeAll" @change="handleCheckedTreeNodeAll($event, 'menu')">全选/全不选</el-checkbox>
 -          <el-checkbox v-model="form.menuCheckStrictly" @change="handleCheckedTreeConnect($event, 'menu')">父子联动</el-checkbox>
 +          <el-checkbox v-model="form.menuCheckStrictly" @change="handleCheckedTreeConnect($event === true, 'menu')">父子联动</el-checkbox>
            <el-tree
              ref="menuRef"
              class="tree-border"
-@@ -167,7 +167,7 @@
+@@ -165,9 +165,9 @@
+           </el-select>
+         </el-form-item>
          <el-form-item v-show="form.dataScope === '2'" label="数据权限">
-           <el-checkbox v-model="deptExpand" @change="handleCheckedTreeExpand($event, 'dept')">展开/折叠</el-checkbox>
+-          <el-checkbox v-model="deptExpand" @change="handleCheckedTreeExpand($event, 'dept')">展开/折叠</el-checkbox>
++          <el-checkbox v-model="deptExpand" @change="handleCheckedTreeExpand($event === true, 'dept')">展开/折叠</el-checkbox>
            <el-checkbox v-model="deptNodeAll" @change="handleCheckedTreeNodeAll($event, 'dept')">全选/全不选</el-checkbox>
 -          <el-checkbox v-model="form.deptCheckStrictly" @change="handleCheckedTreeConnect($event, 'dept')">父子联动</el-checkbox>
 +          <el-checkbox v-model="form.deptCheckStrictly" @change="handleCheckedTreeConnect($event === true, 'dept')">父子联动</el-checkbox>

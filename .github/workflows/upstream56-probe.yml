@@ -13,16 +13,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: fcp
+        with: {path: fcp}
       - uses: actions/checkout@v4
         with:
           repository: CrazyLionCat/plus-ui
           ref: d0d451967676707021b9857df529c395b27e90a7
           path: upstream
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+        with: {node-version: '22'}
       - name: Restore exact dependency resolution from baseline probe
         uses: actions/download-artifact@v4
         with:
@@ -40,7 +38,7 @@ jobs:
           from pathlib import Path
           sys.path.insert(0,'fcp/tools')
           from native import apply_compatibility_patch, copy_files
-          root=Path('fcp'); target=Path('upstream')
+          root=Path('fcp').resolve(); target=Path('upstream').resolve()
           apply_compatibility_patch(target,root/'integration/plus-ui/compat-5.6','d0d451967676707021b9857df529c395b27e90a7')
           copy_files(root/'integration/plus-ui/src',target/'src')
           (target/'src/fcp').mkdir(exist_ok=True)
