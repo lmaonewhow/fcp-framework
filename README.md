@@ -2,7 +2,7 @@
 
 本分支 `feat/ruoyi-5.6-plugin-ingestion` 在既有 FCP 基线上增加可启停的业务插件、API 连接器与文件适配器，固定使用 RuoYi-Vue-Plus 5.6.2 作为真实宿主。管理端固定 plus-ui 5.6.2-v2.6.2，教师端固定 ruoyi-plus-soybean 1.1.3，精确提交见 [upstreams.lock.json](upstreams.lock.json)。宿主保留原生登录、验证码、租户、权限、MySQL 和 Redis。
 
-**本分支仍需以原生验收证据判定最终状态，不能仅凭组件通过认定完成验收或生产可用。** 组件与原生流水线分别输出结果，原生报告位于对应运行的 `native-ingestion-evidence` 产物。原 0.5 本地验收的历史结果继续保留在 [docs/LOCAL_ACCEPTANCE_STATUS.md](docs/LOCAL_ACCEPTANCE_STATUS.md)，不代表 0.6 或新宿主已经验收。原源码快照不含旧 Git 历史；本功能分支的后续修改使用普通提交记录。
+**指定小型场景已通过真实原生验收，生产发布仍未验收。** 被测源码为 `9bf4031a38a065139d016903cfdb59179055c9a4`，通过 240 项组件检查、105 项保留回归、76 项输入检查和 61 项原生场景检查；检查组存在交叉。详情、构建摘要、录屏与限制见 [本次验收记录](docs/INGESTION_ACCEPTANCE.md)。组件与原生流水线分别输出结果，原生报告位于对应运行的 `native-ingestion-evidence` 产物。原 0.5 本地验收的历史结果继续保留在 [docs/LOCAL_ACCEPTANCE_STATUS.md](docs/LOCAL_ACCEPTANCE_STATUS.md)，不代表 0.6 或新宿主已经验收。原源码快照不含旧 Git 历史；本功能分支的后续修改使用普通提交记录。
 
 ## 当前实现
 
@@ -36,11 +36,11 @@ java bootstrap/GenerateKeys.java config/private
 python tools/native.py assemble --work work/prepared --build-env config/private/build.env
 ```
 
-随后为本次测试创建独立的本地空数据库和 Redis 命名空间，使用 `tools/mysql_install.py` 初始化空库，准备部署账号与仅具 DML 权限的运行账号，并填写 `config/private/fcp-runtime.properties`。运行配置必须指向专用测试库和回环服务；上游 Maven 的 prod 标签测试会实际启动 Spring，所以数据库必须先于构建准备好。首次管理端依赖解析需要显式选择，正式候选构建复用已审查的锁文件。
+随后为本次测试创建独立的本地空数据库和 Redis 命名空间，使用 `tools/mysql_install.py` 初始化空库，准备部署账号与仅具 DML 权限的运行账号，并填写 `config/private/fcp-runtime.properties`。运行配置必须指向专用测试库和回环服务；上游 Maven 的 prod 标签测试会实际启动 Spring，所以数据库必须先于构建准备好。仓库已保存通过验收的管理端依赖锁；常规构建直接复用并校验，升级依赖时才显式重新解析和验收。
 
 ```bash
-python tools/native.py build --work work/first-build --local-sources work/prepared/upstream --build-env config/private/build.env --test-runtime-config config/private/fcp-runtime.properties --resolve-admin-lock
-python tools/native.py build --work work/locked-build --local-sources work/prepared/upstream --build-env config/private/build.env --test-runtime-config config/private/fcp-runtime.properties --admin-lock work/first-build/release/admin-package-lock.json
+python tools/check_ingestion_lock.py
+python tools/native.py build --work work/locked-build --local-sources work/prepared/upstream --build-env config/private/build.env --test-runtime-config config/private/fcp-runtime.properties --admin-lock locks/admin-package-lock.json
 ```
 
 每次构建目录必须为空。构建器核对上游提交、补丁前后摘要和原生集成锚点，遇到漂移明确失败。管理端和教师端均执行真实类型检查与生产构建，后端保留 prod 标签原生测试；它不是上游全部测试。完整上游仓库、依赖和原生 JAR 不内置于源码仓库。

@@ -1,8 +1,8 @@
 # FCP 本地 Codex 工作约束
 
-本项目是 FCP 0.5.0-dev.1 review1，基线提交为 55eb7f7e47323ac2e96c2166eb0abc34796cd47f。目标是验证真实 RuoYi-Vue-Plus 宿主、两套原生 Vue 前端、Java 管理的 Python 子进程及 MySQL/Redis。首先阅读 CODEX_LOCAL_TASK.md、docs/REVIEW.md、README.md 与 upstreams.lock.json。review1 包修正了超时清理死锁和原生构建初始化顺序；已有组件结果不构成全链路验收。
+当前功能分支为 FCP 0.6.0-dev.1，真实宿主固定 RuoYi-Vue-Plus 5.6.2。首先阅读 README.md、docs/INGESTION.md、docs/INGESTION_ACCEPTANCE.md 和 upstreams.lock.json。被测源码 9bf4031a38a065139d016903cfdb59179055c9a4 已完成指定小型原生场景验收；生产、长期稳定性及未列入场景的能力不能据此标为通过。CODEX_LOCAL_TASK.md、docs/REVIEW.md 和旧本地报告属于 0.5/review1 历史记录，旧版本与结果不得覆盖当前锁文件和精确提交绑定的新证据。后续运行结果必须继续绑定实际被测源码及构建产物。
 
-开始时核对所在目录、Git 分支与工作区改动，使用独立分支和新 worktree。不要直接修改 main、dev 或覆盖用户已有工作区。压缩包没有 .git 时，从 history/fcp-source.bundle 恢复，按 CODEX_LOCAL_TASK.md 建立独立工作区。所有修复先保留失败证据，再补回归和复测；禁止用补丁覆盖用户未提交改动。默认不推送远端、不创建 PR、不部署云服务、不购买服务。
+开始时核对所在目录、Git 分支与工作区改动，使用独立分支和新 worktree。不要直接修改 main、dev 或覆盖用户已有工作区。源码压缩包没有 .git 时，先按交付提交号在独立目录检出仓库；离线环境可保留源码快照并记录其来源，不得伪造上游 Git 历史或假定归档包含 history/fcp-source.bundle。所有修复先保留失败证据，再补回归和复测；禁止用补丁覆盖用户未提交改动。默认不推送远端、不创建 PR、不部署云服务、不购买服务。
 
 真实项目接入必须保留锁定上游、原生登录、验证码、权限、租户和数据库。不得替换成参考后台、静态假页面、Spring 桩、内存数据库或伪造登录令牌来取得 PASS。源码漂移和接口不兼容应明确失败并在新分支修复，不能静默升级上游版本、关闭测试或降低验收目标。Maven 当前选择的是上游 prod 标签测试，不是全部上游测试。
 
