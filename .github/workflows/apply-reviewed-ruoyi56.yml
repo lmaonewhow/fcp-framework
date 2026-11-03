@@ -1,0 +1,56 @@
+name: Apply reviewed native 5.6 migration
+on:
+  push:
+    branches: [feat/ruoyi-5.6-plugin-ingestion]
+    paths: ['tools/patches/ruoyi56-native.*', '.github/workflows/apply-reviewed-ruoyi56.yml']
+permissions:
+  contents: write
+concurrency:
+  group: reviewed-ruoyi56-source-migration
+  cancel-in-progress: false
+jobs:
+  apply:
+    if: github.repository == 'lmaonewhow/fcp-framework' && github.ref == 'refs/heads/feat/ruoyi-5.6-plugin-ingestion'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --global typescript@5.8.3
+      - name: Apply exact reviewed source patch
+        run: python3 tools/apply_reviewed_patch.py
+      - name: Verify changed source before committing
+        run: |
+          python3 tools/verify_components.py
+          python3 tools/verify_ingestion.py
+          python3 tools/verify_legacy.py
+      - name: Commit source with a branch-head lease
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.sha }}
+        run: |
+          test "$(git ls-remote origin refs/heads/feat/ruoyi-5.6-plugin-ingestion | cut -f1)" = "$EXPECTED_HEAD"
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat(ruoyi): migrate pinned host to 5.6.2 and install scoped ingestion grants'
+          git push origin HEAD:refs/heads/feat/ruoyi-5.6-plugin-ingestion
+          git rev-parse HEAD > reports/applied-commit.txt
+          git archive --format=zip --output=reports/applied-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reviewed-ruoyi56-source
+          path: |
+            reports/components.json
+            reports/ingestion.json
+            reports/legacy-regressions.json
+            reports/applied-commit.txt
+            reports/applied-source.zip
+          retention-days: 14

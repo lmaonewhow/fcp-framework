@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "patchFile": "ruoyi56-native.patch",
+  "sha256": "ac9de2978a969c7bca4b0c558a2f65cefa394c3b5559c182cdb82108644887ca",
+  "preimages": {
+    "upstreams.lock.json": "6f046113157c52fe2fbb6254b78c5322c500d211",
+    "tools/native.py": "1227fe778770a6deb546717d15927c6ddd420f08",
+    "tools/native_client.py": "3f92ec52633605f1947aa9144cbdaf9d88e5ee83",
+    "tools/mysql_install.py": "2c544114f109b7c1e9a616e1256dff928d431b92",
+    "tests/python/test_local_acceptance.py": "0081e772ecf021f7c646ea44395dd73c55d50b24",
+    "integration/ruoyi/src/main/java/org/dromara/fcp/school/FcpSchoolController.java": "8392ba3fe5e10b1eb1b81bf19ffbd11cdbe125e5",
+    "deploy/src/main/java/dev/fcp/deploy/Migrations.java": "8aa76ca34d36089e9694cd2a293651eb30e69d47",
+    "tests/java/MigrationRegression.java": "420153020187bc2d48c4950e6d141225222a211c",
+    "sql/native/migrations.lock.json": "f3fd1b20382db296ec5c927c7e0fc07d1c236f7c",
+    "sql/native/V004__ingestion_permissions.sql": null
+  }
+}
