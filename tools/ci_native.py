@@ -11,6 +11,17 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools'))
 from native import doctor
 
+class PrerequisiteError(RuntimeError):
+ """The isolated CI environment is missing an explicitly required prerequisite."""
+
+def acceptance_redis_prefix()->str:
+ # Keep the actual Spring/Redis acceptance guard intact: fresh 128-bit namespace.
+ return 'fcp_accept_'+secrets.token_hex(16)
+
+def failure_status(error:Exception)->str:
+ # A compiler/test failure is observed failure, even before a JAR exists.
+ return 'BLOCKED' if isinstance(error,PrerequisiteError) else 'FAIL'
+
 def command(args,cwd=ROOT,env=None,timeout=2400):
  result=subprocess.run([str(x) for x in args],cwd=cwd,env=env,timeout=timeout,check=False)
  if result.returncode:raise RuntimeError(str(args[0])+' failed: '+str(result.returncode))
@@ -24,11 +35,11 @@ def run()->int:
  report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','production':'BLOCKED'}
  process=None;private_dir=None;fixture=None
  try:
-  if os.environ.get('GITHUB_ACTIONS')!='true':raise RuntimeError('This orchestration is restricted to its disposable manual GitHub Actions job')
+  if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')
   requirements=doctor()
-  if requirements['status']!='READY' or not shutil.which('mysql'):raise RuntimeError('Build tools/network/mysql CLI missing')
+  if requirements['status']!='READY' or not shutil.which('mysql'):raise PrerequisiteError('Build tools/network/mysql CLI missing')
   root_password=os.environ.get('FCP_CI_MYSQL_PASSWORD','')
-  if not re.fullmatch('[A-Za-z0-9_-]{16,100}',root_password):raise RuntimeError('Explicit CI MySQL fixture password is required')
+  if not re.fullmatch('[A-Za-z0-9_-]{16,100}',root_password):raise PrerequisiteError('Explicit CI MySQL fixture password is required')
   private_dir=Path(tempfile.mkdtemp(prefix='fcp-native-ci-'));private_dir.chmod(0o700)
   command(['java',ROOT/'bootstrap/GenerateKeys.java',private_dir/'keys'])
   sources=ROOT/'work/ci-sources'
@@ -56,7 +67,7 @@ def run()->int:
   props=re.sub(r'(?m)^FCP_DB_PASSWORD=.*$',f'FCP_DB_PASSWORD={runtime_password}',props)
   props=re.sub(r'(?m)^FCP_REDIS_PASSWORD=.*$',f'FCP_REDIS_PASSWORD={redis_password}',props)
   props=re.sub(r'(?m)^FCP_REDIS_PORT=.*$', 'FCP_REDIS_PORT=36379', props)
-  props=re.sub(r'(?m)^FCP_REDIS_PREFIX=.*$', 'FCP_REDIS_PREFIX=ci'+secrets.token_hex(8), props)
+  props=re.sub(r'(?m)^FCP_REDIS_PREFIX=.*$', 'FCP_REDIS_PREFIX='+acceptance_redis_prefix(), props)
   props+='\nFCP_PORT=18787\nFCP_BIND=127.0.0.1\n'
   if a.ingestion:
    from ci_ingestion import Fixture
@@ -106,7 +117,7 @@ def run()->int:
    result=fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],restart)
    report.update(scope=result['scope'],browser=result['status'],ingestion=result['status'],nativeChecks=result['totalChecks'])
 
- except Exception as error:report.update(status='FAIL' if 'build' in report else 'BLOCKED',error=type(error).__name__+': '+str(error))
+ except Exception as error:report.update(status=failure_status(error),error=type(error).__name__+': '+str(error))
  finally:
   if process and process.poll() is None:
    process.terminate()
