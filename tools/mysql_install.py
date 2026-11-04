@@ -3,7 +3,7 @@
 Existing production databases require a reviewed deployment migration, not this initializer.
 """
 from __future__ import annotations
-import argparse, hashlib, json, os, re, shutil, subprocess, sys
+import argparse, hashlib, json, os, re, shutil, subprocess, sys, tempfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools'))
@@ -20,7 +20,7 @@ def main():
  if not a.defaults_file.is_file() or a.defaults_file.is_symlink(): raise ValueError('Invalid credential file')
  if os.name!='nt' and a.defaults_file.stat().st_mode & 0o077: raise ValueError('Credential file must have permissions 0600')
  paths=[a.backend/'script/sql/ry_vue_5.X.sql',a.backend/'script/sql/ry_workflow.sql',
-        ROOT/'sql/native/V001__fcp_tables.sql',ROOT/'sql/native/V002__fcp_permissions.sql',ROOT/'sql/native/V003__persistent_plugin_state.sql']
+        ROOT/'sql/native/V001__fcp_tables.sql',ROOT/'sql/native/V002__fcp_permissions.sql',ROOT/'sql/native/V003__persistent_plugin_state.sql',ROOT/'sql/native/V004__ingestion_permissions.sql']
  for rel,blob in BLOBS['backend'].items():
   if rel.startswith('script/sql/'): check_blob(a.backend/rel,blob)
  stages=[{'name':f.name,'sha256':hashlib.sha256(f.read_bytes()).hexdigest()} for f in paths]
@@ -28,10 +28,20 @@ def main():
  if not a.apply: return 0
  executable=shutil.which('mysql')
  if not executable: raise ValueError('MySQL 8 command-line client not found')
- args=[executable,f'--defaults-file={a.defaults_file.resolve()}', '--no-login-paths','--default-character-set=utf8mb4',
+ args=[executable,f'--defaults-file={a.defaults_file.resolve()}', '--default-character-set=utf8mb4',
        '--batch','--raw','--skip-column-names',a.database]
+ # MySQL 8.0 lacks --no-login-paths (introduced in 8.2). An owner-only empty
+ # login-path location prevents inherited credentials on both client versions.
+ isolation=tempfile.TemporaryDirectory(prefix='fcp-mysql-login-')
+ environment={k:v for k,v in os.environ.items() if not k.startswith('MYSQL_')}
+ environment['MYSQL_TEST_LOGIN_FILE']=str(Path(isolation.name)/'absent.mylogin.cnf')
  def query(sql):
-  result=subprocess.run(args,input=sql,text=True,encoding='utf-8',capture_output=True,timeout=180,check=True)
+  result=subprocess.run(args,input=sql,text=True,encoding='utf-8',capture_output=True,timeout=180,env=environment)
+  if result.returncode:
+   code=re.search(r'ERROR\s+(\d+)\s*\(([A-Za-z0-9]+)\)(?: at line (\d+))?',result.stderr)
+   safe='SQL error '+(':'.join(v for v in code.groups() if v) if code else 'unclassified client error')
+   print('MYSQL INSTALL FAILURE: '+safe+'; SQL and credentials withheld',file=sys.stderr)
+   raise RuntimeError(safe)
   return result.stdout.strip()
  if query('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE();')!='0':
   raise ValueError('Schema is not empty. Refusing to change it; this command never repairs or resets an existing DB.')
@@ -48,6 +58,7 @@ def main():
   except Exception:
    query(f"UPDATE fcp_install_history SET state='FAILED',finished_at=NOW() WHERE stage='{name}';")
    raise
+ isolation.cleanup()
  print('Fresh acceptance schema initialized. Rotate upstream demo account passwords before exposing the service.')
  return 0
 if __name__=='__main__':

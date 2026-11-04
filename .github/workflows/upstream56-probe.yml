@@ -1,0 +1,62 @@
+name: Upstream 5.6 compatibility probe
+on:
+  push:
+    branches: [feat/ruoyi-5.6-plugin-ingestion]
+    paths: ['.github/workflows/upstream56-probe.yml', 'integration/plus-ui/compat-5.6/**', 'integration/frontend-shared/**', 'integration/plus-ui/src/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  admin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: fcp}
+      - uses: actions/checkout@v4
+        with:
+          repository: CrazyLionCat/plus-ui
+          ref: d0d451967676707021b9857df529c395b27e90a7
+          path: upstream
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Restore exact dependency resolution from baseline probe
+        uses: actions/download-artifact@v4
+        with:
+          name: upstream56-probe
+          run-id: 41584514997
+          github-token: ${{ github.token }}
+          path: baseline
+      - name: Apply checked compatibility and real workspace overlay
+        shell: bash
+        run: |
+          mkdir -p evidence
+          cp baseline/upstream/package-lock.json upstream/package-lock.json
+          python3 - <<'PY'
+          import sys, shutil
+          from pathlib import Path
+          sys.path.insert(0,'fcp/tools')
+          from native import apply_compatibility_patch, copy_files
+          root=Path('fcp').resolve(); target=Path('upstream').resolve()
+          apply_compatibility_patch(target,root/'integration/plus-ui/compat-5.6','d0d451967676707021b9857df529c395b27e90a7')
+          copy_files(root/'integration/plus-ui/src',target/'src')
+          (target/'src/fcp').mkdir(exist_ok=True)
+          for name in ['session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue']:
+              shutil.copy2(root/'integration/frontend-shared'/name,target/'src/fcp'/name)
+          PY
+      - name: Build genuine source and typecheck
+        shell: bash
+        run: |
+          cd upstream
+          npm ci --no-audit --no-fund 2>&1 | tee ../evidence/install.log
+          npm run build:prod 2>&1 | tee ../evidence/build.log
+          npm exec -- vue-tsc --noEmit 2>&1 | tee ../evidence/typecheck.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: upstream56-probe
+          path: |
+            evidence/
+            upstream/package-lock.json
+          retention-days: 14

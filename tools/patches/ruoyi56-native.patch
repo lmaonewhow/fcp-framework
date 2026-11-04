@@ -1,0 +1,152 @@
+diff --git a/deploy/src/main/java/dev/fcp/deploy/Migrations.java b/deploy/src/main/java/dev/fcp/deploy/Migrations.java
+index 8aa76ca..7305344 100644
+--- a/deploy/src/main/java/dev/fcp/deploy/Migrations.java
++++ b/deploy/src/main/java/dev/fcp/deploy/Migrations.java
+@@ -63,3 +63,4 @@ public final class Migrations {
+-                // Baseline V001/V002 are checksum-checked but cannot execute through this incremental runner.
+-                List<String> commands=version>=3?statements(new String(bytes,java.nio.charset.StandardCharsets.UTF_8)):List.of();
+-                if(version>=3&&commands.isEmpty())throw new IllegalArgumentException("Empty migration");
++                // Baseline tables and native grant scripts are checksum-checked, never executed by this DDL-only runner.
++                boolean grants=name.equals("V004__ingestion_permissions.sql");
++                List<String> commands=version>=3&&!grants?statements(new String(bytes,java.nio.charset.StandardCharsets.UTF_8)):List.of();
++                if(version>=3&&!grants&&commands.isEmpty())throw new IllegalArgumentException("Empty migration");
+@@ -102 +103,3 @@ public final class Migrations {
+-            if(script.version()<3){if(row==null)throw new SQLException("Baseline initialization is incomplete");continue;}
++            if(script.version()<3||script.name().equals("V004__ingestion_permissions.sql")){
++                if(row==null)throw new SQLException("Native baseline/grants must be installed by the reviewed deployment installer");continue;
++            }
+diff --git a/integration/ruoyi/src/main/java/org/dromara/fcp/school/FcpSchoolController.java b/integration/ruoyi/src/main/java/org/dromara/fcp/school/FcpSchoolController.java
+index 8392ba3..8656c23 100644
+--- a/integration/ruoyi/src/main/java/org/dromara/fcp/school/FcpSchoolController.java
++++ b/integration/ruoyi/src/main/java/org/dromara/fcp/school/FcpSchoolController.java
+@@ -41,3 +41,3 @@ public class FcpSchoolController {
+-            return ok(Json.obj("implementation","ruoyi-native-host-0.5.0-dev.1","springBoot",SpringBootVersion.getVersion(),
+-                    "buildId",provenance.get("buildId"),"springContext",application.getClass().getName(),"backendVersion","5.4.1",
+-                    "backendCommit","64100cf1ffaeec78e36344d4617f6cb828ef093f","database",c.getMetaData().getDatabaseProductName(),
++            return ok(Json.obj("implementation","ruoyi-native-host-0.6.0-dev.1","springBoot",SpringBootVersion.getVersion(),
++                    "buildId",provenance.get("buildId"),"springContext",application.getClass().getName(),"backendVersion","5.6.2",
++                    "backendCommit","8136a0191a2258c0e1b36a8146a1c5ebc070c139","database",c.getMetaData().getDatabaseProductName(),
+diff --git a/sql/native/V004__ingestion_permissions.sql b/sql/native/V004__ingestion_permissions.sql
+new file mode 100644
+index 0000000..c866d08
+--- /dev/null
++++ b/sql/native/V004__ingestion_permissions.sql
+@@ -0,0 +1,11 @@
++-- Deployment identity only. Reserved IDs fail on collision; existing records are not replaced.
++INSERT INTO sys_menu(menu_id,menu_name,parent_id,order_num,path,component,menu_type,perms,icon,is_frame,is_cache,visible,status,create_by,create_time) VALUES
++(942010,'数据接入与业务插件',942000,2,'ingestion','fcp/ingestion/index','C','fcp:ingest:view','upload',1,1,'0','0',1,NOW()),
++(942011,'导入与同步',942010,1,'',NULL,'F','fcp:ingest:import','#',1,1,'0','0',1,NOW()),
++(942012,'启停输入及业务插件',942010,2,'',NULL,'F','fcp:ingest:manage','#',1,1,'0','0',1,NOW()),
++(942013,'访问全部班级数据',942010,3,'',NULL,'F','fcp:ingest:allClasses','#',1,1,'0','0',1,NOW());
++INSERT INTO sys_role_menu(role_id,menu_id) VALUES
++(942101,942010),(942101,942011),(942101,942012),(942101,942013),
++(942102,942010),(942102,942011),(942103,942010);
++-- No accounts, default passwords or cross-tenant grants are introduced.
++-- Teacher class assignments remain in fcp_eval_assignment and are rechecked before commit.
+diff --git a/sql/native/migrations.lock.json b/sql/native/migrations.lock.json
+index f3fd1b2..1fce562 100644
+--- a/sql/native/migrations.lock.json
++++ b/sql/native/migrations.lock.json
+@@ -6 +6,2 @@
+-    "V003__persistent_plugin_state.sql": "f18c459efb0c0b203a53d56e4c3b01cb0dd5abfdc67a2798051ba106713e6392"
++    "V003__persistent_plugin_state.sql": "f18c459efb0c0b203a53d56e4c3b01cb0dd5abfdc67a2798051ba106713e6392",
++    "V004__ingestion_permissions.sql": "1bc8309b9838eec1f23769585583fcae6b7c6c542f1e0ff868fe7f25182b139f"
+diff --git a/tests/java/MigrationRegression.java b/tests/java/MigrationRegression.java
+index 4201530..03ae426 100644
+--- a/tests/java/MigrationRegression.java
++++ b/tests/java/MigrationRegression.java
+@@ -11 +11 @@ public final class MigrationRegression {
+-        var scripts=Migrations.load(Path.of(args[0]));check(scripts.size()==3,"all three locked migration files verified");
++        var scripts=Migrations.load(Path.of(args[0]));check(scripts.size()==4,"all four locked migration files verified");
+@@ -12,0 +13,2 @@ public final class MigrationRegression {
++        check(scripts.get(3).statements().isEmpty(),"ingestion native grants cannot execute through the DDL-only runner");
++        reject("INSERT INTO sys_role_menu(role_id,menu_id) VALUES(1,1);","unreviewed native grants rejected by incremental parser");
+diff --git a/tests/python/test_local_acceptance.py b/tests/python/test_local_acceptance.py
+index 0081e77..014d388 100644
+--- a/tests/python/test_local_acceptance.py
++++ b/tests/python/test_local_acceptance.py
+@@ -12 +12 @@ class LocalAcceptanceTests(unittest.TestCase):
+-  return dict(implementation='ruoyi-native-host-0.5.0-dev.1',backendCommit='64100cf1ffaeec78e36344d4617f6cb828ef093f',springBoot='3.4.1',database='MySQL',buildId='a'*32,databaseName=database)
++  return dict(implementation='ruoyi-native-host-0.6.0-dev.1',backendCommit='8136a0191a2258c0e1b36a8146a1c5ebc070c139',springBoot='3.5.15',database='MySQL',buildId='a'*32,databaseName=database)
+diff --git a/tools/mysql_install.py b/tools/mysql_install.py
+index 2c54411..73f0580 100644
+--- a/tools/mysql_install.py
++++ b/tools/mysql_install.py
+@@ -23 +23 @@ def main():
+-        ROOT/'sql/native/V001__fcp_tables.sql',ROOT/'sql/native/V002__fcp_permissions.sql',ROOT/'sql/native/V003__persistent_plugin_state.sql']
++        ROOT/'sql/native/V001__fcp_tables.sql',ROOT/'sql/native/V002__fcp_permissions.sql',ROOT/'sql/native/V003__persistent_plugin_state.sql',ROOT/'sql/native/V004__ingestion_permissions.sql']
+diff --git a/tools/native.py b/tools/native.py
+index 1227fe7..2856b77 100644
+--- a/tools/native.py
++++ b/tools/native.py
+@@ -27 +27 @@ BLOBS = {
+-  'pom.xml':'f8dab42db452ca2d03bff628c71110930e35857f',
++  'pom.xml':'cab4edaaef76e8b1c8df98fa53dc3ec6ea3b156b',
+@@ -30 +30 @@ BLOBS = {
+-  'ruoyi-admin/src/main/resources/application.yml':'03cb2f987eea6ceeae71f491d625cf70dade1a5a',
++  'ruoyi-admin/src/main/resources/application.yml':'6c18132d95b2318c8b7ed90eeb280f412ff2fc3a',
+@@ -33,2 +33,2 @@ BLOBS = {
+-  'script/sql/ry_vue_5.X.sql':'ddc20876d7365998aef6390b182de4f1060ba8a8',
+-  'script/sql/ry_workflow.sql':'bb3d76e68ac8a2306c04572fccffbf446343272b'},
++  'script/sql/ry_vue_5.X.sql':'3cd642b0be5916b2d2081b07282213de618aec0c',
++  'script/sql/ry_workflow.sql':'f8b37ecc50a45e87611e2b31f4115cb3661b0ac3'},
+@@ -39 +39 @@ BLOBS = {
+-  'package.json':'6e2bcd929ed9462fc07889dc59c30d25539868ab'},
++  'package.json':'32766149caf7848ef44955992728de9923430b58'},
+@@ -235 +235,2 @@ def invalidate_deleted_auth_cache(backend: Path) -> None:
+-    if sha(path.read_bytes())!='174ce6dc2edaffe9ce2416664b80782930acb38ffb967ea666071cf802466c2a':
++    if sha(path.read_bytes()) not in {'174ce6dc2edaffe9ce2416664b80782930acb38ffb967ea666071cf802466c2a',
++                                      '8f11489dbbd3ac05970376115014aade478eb0875d5b82d93a5daf527d3ab318'}:
+@@ -239,0 +241,2 @@ def invalidate_deleted_auth_cache(backend: Path) -> None:
++        if before not in text:
++            before='    public void '+method+'(String key) {\n        if (RedisUtils.deleteObject(key)) {\n            CAFFEINE.invalidate(key);\n        }\n    }'
+@@ -252 +255 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
+-    apply_compatibility_patch(admin,ROOT/'integration/plus-ui/compat',PINS['admin']['commit'])
++    apply_compatibility_patch(admin,ROOT/'integration/plus-ui/compat-5.6',PINS['admin']['commit'])
+@@ -273 +276 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
+-        for file in ['session.ts','session-sync.ts','env.d.ts']:
++        for file in ['session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue']:
+@@ -299,2 +302,2 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
+-    for language, labels in [('en-us', ('Evaluation', 'Student evaluation')),
+-                             ('zh-cn', ('评价管理', '学生评价'))]:
++    for language, labels in [('en-us', ('School', 'Student evaluation', 'Data ingestion')),
++                             ('zh-cn', ('学校业务', '学生评价', '数据接入'))]:
+@@ -306 +309 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
+-    manifest={'kind':'native-source-assembly','packageVersion':'0.5.0-dev.1','pins':PINS,
++    manifest={'kind':'native-source-assembly','packageVersion':'0.6.0-dev.1','pins':PINS,
+@@ -312 +315 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
+-def add_school_locale(path: Path, parent_label: str, school_label: str) -> None:
++def add_school_locale(path: Path, parent_label: str, school_label: str, ingestion_label: str='Data ingestion') -> None:
+@@ -317 +320 @@ def add_school_locale(path: Path, parent_label: str, school_label: str) -> None:
+-         "  route: {\n    fcp: "+repr(parent_label)+",\n    fcp_school: "+repr(school_label)+",\n")
++         "  route: {\n    fcp: "+repr(parent_label)+",\n    fcp_school: "+repr(school_label)+",\n    fcp_ingestion: "+repr(ingestion_label)+",\n")
+diff --git a/tools/native_client.py b/tools/native_client.py
+index 3f92ec5..63d232e 100644
+--- a/tools/native_client.py
++++ b/tools/native_client.py
+@@ -5 +5 @@ import ipaddress, json, os, re, urllib.request, urllib.error, urllib.parse
+-PIN='64100cf1ffaeec78e36344d4617f6cb828ef093f'
++PIN='8136a0191a2258c0e1b36a8146a1c5ebc070c139'
+@@ -50 +50 @@ class NativeClient:
+-  if value.get('implementation')!='ruoyi-native-host-0.5.0-dev.1' or value.get('backendCommit')!=PIN:
++  if value.get('implementation')!='ruoyi-native-host-0.6.0-dev.1' or value.get('backendCommit')!=PIN:
+@@ -52 +52 @@ class NativeClient:
+-  if not value.get('springBoot','').startswith('3.4.') or value.get('database')!='MySQL':
++  if not value.get('springBoot','').startswith('3.5.') or value.get('database')!='MySQL':
+diff --git a/upstreams.lock.json b/upstreams.lock.json
+index 6f04611..78588be 100644
+--- a/upstreams.lock.json
++++ b/upstreams.lock.json
+@@ -3 +3 @@
+-  "packageVersion": "0.4.2-integration-candidate",
++  "packageVersion": "0.6.0-dev.1",
+@@ -7,2 +7,2 @@
+-      "tag": "v5.4.1",
+-      "commit": "64100cf1ffaeec78e36344d4617f6cb828ef093f"
++      "tag": "v5.6.2",
++      "commit": "8136a0191a2258c0e1b36a8146a1c5ebc070c139"
+@@ -12,2 +12,2 @@
+-      "tag": "v5.4.1-v2.4.1",
+-      "commit": "b000788785dd0d294e03cb650a0cfbf33bc1c758"
++      "tag": "v5.6.2-v2.6.2",
++      "commit": "d0d451967676707021b9857df529c395b27e90a7"

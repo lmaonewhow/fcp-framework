@@ -6,14 +6,15 @@ import javax.sql.DataSource;
 import java.sql.*;
 import java.util.*;
 
-/** Fresh FCP grants from pinned RuoYi 5.4.1 tables. Never trusts cached role permissions.
+/** Fresh FCP grants from pinned RuoYi 5.6.2 tables. Never trusts cached role permissions.
  * Sa-Token still authenticates the session before this adapter is called.
  * Explicit FCP roles are required, including for native super-admin accounts.
  */
 public final class JdbcHostAuthorization {
     private final DataSource dataSource;
     private static final Set<String> ALLOWED=Set.of("fcp:eval:list","fcp:eval:get","fcp:eval:history",
-        "fcp:eval:create","fcp:eval:analyze","fcp:eval:manage","fcp:eval:allClasses","fcp:ui:admin");
+        "fcp:eval:create","fcp:eval:analyze","fcp:eval:manage","fcp:eval:allClasses","fcp:ui:admin",
+        "fcp:ingest:view","fcp:ingest:import","fcp:ingest:manage","fcp:ingest:allClasses");
     public JdbcHostAuthorization(DataSource dataSource){this.dataSource=Objects.requireNonNull(dataSource);}
     private PreparedStatement prepare(Connection connection,String sql,String tenant,String subject)throws SQLException {
         PreparedStatement statement=connection.prepareStatement(sql);statement.setQueryTimeout(5);
@@ -46,7 +47,7 @@ public final class JdbcHostAuthorization {
                     if(permission!=null)for(String item:permission.split(","))if(ALLOWED.contains(item.trim()))grants.add(item.trim());
                 }
             }
-            if(!grants.contains("fcp:eval:allClasses")){
+            if(!grants.contains("fcp:eval:allClasses")||(grants.contains("fcp:ingest:view")&&!grants.contains("fcp:ingest:allClasses"))){
                 try(PreparedStatement query=connection.prepareStatement(
                     "SELECT class_id FROM fcp_eval_assignment WHERE scope_id=? AND subject_id=? ORDER BY class_id LIMIT 33")){
                     query.setQueryTimeout(5);query.setString(1,scope);query.setString(2,subject);

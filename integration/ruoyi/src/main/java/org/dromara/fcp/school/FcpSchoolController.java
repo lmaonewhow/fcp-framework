@@ -38,9 +38,9 @@ public class FcpSchoolController {
             java.io.InputStream resource=FcpSchoolController.class.getResourceAsStream("/fcp/native-assembly.json")){
             if(resource==null)throw new IllegalStateException("Native build provenance is missing");
             Map<String,Object> provenance=fcp.Schema.map(Json.parse(new String(resource.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8)));
-            return ok(Json.obj("implementation","ruoyi-native-host-0.5.0-dev.1","springBoot",SpringBootVersion.getVersion(),
-                    "buildId",provenance.get("buildId"),"springContext",application.getClass().getName(),"backendVersion","5.4.1",
-                    "backendCommit","64100cf1ffaeec78e36344d4617f6cb828ef093f","database",c.getMetaData().getDatabaseProductName(),
+            return ok(Json.obj("implementation","ruoyi-native-host-0.6.0-dev.1","springBoot",SpringBootVersion.getVersion(),
+                    "buildId",provenance.get("buildId"),"springContext",application.getClass().getName(),"backendVersion","5.6.2",
+                    "backendCommit","8136a0191a2258c0e1b36a8146a1c5ebc070c139","database",c.getMetaData().getDatabaseProductName(),
                     "databaseVersion",c.getMetaData().getDatabaseProductVersion(),"databaseName",c.getCatalog(),"subject",identity.current().subject()));
         }
     }

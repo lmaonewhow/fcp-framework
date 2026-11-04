@@ -1,0 +1,45 @@
+name: Plugin ingestion verification
+on:
+  push:
+    branches: [feat/ruoyi-5.6-plugin-ingestion]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: plugin-ingestion-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  components:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned TypeScript checker
+        run: npm install --global typescript@5.8.3
+      - name: Archive exact source before tests
+        run: mkdir -p evidence && git archive --format=zip --output=evidence/source.zip HEAD && git rev-parse HEAD > evidence/commit.txt
+      - name: Existing component regressions
+        run: python3 tools/verify_components.py
+      - name: Existing legacy regressions
+        run: python3 tools/verify_legacy.py
+      - name: Ingestion regressions when present
+        run: |
+          if [ -f tools/verify_ingestion.py ]; then python3 tools/verify_ingestion.py; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: plugin-ingestion-evidence
+          path: |
+            evidence/source.zip
+            evidence/commit.txt
+            reports/components.json
+            reports/legacy-regressions.json
+            reports/ingestion.json
+          retention-days: 7

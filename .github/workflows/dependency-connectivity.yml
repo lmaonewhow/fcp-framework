@@ -1,0 +1,43 @@
+name: Dependency connectivity diagnostic
+on:
+  push:
+    branches: [feat/ruoyi-5.6-plugin-ingestion]
+    paths: ['.github/workflows/dependency-connectivity.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Probe exact public dependency endpoints without credentials
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import concurrent.futures,json,time,urllib.request
+          targets={
+            'npm-official':'https://registry.npmjs.org/vue/3.5.13',
+            'teacher-configured-mirror':'https://registry.npmmirror.com/vue/3.5.13',
+            'maven-central':'https://repo.maven.apache.org/maven2/org/springframework/boot/spring-boot-dependencies/3.4.4/spring-boot-dependencies-3.4.4.pom',
+            'backend-configured-mirror':'https://mirrors.huaweicloud.com/repository/maven/org/springframework/boot/spring-boot-dependencies/3.4.4/spring-boot-dependencies-3.4.4.pom'
+          }
+          def probe(item):
+            name,url=item;start=time.monotonic();row={'name':name,'url':url}
+            try:
+              with urllib.request.urlopen(url,timeout=12) as response:
+                row.update(status=response.status,bytesRead=len(response.read(262144)),result='REACHABLE')
+            except Exception as error:
+              row.update(result='FAILED',error=type(error).__name__+': '+str(error))
+            row['seconds']=round(time.monotonic()-start,3);return row
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            results=list(pool.map(probe,targets.items()))
+          report={'scope':'registry connectivity only; not application acceptance','results':results}
+          text=json.dumps(report,indent=2);open('dependency-connectivity.json','w').write(text+'\n');print(text)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-connectivity
+          path: dependency-connectivity.json
+          retention-days: 7

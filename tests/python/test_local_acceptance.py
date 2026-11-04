@@ -9,7 +9,7 @@ import native
 
 class LocalAcceptanceTests(unittest.TestCase):
  def evidence(self,database='fcp_local_review'):
-  return dict(implementation='ruoyi-native-host-0.5.0-dev.1',backendCommit='64100cf1ffaeec78e36344d4617f6cb828ef093f',springBoot='3.4.1',database='MySQL',buildId='a'*32,databaseName=database)
+  return dict(implementation='ruoyi-native-host-0.6.0-dev.1',backendCommit='8136a0191a2258c0e1b36a8146a1c5ebc070c139',springBoot='3.5.15',database='MySQL',buildId='a'*32,databaseName=database)
  def test_loopback_origins(self):
   for origin in ['http://localhost:8080','http://127.0.0.1:8080','http://[::1]:8080']:
    self.assertIsNotNone(require_loopback(origin))

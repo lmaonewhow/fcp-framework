@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Manual CI-only native build + MySQL adapter + JVM/static-resource smoke.
-Does NOT declare browser, native identity, security, load or production readiness.
+"""CI-only genuine native build and MySQL/JVM smoke, with optional real UI ingestion.
+--ingestion adds encrypted native login, both shells, imports, authorization and restart.
+No load, long-running stability or production-readiness claim is made.
 Uses fresh GitHub Actions MySQL/Redis services on dedicated loopback ports.
 """
 from __future__ import annotations
@@ -9,6 +10,17 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools'))
 from native import doctor
+
+class PrerequisiteError(RuntimeError):
+ """The isolated CI environment is missing an explicitly required prerequisite."""
+
+def acceptance_redis_prefix()->str:
+ # Keep the actual Spring/Redis acceptance guard intact: fresh 128-bit namespace.
+ return 'fcp_accept_'+secrets.token_hex(16)
+
+def failure_status(error:Exception)->str:
+ # A compiler/test failure is observed failure, even before a JAR exists.
+ return 'BLOCKED' if isinstance(error,PrerequisiteError) else 'FAIL'
 
 def command(args,cwd=ROOT,env=None,timeout=2400):
  result=subprocess.run([str(x) for x in args],cwd=cwd,env=env,timeout=timeout,check=False)
@@ -19,15 +31,15 @@ def private(path:Path,content:str):
 
 def run()->int:
  parser=argparse.ArgumentParser(description=__doc__)
- parser.add_argument('--resolve-admin-lock',action='store_true');a=parser.parse_args()
+ parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');a=parser.parse_args()
  report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','production':'BLOCKED'}
- process=None;private_dir=None
+ process=None;private_dir=None;fixture=None
  try:
-  if os.environ.get('GITHUB_ACTIONS')!='true':raise RuntimeError('This orchestration is restricted to its disposable manual GitHub Actions job')
+  if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')
   requirements=doctor()
-  if requirements['status']!='READY' or not shutil.which('mysql'):raise RuntimeError('Build tools/network/mysql CLI missing')
+  if requirements['status']!='READY' or not shutil.which('mysql'):raise PrerequisiteError('Build tools/network/mysql CLI missing')
   root_password=os.environ.get('FCP_CI_MYSQL_PASSWORD','')
-  if not re.fullmatch('[A-Za-z0-9_-]{16,100}',root_password):raise RuntimeError('Explicit CI MySQL fixture password is required')
+  if not re.fullmatch('[A-Za-z0-9_-]{16,100}',root_password):raise PrerequisiteError('Explicit CI MySQL fixture password is required')
   private_dir=Path(tempfile.mkdtemp(prefix='fcp-native-ci-'));private_dir.chmod(0o700)
   command(['java',ROOT/'bootstrap/GenerateKeys.java',private_dir/'keys'])
   sources=ROOT/'work/ci-sources'
@@ -37,6 +49,7 @@ def run()->int:
   def sql(text):
    result=subprocess.run(['mysql','--defaults-extra-file='+str(mysql_file),'--batch','--skip-column-names'],input=text,text=True,capture_output=True,timeout=60)
    if result.returncode:raise RuntimeError('Isolated CI SQL failed; inspect private database service logs')
+   return result.stdout
   sql(f'CREATE DATABASE `{database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;')
   command([sys.executable,ROOT/'tools/mysql_install.py','--backend',sources/'upstream/backend','--database',database,'--defaults-file',mysql_file,'--apply'])
   sql(f"CREATE USER '{runtime_user}'@'%' IDENTIFIED BY '{runtime_password}'; GRANT SELECT,INSERT,UPDATE,DELETE ON `{database}`.* TO '{runtime_user}'@'%';")
@@ -54,8 +67,13 @@ def run()->int:
   props=re.sub(r'(?m)^FCP_DB_PASSWORD=.*$',f'FCP_DB_PASSWORD={runtime_password}',props)
   props=re.sub(r'(?m)^FCP_REDIS_PASSWORD=.*$',f'FCP_REDIS_PASSWORD={redis_password}',props)
   props=re.sub(r'(?m)^FCP_REDIS_PORT=.*$', 'FCP_REDIS_PORT=36379', props)
-  props=re.sub(r'(?m)^FCP_REDIS_PREFIX=.*$', 'FCP_REDIS_PREFIX=ci'+secrets.token_hex(8), props)
+  props=re.sub(r'(?m)^FCP_REDIS_PREFIX=.*$', 'FCP_REDIS_PREFIX='+acceptance_redis_prefix(), props)
   props+='\nFCP_PORT=18787\nFCP_BIND=127.0.0.1\n'
+  if a.ingestion:
+   from ci_ingestion import Fixture
+   prefix=re.search(r'(?m)^FCP_REDIS_PREFIX=(.+)$',props)[1]
+   fixture=Fixture(database,sql,private_dir,redis_password,prefix)
+   props+='\nFCP_INGESTION_CONNECTIONS='+str(fixture.connection_file)+'\n'
   private(private_dir/'fcp-runtime.properties',props)
   # @SpringBootTest in the pinned upstream initializes FCP and therefore requires the schema first.
   work=ROOT/'work/ci-native'
@@ -74,25 +92,38 @@ def run()->int:
   command(['java','-cp',str(ROOT/'build/component-classes')+os.pathsep+str(driver),'RealMySqlRegression',jdbc],timeout=120)
   report['mysqlAdapter']='PASS'
   log_path=private_dir/'native-startup.log';started=time.monotonic()
-  with log_path.open('w') as log:
-   process=subprocess.Popen(['java','-Xms128m','-Xmx1024m','-jar',str(jar),'--spring.profiles.active=prod,fcp'],cwd=private_dir,stdout=log,stderr=subprocess.STDOUT)
-   ready=False
-   while time.monotonic()-started<120 and process.poll() is None:
+  def start_host():
+   nonlocal process
+   with log_path.open('a') as log:
+    process=subprocess.Popen(['java','-Xms128m','-Xmx1024m','-jar',str(jar),'--spring.profiles.active=prod,fcp'],cwd=private_dir,stdout=log,stderr=subprocess.STDOUT)
+   ready=False;start=time.monotonic()
+   while time.monotonic()-start<120 and process.poll() is None:
     try:
      with urllib.request.urlopen('http://127.0.0.1:18787/admin/',timeout=2) as response:html=response.read(2_000_000).decode()
      if '/admin/' in html and '<script' in html:ready=True;break
     except (OSError,UnicodeError):pass
     time.sleep(.5)
    if not ready:raise RuntimeError('Native JVM/static management frontend did not become ready')
-   with urllib.request.urlopen('http://127.0.0.1:18787/teacher/',timeout=5) as response:teacher=response.read(2_000_000).decode()
-   if '/teacher/' not in teacher or '<script' not in teacher:raise RuntimeError('Native teacher production assets missing')
-   report.update(status='PASS',nativeStartupSeconds=round(time.monotonic()-started,3),nativeJavaPid=process.pid,adminStatic='PASS',teacherStatic='PASS')
- except Exception as error:report.update(status='FAIL' if 'build' in report else 'BLOCKED',error=type(error).__name__+': '+str(error))
+  def restart():
+   process.terminate()
+   process.wait(timeout=35)
+   start_host()
+  start_host()
+  with urllib.request.urlopen('http://127.0.0.1:18787/teacher/',timeout=5) as response:teacher=response.read(2_000_000).decode()
+  if '/teacher/' not in teacher or '<script' not in teacher:raise RuntimeError('Native teacher production assets missing')
+  report.update(status='PASS',nativeStartupSeconds=round(time.monotonic()-started,3),nativeJavaPid=process.pid,adminStatic='PASS',teacherStatic='PASS')
+  if fixture:
+   os.environ['FCP_ACCEPTANCE_DATABASE']=database
+   result=fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],restart)
+   report.update(scope=result['scope'],browser=result['status'],ingestion=result['status'],nativeChecks=result['totalChecks'])
+
+ except Exception as error:report.update(status=failure_status(error),error=type(error).__name__+': '+str(error))
  finally:
   if process and process.poll() is None:
    process.terminate()
    try:process.wait(timeout=35);report['processShutdown']='GRACEFUL_EXIT'
    except subprocess.TimeoutExpired:process.kill();process.wait();report.update(status='FAIL',processShutdown='FORCED_KILL')
+  if fixture:fixture.close()
   output=ROOT/'reports';output.mkdir(exist_ok=True)
   if private_dir and (private_dir/'native-startup.log').exists():
    text=(private_dir/'native-startup.log').read_text(errors='replace')
@@ -101,6 +132,7 @@ def run()->int:
      if '=' in line:
       value=line.split('=',1)[1]
       if len(value)>=8:text=text.replace(value,'[REDACTED_CI_CONFIGURATION]')
+   if fixture:text=text.replace(fixture.password,'[REDACTED_FIXTURE_PASSWORD]')
    (output/'native-startup-redacted.log').write_text(text)
   (output/'ci-native.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
   if private_dir:shutil.rmtree(private_dir)

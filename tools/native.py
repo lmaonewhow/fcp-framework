@@ -24,19 +24,19 @@ ROOT = Path(__file__).resolve().parents[1]
 PINS = json.loads((ROOT / 'upstreams.lock.json').read_text())['upstreams']
 BLOBS = {
  'backend': {
-  'pom.xml':'f8dab42db452ca2d03bff628c71110930e35857f',
+  'pom.xml':'cab4edaaef76e8b1c8df98fa53dc3ec6ea3b156b',
   'ruoyi-admin/src/test/java/org/dromara/test/TagUnitTest.java':'b50afa6cc18c390d538b82fa732e5aa54eef161f',
   'ruoyi-admin/src/main/java/org/dromara/DromaraApplication.java':'8ef33fe5f0cf8636f696d2510301a4012d809d8f',
-  'ruoyi-admin/src/main/resources/application.yml':'03cb2f987eea6ceeae71f491d625cf70dade1a5a',
+  'ruoyi-admin/src/main/resources/application.yml':'6c18132d95b2318c8b7ed90eeb280f412ff2fc3a',
   'ruoyi-admin/src/main/java/org/dromara/web/controller/IndexController.java':'cdcfed62ad9c3ca74afb479b15af377aefde7183',
   'ruoyi-admin/pom.xml':'9e9780464e786af432e990e9ae00df20986efd82',
-  'script/sql/ry_vue_5.X.sql':'ddc20876d7365998aef6390b182de4f1060ba8a8',
-  'script/sql/ry_workflow.sql':'bb3d76e68ac8a2306c04572fccffbf446343272b'},
+  'script/sql/ry_vue_5.X.sql':'3cd642b0be5916b2d2081b07282213de618aec0c',
+  'script/sql/ry_workflow.sql':'f8b37ecc50a45e87611e2b31f4115cb3661b0ac3'},
  'admin': {
   'src/utils/auth.ts':'db50ac93614d13cc3733ff36cc32950d66de82c7',
   'src/permission.ts':'fb60b07c6c5572212e00015af2b96a607cd5cd0e',
   'src/router/index.ts':'a6497dbe1fd24d368e3c2c345ec5376911273a01',
-  'package.json':'6e2bcd929ed9462fc07889dc59c30d25539868ab'},
+  'package.json':'32766149caf7848ef44955992728de9923430b58'},
  'teacher': {
   'src/locales/langs/en-us.ts':'3928cbae3fdb3b6bc2a723fc6d492f081d27feed',
   'src/locales/langs/zh-cn.ts':'449a839c10724474f43b4268c21057c00d20db84',
@@ -232,11 +232,14 @@ def redact_auth_failure_log(backend: Path) -> None:
 
 def invalidate_deleted_auth_cache(backend: Path) -> None:
     path=backend/'ruoyi-common/ruoyi-common-satoken/src/main/java/org/dromara/common/satoken/core/dao/PlusSaTokenDao.java'
-    if sha(path.read_bytes())!='174ce6dc2edaffe9ce2416664b80782930acb38ffb967ea666071cf802466c2a':
+    if sha(path.read_bytes()) not in {'174ce6dc2edaffe9ce2416664b80782930acb38ffb967ea666071cf802466c2a',
+                                      '8f11489dbbd3ac05970376115014aade478eb0875d5b82d93a5daf527d3ab318'}:
         raise BuildError('Session DAO pinned preimage changed')
     text=path.read_text(encoding='utf-8')
     for method in ['delete','deleteObject']:
         before='    public void '+method+'(String key) {\n        RedisUtils.deleteObject(key);\n    }'
+        if before not in text:
+            before='    public void '+method+'(String key) {\n        if (RedisUtils.deleteObject(key)) {\n            CAFFEINE.invalidate(key);\n        }\n    }'
         after='    public void '+method+'(String key) {\n        try {\n            RedisUtils.deleteObject(key);\n        } finally {\n            CAFFEINE.invalidate(key);\n        }\n    }'
         text=replace_once(text,before,after)
     path.write_bytes(text.encode('utf-8'))
@@ -249,7 +252,7 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
         for path,blob in BLOBS[name].items(): check_blob(project/path,blob)
     redact_auth_failure_log(backend)
     invalidate_deleted_auth_cache(backend)
-    apply_compatibility_patch(admin,ROOT/'integration/plus-ui/compat',PINS['admin']['commit'])
+    apply_compatibility_patch(admin,ROOT/'integration/plus-ui/compat-5.6',PINS['admin']['commit'])
     java=backend/'ruoyi-admin/src/main/java'
     for tree in ['core','business','host']:
         copy_files(ROOT/tree/'src/main/java',java)
@@ -270,7 +273,7 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
          'return "redirect:/admin/";')
     for name,project,overlay in [('admin',admin,'plus-ui'),('teacher',teacher,'soybean')]:
         copy_files(ROOT/f'integration/{overlay}/src', project/'src')
-        for file in ['session.ts','session-sync.ts','env.d.ts']:
+        for file in ['session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue']:
             target=project/'src/fcp'/file
             if target.exists(): raise BuildError('FCP session module already present')
             target.parent.mkdir(parents=True,exist_ok=True)
@@ -296,25 +299,25 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
                   "export const localStg = bridgeStorage(createStorage<StorageType.Local>('local', storagePrefix));")
     storage.write_text(s,encoding='utf-8')
     edit(teacher/'src/service/api/route.ts',"url: '/system/menu/getRouters'","url: '/fcp/ui/soybean-routes'")
-    for language, labels in [('en-us', ('Evaluation', 'Student evaluation')),
-                             ('zh-cn', ('评价管理', '学生评价'))]:
+    for language, labels in [('en-us', ('School', 'Student evaluation', 'Data ingestion')),
+                             ('zh-cn', ('学校业务', '学生评价', '数据接入'))]:
         add_school_locale(teacher/'src/locales/langs'/f'{language}.ts', *labels)
     common=f"VITE_FCP_BUILD_ID={build_id}\nVITE_APP_CLIENT_ID='{env['FCP_CLIENT_ID']}'\nVITE_APP_RSA_PUBLIC_KEY='{env['FCP_REQUEST_PUBLIC_KEY']}'\nVITE_APP_RSA_PRIVATE_KEY='{env['FCP_RESPONSE_PRIVATE_KEY']}'\n"
     (admin/'.env.production.local').write_text(common+"VITE_APP_CONTEXT_PATH=/admin/\nVITE_APP_BASE_API=\nVITE_APP_ENCRYPT=true\nVITE_APP_SSE=true\n",encoding='utf-8')
     (teacher/'.env.prod.local').write_text(common+"VITE_BASE_URL=/teacher/\nVITE_APP_BASE_API=\nVITE_SERVICE_BASE_URL=\nVITE_APP_ENCRYPT=Y\nVITE_ROUTE_HOME=fcp_school\nVITE_AUTH_ROUTE_MODE=dynamic\nVITE_HTTP_PROXY=N\nVITE_AUTOMATICALLY_DETECT_UPDATE=N\n",encoding='utf-8')
     # Never copy the reference HTTP server or mock UI. Verify classpath resources against this marker later.
-    manifest={'kind':'native-source-assembly','packageVersion':'0.5.0-dev.1','pins':PINS,
+    manifest={'kind':'native-source-assembly','packageVersion':'0.6.0-dev.1','pins':PINS,
               'runtimeEntry':'org.dromara.DromaraApplication','ui':['/admin/','/teacher/'],
               'buildId':build_id,'sourceAssembly':True,'realHostVerified':False}
     (resources/'fcp/native-assembly.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
     return manifest
 
-def add_school_locale(path: Path, parent_label: str, school_label: str) -> None:
+def add_school_locale(path: Path, parent_label: str, school_label: str, ingestion_label: str='Data ingestion') -> None:
     """Keep generated FCP route keys covered by Soybean's typed locale maps."""
     if re.search(r'^\s*fcp(?:_school)?:', path.read_text(encoding='utf-8'), re.MULTILINE):
         raise BuildError('FCP route locale already exists; refusing duplicate adaptation')
     edit(path, '  route: {\n',
-         "  route: {\n    fcp: "+repr(parent_label)+",\n    fcp_school: "+repr(school_label)+",\n")
+         "  route: {\n    fcp: "+repr(parent_label)+",\n    fcp_school: "+repr(school_label)+",\n    fcp_ingestion: "+repr(ingestion_label)+",\n")
 
 def install_frontend(project: Path, name: str, resolve_admin_lock: bool, admin_lock: Path|None=None) -> str:
     if name=='teacher':

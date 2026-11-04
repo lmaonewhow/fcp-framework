@@ -8,8 +8,10 @@ public final class MigrationRegression {
     static void check(boolean value,String name){if(!value)throw new AssertionError(name);count++;System.out.println("PASS "+name);}
     static void reject(String sql,String name){try{Migrations.statements(sql);throw new AssertionError(name);}catch(IllegalArgumentException expected){check(true,name);}}
     public static void main(String[] args)throws Exception{
-        var scripts=Migrations.load(Path.of(args[0]));check(scripts.size()==3,"all three locked migration files verified");
+        var scripts=Migrations.load(Path.of(args[0]));check(scripts.size()==4,"all four locked migration files verified");
         check(scripts.get(0).statements().isEmpty()&&scripts.get(1).statements().isEmpty(),"baseline native grants cannot execute through incremental runner");
+        check(scripts.get(3).statements().isEmpty(),"ingestion native grants cannot execute through the DDL-only runner");
+        reject("INSERT INTO sys_role_menu(role_id,menu_id) VALUES(1,1);","unreviewed native grants rejected by incremental parser");
         check(scripts.get(2).statements().size()==2,"persistent state migration has two reviewed DDL statements");
         check(Migrations.statements("-- header\n CREATE TABLE fcp_x (id INT, note VARCHAR(50) DEFAULT 'a;b'); #tail\n").size()==1,"quoted semicolon and SQL comments handled");
         check(Migrations.statements("CREATE TABLE fcp_x (s VARCHAR(40) DEFAULT 'a'';b'); CREATE TABLE fcp_y (id INT);").size()==2,"escaped SQL quote preserves statement boundary");

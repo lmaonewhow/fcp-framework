@@ -2,7 +2,7 @@
 from __future__ import annotations
 import ipaddress, json, os, re, urllib.request, urllib.error, urllib.parse
 
-PIN='64100cf1ffaeec78e36344d4617f6cb828ef093f'
+PIN='8136a0191a2258c0e1b36a8146a1c5ebc070c139'
 class NoRedirect(urllib.request.HTTPRedirectHandler):
  def redirect_request(self,req,fp,code,msg,headers,newurl):
   # Test credentials must never follow an unexpected login/proxy redirect.
@@ -47,9 +47,9 @@ class NativeClient:
   return self.request('/fcp/school/evaluation/'+operation,envelope(snapshot,params))
  def evidence(self):
   value=self.data('/fcp/school/host-evidence')
-  if value.get('implementation')!='ruoyi-native-host-0.5.0-dev.1' or value.get('backendCommit')!=PIN:
+  if value.get('implementation')!='ruoyi-native-host-0.6.0-dev.1' or value.get('backendCommit')!=PIN:
    raise RuntimeError('This is not the expected native RuoYi integration')
-  if not value.get('springBoot','').startswith('3.4.') or value.get('database')!='MySQL':
+  if not value.get('springBoot','').startswith('3.5.') or value.get('database')!='MySQL':
    raise RuntimeError('Native Spring/MySQL evidence mismatch')
   if not re.fullmatch('[a-f0-9]{32}',value.get('buildId','')): raise RuntimeError('Native build ID is missing')
   expected=os.environ.get('FCP_ACCEPTANCE_DATABASE','')
