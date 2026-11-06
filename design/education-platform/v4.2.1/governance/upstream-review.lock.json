@@ -1,0 +1,10 @@
+{
+  "repository": "cursor/plugins",
+  "path": "pstack",
+  "reviewed_version": "0.15.36",
+  "commit": "c742dd61706fbacc1b95f1a20b7b988cf096ce6c",
+  "source_kind": "fixed prior reviewed upstream",
+  "installed_or_executed_here": false,
+  "claim_latest": false,
+  "local_skills": "independently authored project constraints"
+}

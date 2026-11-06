@@ -1,0 +1,49 @@
+{
+  "format": "education-release-manifest-v2",
+  "artifact_kind": "NOT_BUILT",
+  "source_commit": "REQUIRED_FROM_ACTUAL_SOURCE_CHECKOUT",
+  "components": [
+    {
+      "name": "admin_ui",
+      "path": "REQUIRED_BUILD_OUTPUT/admin_ui.artifact",
+      "sha256": "REQUIRED_FROM_ACTUAL_BYTES"
+    },
+    {
+      "name": "backend",
+      "path": "REQUIRED_BUILD_OUTPUT/backend.artifact",
+      "sha256": "REQUIRED_FROM_ACTUAL_BYTES"
+    },
+    {
+      "name": "configuration",
+      "path": "REQUIRED_BUILD_OUTPUT/configuration.artifact",
+      "sha256": "REQUIRED_FROM_ACTUAL_BYTES"
+    },
+    {
+      "name": "database_schema",
+      "path": "REQUIRED_BUILD_OUTPUT/database_schema.artifact",
+      "sha256": "REQUIRED_FROM_ACTUAL_BYTES"
+    },
+    {
+      "name": "python_plugin",
+      "path": "REQUIRED_BUILD_OUTPUT/python_plugin.artifact",
+      "sha256": "REQUIRED_FROM_ACTUAL_BYTES"
+    },
+    {
+      "name": "rules",
+      "path": "REQUIRED_BUILD_OUTPUT/rules.artifact",
+      "sha256": "REQUIRED_FROM_ACTUAL_BYTES"
+    },
+    {
+      "name": "teacher_ui",
+      "path": "REQUIRED_BUILD_OUTPUT/teacher_ui.artifact",
+      "sha256": "REQUIRED_FROM_ACTUAL_BYTES"
+    }
+  ],
+  "compatibility": {
+    "api_contract": "REQUIRED",
+    "schema_min": "REQUIRED",
+    "schema_max": "REQUIRED",
+    "old_client_policy": "REQUIRED"
+  },
+  "notes": "This is a blocked template. Never replace statuses with PASS without native evidence."
+}

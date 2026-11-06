@@ -1,0 +1,172 @@
+[
+  {
+    "id": "S01",
+    "title": "MySQL binary与_bin排序规则",
+    "url": "https://dev.mysql.com/doc/refman/8.4/en/charset-binary-collations.html",
+    "supports": "PAD SPACE与NO PAD差异，使用前仍须目标补丁实测",
+    "access_scope": "本系列核查所用官方资料；固定pstack提交，其余在线文档可能更新",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S02",
+    "title": "MySQL时区支持",
+    "url": "https://dev.mysql.com/doc/refman/8.4/en/time-zone-support.html",
+    "supports": "会话时区与日期时间字段解释",
+    "access_scope": "本系列核查所用官方资料；固定pstack提交，其余在线文档可能更新",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S03",
+    "title": "MySQL锁定读",
+    "url": "https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html",
+    "supports": "共享/排他锁和事务提交边界",
+    "access_scope": "本系列核查所用官方资料；固定pstack提交，其余在线文档可能更新",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S04",
+    "title": "MySQL事务提交与回滚",
+    "url": "https://dev.mysql.com/doc/refman/8.4/en/commit.html",
+    "supports": "回滚范围，不把事务内拒绝事件当作已持久化审计",
+    "access_scope": "本系列核查所用官方资料；固定pstack提交，其余在线文档可能更新",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S05",
+    "title": "OpenTelemetry敏感数据处理",
+    "url": "https://opentelemetry.io/docs/security/handling-sensitive-data/",
+    "supports": "最小采集与脱敏；不自动保护所有外围日志",
+    "access_scope": "本系列核查所用官方资料；固定pstack提交，其余在线文档可能更新",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S06",
+    "title": "OpenTelemetry Collector可靠性",
+    "url": "https://opentelemetry.io/docs/collector/resiliency/",
+    "supports": "队列、重试及丢失边界",
+    "access_scope": "本系列核查所用官方资料；固定pstack提交，其余在线文档可能更新",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S07",
+    "title": "Google SRE金丝雀发布",
+    "url": "https://sre.google/workbook/canarying-releases/",
+    "supports": "代表性流量与控制组",
+    "access_scope": "本系列核查所用官方资料；固定pstack提交，其余在线文档可能更新",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S08",
+    "title": "Prometheus分位数与直方图",
+    "url": "https://prometheus.io/docs/practices/histograms/",
+    "supports": "分位数正确聚合",
+    "access_scope": "本系列核查所用官方资料；固定pstack提交，其余在线文档可能更新",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S09",
+    "title": "Argo Rollouts分析",
+    "url": "https://argoproj.github.io/argo-rollouts/features/analysis/",
+    "supports": "不确定、NaN、失败条件需要显式策略",
+    "access_scope": "本系列核查所用官方资料；固定pstack提交，其余在线文档可能更新",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S10",
+    "title": "pstack architect固定提交",
+    "url": "https://raw.githubusercontent.com/cursor/plugins/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/architect/SKILL.md",
+    "supports": "固定审阅版本，明确人工检查点，不声称最新或已执行",
+    "access_scope": "本系列核查所用官方资料；固定pstack提交，其余在线文档可能更新",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S11",
+    "title": "MySQL原子DDL",
+    "url": "https://dev.mysql.com/doc/refman/8.4/en/atomic-ddl.html",
+    "supports": "原子DDL与整体业务迁移回滚的区别",
+    "access_scope": "本系列核查所用官方资料；固定pstack提交，其余在线文档可能更新",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S12",
+    "title": "MySQL外键约束",
+    "url": "https://dev.mysql.com/doc/refman/8.4/en/create-table-foreign-keys.html",
+    "supports": "引用索引、类型及约束要求",
+    "access_scope": "本系列核查所用官方资料；固定pstack提交，其余在线文档可能更新",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S13",
+    "title": "Python文本IO",
+    "url": "https://docs.python.org/3.13/library/io.html",
+    "supports": "默认编码与显式编码",
+    "access_scope": "本系列核查所用官方资料；固定pstack提交，其余在线文档可能更新",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S14",
+    "title": "MySQL DECIMAL有效精度与小数位",
+    "url": "https://dev.mysql.com/doc/refman/8.4/en/precision-math-decimal-characteristics.html",
+    "supports": "M为1至65，D为0至30且不超过M；静态校验不能代替原生执行",
+    "access_scope": "本轮通过官方网页核对；未执行原生MySQL",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S15",
+    "title": "Python datetime解析支持的ISO形式",
+    "url": "https://docs.python.org/3.13/library/datetime.html",
+    "supports": "通用fromisoformat接受的形式宽于本项目固定UTC契约",
+    "access_scope": "本轮通过官方网页核对；未执行原生MySQL",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "S16",
+    "title": "Python整数与字符串转换限制",
+    "url": "https://docs.python.org/3.13/library/stdtypes.html#integer-string-conversion-length-limitation",
+    "supports": "长度过大转换可抛出ValueError，因此先验证内部ID长度",
+    "access_scope": "本轮通过官方网页核对；未执行原生MySQL",
+    "review_date": "2026-11-06"
+  },
+  {
+    "id": "F-S01",
+    "title": "MySQL字符串类型语法",
+    "url": "https://dev.mysql.com/doc/refman/8.4/en/string-type-syntax.html",
+    "review_date": "2026-11-06",
+    "access_scope": "官方文档或固定版本一手源码；不代表原生执行"
+  },
+  {
+    "id": "F-S02",
+    "title": "MySQL行大小限制",
+    "url": "https://dev.mysql.com/doc/refman/8.4/en/column-count-limit.html",
+    "review_date": "2026-11-06",
+    "access_scope": "官方文档或固定版本一手源码；不代表原生执行"
+  },
+  {
+    "id": "F-S03",
+    "title": "MySQL日期时间范围",
+    "url": "https://dev.mysql.com/doc/refman/8.4/en/datetime.html",
+    "review_date": "2026-11-06",
+    "access_scope": "官方文档或固定版本一手源码；不代表原生执行"
+  },
+  {
+    "id": "F-S04",
+    "title": "PyMySQL1.1.2错误分类源码",
+    "url": "https://raw.githubusercontent.com/PyMySQL/PyMySQL/v1.1.2/pymysql/err.py",
+    "review_date": "2026-11-06",
+    "access_scope": "官方文档或固定版本一手源码；不代表原生执行"
+  },
+  {
+    "id": "F-S05",
+    "title": "PyMySQL1.1.2游标源码",
+    "url": "https://raw.githubusercontent.com/PyMySQL/PyMySQL/v1.1.2/pymysql/cursors.py",
+    "review_date": "2026-11-06",
+    "access_scope": "官方文档或固定版本一手源码；不代表原生执行"
+  },
+  {
+    "id": "F-S06",
+    "title": "PyMySQL1.1.2连接及结果源码",
+    "url": "https://raw.githubusercontent.com/PyMySQL/PyMySQL/v1.1.2/pymysql/connections.py",
+    "review_date": "2026-11-06",
+    "access_scope": "官方文档或固定版本一手源码；不代表原生执行"
+  }
+]

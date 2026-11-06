@@ -1,0 +1,19 @@
+# This is a CI CONTRACT, not an installable GitHub Actions workflow.
+# Adapt in the actual repository with approved runner images/dependency lockfiles.
+format: education-protected-ci-contract-v1
+status: NOT_INSTALLED
+local:
+  environments: [linux, windows-native]
+  python: "approved 3.11+ exact patch"
+  node: "approved 20+ exact patch"
+  command: "python tools/run_checks.py --output evidence/local"
+native:
+  database: "approved exact MySQL 8.4 patch"
+  credentials: "isolated test account, never production secrets"
+  prerequisite: "approved PyMySQL dependency lock and trusted FCP build"
+  checks_source: "governance/project-policy.json"
+  output_kind: "NATIVE_PRODUCT_ACCEPTANCE"
+release:
+  requires_independent_review: true
+  allow_missing_or_skipped_evidence: false
+  actual_deploy_command: "NOT_DEFINED; requires project deployment authorization"

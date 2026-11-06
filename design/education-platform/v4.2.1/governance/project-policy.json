@@ -1,0 +1,58 @@
+{
+  "format": "education-project-policy-v4.2",
+  "production_status": "BLOCKED",
+  "required_components": [
+    "admin_ui",
+    "backend",
+    "configuration",
+    "database_schema",
+    "python_plugin",
+    "rules",
+    "teacher_ui"
+  ],
+  "required_native_checks": [
+    "mysql_schema",
+    "tenant_isolation",
+    "native_fcp",
+    "dual_ui",
+    "migration_upgrade",
+    "restore",
+    "load",
+    "windows_encoding",
+    "authorization_fence",
+    "cross_version_idempotency",
+    "observability_failure",
+    "gray_routing",
+    "gray_bad_data",
+    "async_stop",
+    "artifact_compatibility",
+    "frontend_old_assets"
+  ],
+  "checkpoints": [
+    "tenant_identity",
+    "permission_and_epoch",
+    "destructive_migration",
+    "official_rule_change",
+    "external_side_effect",
+    "production_release"
+  ],
+  "local_command": "python tools/run_checks.py",
+  "native_mysql_opt_in": true,
+  "source_of_truth": "database/model.json",
+  "skill_status": "PROJECT_DRAFT_NOT_INSTALLED",
+  "sw_offline_writes": false,
+  "evidence_authenticity": "protected CI + independent approval; JSON completeness alone is insufficient",
+  "local_result_identity": [
+    "run_id",
+    "completed",
+    "exit_code",
+    "tested_source_tree_sha256",
+    "unique_python_test_ids_sha256"
+  ],
+  "school_grant_intersection": "tenant grant AND exact school grant",
+  "native_residuals": [
+    "account binding interval/current-pointer transaction",
+    "authenticated school ownership resolver",
+    "real async task lease and fencing"
+  ]
+}

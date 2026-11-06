@@ -1,0 +1,137 @@
+[
+  {
+    "table": "ed_identity_relation",
+    "columns": [
+      "tenant_id",
+      "subject_person_id"
+    ],
+    "action": "REMOVE",
+    "reason": "prefix covered; catalogue workload requires no extra shorter-id ordering"
+  },
+  {
+    "table": "ed_education_term",
+    "columns": [
+      "tenant_id",
+      "school_id"
+    ],
+    "action": "REMOVE",
+    "reason": "prefix covered; catalogue workload requires no extra shorter-id ordering"
+  },
+  {
+    "table": "ed_education_class",
+    "columns": [
+      "tenant_id",
+      "school_id"
+    ],
+    "action": "REMOVE",
+    "reason": "prefix covered; catalogue workload requires no extra shorter-id ordering"
+  },
+  {
+    "table": "ed_education_enrollment",
+    "columns": [
+      "tenant_id",
+      "school_id"
+    ],
+    "action": "REMOVE",
+    "reason": "prefix covered; catalogue workload requires no extra shorter-id ordering"
+  },
+  {
+    "table": "ed_education_membership",
+    "columns": [
+      "tenant_id",
+      "enrollment_id"
+    ],
+    "action": "REMOVE",
+    "reason": "prefix covered; catalogue workload requires no extra shorter-id ordering"
+  },
+  {
+    "table": "ed_education_membership",
+    "columns": [
+      "tenant_id",
+      "class_id"
+    ],
+    "action": "REMOVE",
+    "reason": "prefix covered; catalogue workload requires no extra shorter-id ordering"
+  },
+  {
+    "table": "ed_evidence_binding",
+    "columns": [
+      "tenant_id",
+      "evidence_id"
+    ],
+    "action": "REMOVE",
+    "reason": "prefix covered; catalogue workload requires no extra shorter-id ordering"
+  },
+  {
+    "table": "ed_eval_indicator",
+    "columns": [
+      "tenant_id",
+      "rubric_id"
+    ],
+    "action": "REMOVE",
+    "reason": "prefix covered; catalogue workload requires no extra shorter-id ordering"
+  },
+  {
+    "table": "ed_eval_judgement",
+    "columns": [
+      "tenant_id",
+      "observation_id"
+    ],
+    "action": "REMOVE",
+    "reason": "prefix covered; catalogue workload requires no extra shorter-id ordering"
+  },
+  {
+    "table": "ed_duty_action",
+    "columns": [
+      "tenant_id",
+      "issue_id"
+    ],
+    "action": "REMOVE",
+    "reason": "prefix covered; catalogue workload requires no extra shorter-id ordering"
+  },
+  {
+    "table": "ed_workflow_task",
+    "columns": [
+      "tenant_id",
+      "case_id"
+    ],
+    "action": "REMOVE",
+    "reason": "prefix covered; catalogue workload requires no extra shorter-id ordering"
+  },
+  {
+    "table": "ed_workflow_action",
+    "columns": [
+      "tenant_id",
+      "case_id"
+    ],
+    "action": "REMOVE",
+    "reason": "prefix covered; catalogue workload requires no extra shorter-id ordering"
+  },
+  {
+    "table": "ed_integration_import_batch",
+    "columns": [
+      "tenant_id",
+      "source_id"
+    ],
+    "action": "REMOVE",
+    "reason": "prefix covered; catalogue workload requires no extra shorter-id ordering"
+  },
+  {
+    "table": "ed_integration_import_error",
+    "columns": [
+      "tenant_id",
+      "batch_id"
+    ],
+    "action": "REMOVE",
+    "reason": "prefix covered; catalogue workload requires no extra shorter-id ordering"
+  },
+  {
+    "table": "ed_reward_entry",
+    "columns": [
+      "tenant_id",
+      "account_id"
+    ],
+    "action": "REMOVE",
+    "reason": "new explicit UNIQUE(tenant_id,account_id,id) also supports the id cursor"
+  }
+]
