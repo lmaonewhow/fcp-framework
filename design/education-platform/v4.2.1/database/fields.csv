@@ -1,0 +1,549 @@
+﻿table,owner,column,type,nullable,reference,enforcement,description
+ed_core_tenant_binding,core,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_core_tenant_binding,core,host_kind,VARCHAR(40),False,,,宿主适配器标识
+ed_core_tenant_binding,core,host_tenant_key,VARCHAR(100),False,,,宿主原始租户键
+ed_core_tenant_binding,core,timezone,VARCHAR(64),False,,,默认IANA时区
+ed_core_tenant_binding,core,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：ACTIVE/FROZEN
+ed_core_tenant_binding,core,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_core_tenant_binding,core,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_identity_person,identity,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_identity_person,identity,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_identity_person,identity,display_name,VARCHAR(128) COLLATE utf8mb4_0900_ai_ci,False,,,姓名或获准显示名称；人类检索大小写/重音不敏感，绝不作身份键
+ed_identity_person,identity,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：ACTIVE/LEFT/RESTRICTED
+ed_identity_person,identity,private_ref,VARCHAR(128),True,,,受限隐私存储引用；不存身份证明文
+ed_identity_person,identity,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_identity_person,identity,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_identity_account_link,identity,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_identity_account_link,identity,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_identity_account_link,identity,person_id,BIGINT UNSIGNED,False,ed_identity_person,COMPOSITE_FK,关联自然人
+ed_identity_account_link,identity,host_user_key,VARCHAR(100),False,,,宿主账户原始ID
+ed_identity_account_link,identity,valid_from,DATETIME(6),False,,,关系生效时刻
+ed_identity_account_link,identity,valid_to,DATETIME(6),True,,,关系结束，不含该时点
+ed_identity_account_link,identity,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_identity_account_link,identity,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_identity_external_map,identity,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_identity_external_map,identity,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_identity_external_map,identity,person_id,BIGINT UNSIGNED,True,ed_identity_person,COMPOSITE_FK,确认后绑定的人
+ed_identity_external_map,identity,source_key,VARCHAR(64),False,,,经过授权的来源标识
+ed_identity_external_map,identity,object_type,VARCHAR(40),False,,,外部对象类型
+ed_identity_external_map,identity,external_key,VARCHAR(190),False,,,原始字符串标识，保留前导零
+ed_identity_external_map,identity,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：PENDING/CONFIRMED/CONFLICT
+ed_identity_external_map,identity,approved_by,VARCHAR(100),True,,,审核宿主主体ID
+ed_identity_external_map,identity,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_identity_external_map,identity,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_identity_relation,identity,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_identity_relation,identity,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_identity_relation,identity,subject_person_id,BIGINT UNSIGNED,False,ed_identity_person,COMPOSITE_FK,学生
+ed_identity_relation,identity,related_person_id,BIGINT UNSIGNED,False,ed_identity_person,COMPOSITE_FK,监护人
+ed_identity_relation,identity,relation_kind,VARCHAR(40),False,,,关系类型
+ed_identity_relation,identity,valid_from,DATETIME(6),False,,,生效时刻
+ed_identity_relation,identity,valid_to,DATETIME(6),True,,,结束时刻
+ed_identity_relation,identity,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：PENDING/VERIFIED/REVOKED
+ed_identity_relation,identity,purpose_scope,VARCHAR(100),False,,,经批准的权限用途配置键
+ed_identity_relation,identity,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_identity_relation,identity,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_education_org_unit,education,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_education_org_unit,education,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_education_org_unit,education,parent_id,BIGINT UNSIGNED,True,ed_education_org_unit,COMPOSITE_FK,父组织
+ed_education_org_unit,education,org_code,VARCHAR(64),False,,,租户内稳定编码
+ed_education_org_unit,education,org_kind,VARCHAR(32),False,,,SCHOOL/CAMPUS/DEPARTMENT
+ed_education_org_unit,education,name,VARCHAR(190) COLLATE utf8mb4_0900_ai_ci,False,,,组织名称；人类检索大小写/重音不敏感，绝不作身份键
+ed_education_org_unit,education,valid_from,DATETIME(6),False,,,有效起点
+ed_education_org_unit,education,valid_to,DATETIME(6),True,,,撤并时刻
+ed_education_org_unit,education,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_education_org_unit,education,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_education_term,education,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_education_term,education,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_education_term,education,school_id,BIGINT UNSIGNED,False,ed_education_org_unit,COMPOSITE_FK,所属学校
+ed_education_term,education,term_code,VARCHAR(64),False,,,校内学期编码
+ed_education_term,education,starts_on,DATE,False,,,业务开始日期
+ed_education_term,education,ends_on,DATE,False,,,业务结束日期，含当天
+ed_education_term,education,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：DRAFT/OPEN/FROZEN/ARCHIVED
+ed_education_term,education,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_education_term,education,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_education_class,education,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_education_class,education,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_education_class,education,school_id,BIGINT UNSIGNED,False,ed_education_org_unit,COMPOSITE_FK,所属学校
+ed_education_class,education,term_id,BIGINT UNSIGNED,False,ed_education_term,COMPOSITE_FK,学期
+ed_education_class,education,class_code,VARCHAR(64),False,,,校内学期班级编码
+ed_education_class,education,name,VARCHAR(128) COLLATE utf8mb4_0900_ai_ci,False,,,展示名称；人类检索大小写/重音不敏感，绝不作身份键
+ed_education_class,education,grade_code,VARCHAR(40),False,,,学段年级口径
+ed_education_class,education,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_education_class,education,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_education_enrollment,education,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_education_enrollment,education,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_education_enrollment,education,person_id,BIGINT UNSIGNED,False,ed_identity_person,OWNER_API_CHECK_AND_RECONCILIATION,自然人，跨领域逻辑引用
+ed_education_enrollment,education,school_id,BIGINT UNSIGNED,False,ed_education_org_unit,COMPOSITE_FK,学校
+ed_education_enrollment,education,student_code,VARCHAR(64),False,,,学号字符串，保留前导零
+ed_education_enrollment,education,admission_key,VARCHAR(64),False,,,经校方确定的学籍/入学周期键
+ed_education_enrollment,education,valid_from,DATETIME(6),False,,,在读生效
+ed_education_enrollment,education,valid_to,DATETIME(6),True,,,结束
+ed_education_enrollment,education,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：ACTIVE/TRANSFERRED/GRADUATED/SUSPENDED
+ed_education_enrollment,education,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_education_enrollment,education,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_education_membership,education,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_education_membership,education,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_education_membership,education,enrollment_id,BIGINT UNSIGNED,False,ed_education_enrollment,COMPOSITE_FK,学籍关系
+ed_education_membership,education,class_id,BIGINT UNSIGNED,False,ed_education_class,COMPOSITE_FK,所属班级
+ed_education_membership,education,valid_from,DATETIME(6),False,,,生效
+ed_education_membership,education,valid_to,DATETIME(6),True,,,结束
+ed_education_membership,education,change_reason,VARCHAR(190),False,,,转班/更正原因
+ed_education_membership,education,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_education_membership,education,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_education_membership,education,school_id,BIGINT UNSIGNED,False,ed_education_org_unit,COMPOSITE_FK,普通入班必须同校；跨校项目走独立关系模型
+ed_education_assignment,education,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_education_assignment,education,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_education_assignment,education,person_id,BIGINT UNSIGNED,False,ed_identity_person,OWNER_API_CHECK_AND_RECONCILIATION,教师自然人逻辑引用
+ed_education_assignment,education,class_id,BIGINT UNSIGNED,False,ed_education_class,COMPOSITE_FK,班级
+ed_education_assignment,education,subject_code,VARCHAR(64),False,,,学科编码
+ed_education_assignment,education,role_code,VARCHAR(40),False,,,TEACHER/SUBSTITUTE/HEAD
+ed_education_assignment,education,valid_from,DATETIME(6),False,,,授权开始
+ed_education_assignment,education,valid_to,DATETIME(6),True,,,授权结束
+ed_education_assignment,education,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_education_assignment,education,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_core_access_epoch,core,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_core_access_epoch,core,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_core_access_epoch,core,subject_key,VARCHAR(100),False,,,宿主主体
+ed_core_access_epoch,core,epoch,BIGINT UNSIGNED,False,,,撤权/角色变化版本
+ed_core_access_epoch,core,changed_at,DATETIME(6),False,,,最后权限变化时刻
+ed_core_access_epoch,core,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_core_access_epoch,core,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_core_access_epoch,core,enabled,TINYINT UNSIGNED,False,,,当前主体可用
+ed_evidence_object,evidence,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_evidence_object,evidence,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_evidence_object,evidence,object_key,VARCHAR(190),False,,,对象存储内部键；不能暴露为永久公网地址
+ed_evidence_object,evidence,sha256,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,内容校验值
+ed_evidence_object,evidence,byte_size,BIGINT UNSIGNED,False,,,字节数
+ed_evidence_object,evidence,media_type,VARCHAR(100),False,,,内容类型
+ed_evidence_object,evidence,classification,VARCHAR(32),False,,,一般/敏感/严格受限
+ed_evidence_object,evidence,retention_policy,VARCHAR(100),False,,,保留规则版本键
+ed_evidence_object,evidence,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：QUARANTINED/READY/BLOCKED/PURGED
+ed_evidence_object,evidence,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_evidence_object,evidence,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_evidence_binding,evidence,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_evidence_binding,evidence,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_evidence_binding,evidence,evidence_id,BIGINT UNSIGNED,False,ed_evidence_object,COMPOSITE_FK,附件
+ed_evidence_binding,evidence,owner_domain,VARCHAR(64),False,,,事实所属域
+ed_evidence_binding,evidence,object_type,VARCHAR(64),False,,,对象类型
+ed_evidence_binding,evidence,object_id,VARCHAR(190),False,,,领域对象ID字符串；对象引用协议ref-v1，最多190字符
+ed_evidence_binding,evidence,purpose,VARCHAR(128),False,,,收集与复用目的
+ed_evidence_binding,evidence,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_core_command_request,core,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_core_command_request,core,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_core_command_request,core,actor_key,VARCHAR(100),False,,,可信主体
+ed_core_command_request,core,effect_namespace,VARCHAR(100),False,,,稳定正式效果命名空间，不包含代码或协议版本
+ed_core_command_request,core,intent_id,VARCHAR(100),False,,,业务意图ID，重试/跨版本/离线重放保持相同
+ed_core_command_request,core,fingerprint,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,含作用域和参数的规范化摘要
+ed_core_command_request,core,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：ACCEPTED/COMMITTED/REJECTED
+ed_core_command_request,core,result_json,JSON,True,,,最小必要响应，不存令牌
+ed_core_command_request,core,expires_at,DATETIME(6),True,,,保留策略约定的过期时刻
+ed_core_command_request,core,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_core_command_request,core,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_core_command_request,core,contract_version,VARCHAR(40),False,,,传输契约版本，仅诊断
+ed_core_command_request,core,normalization_version,VARCHAR(40),False,,,规范意图格式；同一命名空间必须兼容
+ed_core_audit_event,core,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_core_audit_event,core,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_core_audit_event,core,actor_key,VARCHAR(100),False,,,可信主体
+ed_core_audit_event,core,action_key,VARCHAR(100),False,,,行为类型
+ed_core_audit_event,core,owner_domain,VARCHAR(64),False,,,对象领域
+ed_core_audit_event,core,object_id,VARCHAR(190),False,,,对象标识；对象引用协议ref-v1，最多190字符
+ed_core_audit_event,core,trace_id,VARCHAR(64),True,,,可空的诊断Trace关联；正式审计不能依赖采样Trace存续
+ed_core_audit_event,core,changes_json,JSON,False,,,受控字段变化摘要；禁止原样写入敏感请求
+ed_core_audit_event,core,occurred_at,DATETIME(6),False,,,事件发生UTC时刻
+ed_core_audit_event,core,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_core_audit_event,core,object_type,VARCHAR(64),False,,,ref-v1实体类型
+ed_core_audit_event,core,operation_id,VARCHAR(100),False,,,稳定业务操作ID
+ed_core_audit_event,core,request_attempt_id,VARCHAR(100),False,,,本次请求尝试
+ed_core_audit_event,core,result,VARCHAR(16),False,,,正式事务只记录COMMITTED
+ed_core_audit_event,core,manifest_digest,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,实际执行发布清单摘要
+ed_core_audit_event,core,config_revision,VARCHAR(64),False,,,实际配置修订
+ed_core_audit_event,core,rule_revision,VARCHAR(64),False,,,实际规则修订
+ed_core_audit_event,core,audit_schema_version,VARCHAR(16),False,,,审计事件结构版本，当前audit-v2
+ed_core_outbox,core,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_core_outbox,core,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_core_outbox,core,event_id,VARCHAR(64),False,,,全局事件标识
+ed_core_outbox,core,aggregate_type,VARCHAR(64),False,,,聚合类型
+ed_core_outbox,core,aggregate_id,VARCHAR(190),False,,,聚合标识；对象引用协议ref-v1，最多190字符
+ed_core_outbox,core,aggregate_seq,BIGINT UNSIGNED,False,,,聚合事件顺序
+ed_core_outbox,core,event_type,VARCHAR(100),False,,,含主版本的事件类型
+ed_core_outbox,core,payload,JSON,False,,,最小事件数据，禁止默认携带全档案
+ed_core_outbox,core,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：NEW/LEASED/SENT/DEAD
+ed_core_outbox,core,available_at,DATETIME(6),False,,,下一可处理时刻
+ed_core_outbox,core,lease_until,DATETIME(6),True,,,租约到期
+ed_core_outbox,core,attempts,INT UNSIGNED,False,,,重试次数
+ed_core_outbox,core,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_core_outbox,core,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_core_inbox,core,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_core_inbox,core,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_core_inbox,core,effect_namespace,VARCHAR(100),False,,,稳定效果类别；重建投影可使用隔离generation命名空间
+ed_core_inbox,core,event_id,VARCHAR(64),False,,,事件标识
+ed_core_inbox,core,payload_hash,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,载荷摘要
+ed_core_inbox,core,processed_at,DATETIME(6),False,,,本地提交时刻
+ed_core_inbox,core,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_core_inbox,core,effect_key,VARCHAR(128),False,,,业务效果键；事件重新封装也保持不变
+ed_core_inbox,core,implementation_version,VARCHAR(40),False,,,消费者实现版本，不能进入正式去重键
+ed_config_release,config,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_config_release,config,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_config_release,config,config_kind,VARCHAR(40),False,,,RULE/UI/FORM/REPORT
+ed_config_release,config,config_key,VARCHAR(100),False,,,配置命名空间
+ed_config_release,config,version_no,INT UNSIGNED,False,,,显式版本
+ed_config_release,config,body_json,JSON,False,,,声明式配置；不可存任意SQL/脚本
+ed_config_release,config,content_hash,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,规范化内容摘要
+ed_config_release,config,approved_by,VARCHAR(100),False,,,发布审批人
+ed_config_release,config,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_config_binding,config,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_config_binding,config,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_config_binding,config,scope_kind,VARCHAR(40),False,,,SCHOOL/ROLE/ENTRY
+ed_config_binding,config,scope_key,VARCHAR(100),False,,,作用域键
+ed_config_binding,config,slot_key,VARCHAR(100),False,,,能力插槽/界面位置
+ed_config_binding,config,release_id,BIGINT UNSIGNED,False,ed_config_release,COMPOSITE_FK,当前选用版本
+ed_config_binding,config,effective_from,DATETIME(6),False,,,生效时间
+ed_config_binding,config,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_config_binding,config,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_config_extension_schema,config,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_config_extension_schema,config,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_config_extension_schema,config,owner_domain,VARCHAR(64),False,,,归属业务域
+ed_config_extension_schema,config,entity_kind,VARCHAR(64),False,,,实体类型
+ed_config_extension_schema,config,version_no,INT UNSIGNED,False,,,模式版本
+ed_config_extension_schema,config,schema_json,JSON,False,,,JSON Schema子集及分类标签
+ed_config_extension_schema,config,content_hash,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,摘要
+ed_config_extension_schema,config,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_config_extension_schema,config,scope_kind,VARCHAR(16),False,,,TENANT或SCHOOL
+ed_config_extension_schema,config,scope_key,VARCHAR(100),False,,,TENANT时可信tenant_id；SCHOOL时校ID十进制字符串，scope-v1解析
+ed_config_extension_schema,config,schema_key,VARCHAR(64),False,,,稳定模式族标识
+ed_roster_attendance,roster,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_roster_attendance,roster,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_roster_attendance,roster,enrollment_id,BIGINT UNSIGNED,False,ed_education_enrollment,OWNER_API_CHECK_AND_RECONCILIATION,入学关系逻辑引用
+ed_roster_attendance,roster,class_id,BIGINT UNSIGNED,False,ed_education_class,OWNER_API_CHECK_AND_RECONCILIATION,发生时班级逻辑引用
+ed_roster_attendance,roster,occurred_on,DATE,False,,,校方业务时区的考勤日期
+ed_roster_attendance,roster,session_key,VARCHAR(64),False,,,默认DAY；未来上午/课程/节次
+ed_roster_attendance,roster,attendance_status,VARCHAR(32),False,,,PRESENT/LATE/ABSENT/LEAVE/UNVERIFIED
+ed_roster_attendance,roster,source_key,VARCHAR(190),False,,,来源及外部键摘要
+ed_roster_attendance,roster,recorded_at,DATETIME(6),False,,,记录时刻
+ed_roster_attendance,roster,extensions,JSON,True,,,有版本约束的可选属性
+ed_roster_attendance,roster,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_roster_attendance,roster,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_roster_attendance,roster,extensions_schema_id,BIGINT UNSIGNED,True,ed_config_extension_schema,OWNER_API_CHECK_AND_RECONCILIATION,extensions精确绑定的已发布模式ID
+ed_eval_rubric,evaluation,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_eval_rubric,evaluation,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_eval_rubric,evaluation,rubric_key,VARCHAR(100),False,,,量规标识
+ed_eval_rubric,evaluation,version_no,INT UNSIGNED,False,,,版本
+ed_eval_rubric,evaluation,school_id,BIGINT UNSIGNED,False,ed_education_org_unit,OWNER_API_CHECK_AND_RECONCILIATION,已解析的学校组织ID，校本量规独立版本
+ed_eval_rubric,evaluation,rule_json,JSON,False,,,受控表达式、观察状态和分值含义
+ed_eval_rubric,evaluation,content_hash,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,摘要
+ed_eval_rubric,evaluation,approved_by,VARCHAR(100),False,,,校方审批主体
+ed_eval_rubric,evaluation,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_eval_indicator,evaluation,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_eval_indicator,evaluation,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_eval_indicator,evaluation,rubric_id,BIGINT UNSIGNED,False,ed_eval_rubric,COMPOSITE_FK,量规版本
+ed_eval_indicator,evaluation,indicator_code,VARCHAR(100),False,,,版本内指标编码
+ed_eval_indicator,evaluation,parent_code,VARCHAR(100),True,,,父指标编码
+ed_eval_indicator,evaluation,label,VARCHAR(190) COLLATE utf8mb4_0900_ai_ci,False,,,显示名称；人类检索大小写/重音不敏感，绝不作身份键
+ed_eval_indicator,evaluation,value_kind,VARCHAR(40),False,,,DECIMAL/CATEGORY/OBSERVATION
+ed_eval_indicator,evaluation,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_eval_observation,evaluation,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_eval_observation,evaluation,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_eval_observation,evaluation,subject_kind,VARCHAR(32),False,,,PERSON/CLASS，不得互相混算
+ed_eval_observation,evaluation,subject_id,BIGINT UNSIGNED,False,,,subject_kind决定PERSON或CLASS；组合由subject-v1解析
+ed_eval_observation,evaluation,class_id,BIGINT UNSIGNED,True,ed_education_class,OWNER_API_CHECK_AND_RECONCILIATION,发生时学期班级实例ID；不可由标签反查；无班级的合法记录为空，绝不伪造班级
+ed_eval_observation,evaluation,actor_key,VARCHAR(100),False,,,教师/观察者
+ed_eval_observation,evaluation,occurred_at,DATETIME(6),False,,,发生时刻
+ed_eval_observation,evaluation,observation_state,VARCHAR(32),False,,,OBSERVED/NOT_OBSERVED/ABSENT/EXEMPT
+ed_eval_observation,evaluation,summary,TEXT,False,,,最小事实描述，个人信息权限适用
+ed_eval_observation,evaluation,extensions,JSON,True,,,扩展字段值及对应schema版本
+ed_eval_observation,evaluation,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_eval_observation,evaluation,class_label_snapshot,VARCHAR(190),True,,,发生时展示名，不能作为连接键
+ed_eval_observation,evaluation,extensions_schema_id,BIGINT UNSIGNED,True,ed_config_extension_schema,OWNER_API_CHECK_AND_RECONCILIATION,extensions精确绑定的已发布模式ID
+ed_eval_judgement,evaluation,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_eval_judgement,evaluation,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_eval_judgement,evaluation,observation_id,BIGINT UNSIGNED,False,ed_eval_observation,COMPOSITE_FK,对应观察
+ed_eval_judgement,evaluation,indicator_id,BIGINT UNSIGNED,False,ed_eval_indicator,COMPOSITE_FK,量规版本内指标
+ed_eval_judgement,evaluation,score,"DECIMAL(12,4)",True,,,仅适用分值型评价，可空
+ed_eval_judgement,evaluation,category,VARCHAR(64),True,,,类别型结果
+ed_eval_judgement,evaluation,confirmed_by,VARCHAR(100),False,,,有权确认主体
+ed_eval_judgement,evaluation,confirmed_at,DATETIME(6),False,,,确认时间
+ed_eval_judgement,evaluation,supersedes_id,BIGINT UNSIGNED,True,ed_eval_judgement,COMPOSITE_FK,更正所替代的判定
+ed_eval_judgement,evaluation,correction_reason,VARCHAR(190),True,,,更正说明
+ed_eval_judgement,evaluation,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_eval_judgement,evaluation,series_id,BIGINT UNSIGNED,False,ed_eval_judgement_series,COMPOSITE_FK,所属判定系列
+ed_eval_judgement,evaluation,revision_no,INT UNSIGNED,False,,,系列内从1递增；在系列锁内分配
+ed_duty_issue,duty,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_duty_issue,duty,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_duty_issue,duty,class_id,BIGINT UNSIGNED,False,ed_education_class,OWNER_API_CHECK_AND_RECONCILIATION,发生时班级实例ID
+ed_duty_issue,duty,issue_kind,VARCHAR(64),False,,,问题类别
+ed_duty_issue,duty,reporter_key,VARCHAR(100),False,,,登记人
+ed_duty_issue,duty,occurred_at,DATETIME(6),False,,,发生时间
+ed_duty_issue,duty,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：PENDING/ASSIGNED/RESOLVED/REVIEWED/DISPUTED/CLOSED
+ed_duty_issue,duty,duplicate_of,BIGINT UNSIGNED,True,ed_duty_issue,COMPOSITE_FK,重复问题关联
+ed_duty_issue,duty,summary,VARCHAR(512),False,,,最小描述
+ed_duty_issue,duty,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_duty_issue,duty,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_duty_issue,duty,class_label_snapshot,VARCHAR(190),False,,,发生时班名
+ed_duty_action,duty,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_duty_action,duty,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_duty_action,duty,issue_id,BIGINT UNSIGNED,False,ed_duty_issue,COMPOSITE_FK,值周事项
+ed_duty_action,duty,action_type,VARCHAR(40),False,,,ASSIGN/REMEDY/REVIEW/APPEAL/CLOSE
+ed_duty_action,duty,actor_key,VARCHAR(100),False,,,责任主体
+ed_duty_action,duty,result,VARCHAR(512),False,,,处理结论
+ed_duty_action,duty,acted_at,DATETIME(6),False,,,执行时刻
+ed_duty_action,duty,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_workflow_definition,workflow,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_workflow_definition,workflow,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_workflow_definition,workflow,workflow_key,VARCHAR(100),False,,,流程编码
+ed_workflow_definition,workflow,version_no,INT UNSIGNED,False,,,版本
+ed_workflow_definition,workflow,definition_json,JSON,False,,,受控状态机，禁止任意脚本
+ed_workflow_definition,workflow,content_hash,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,摘要
+ed_workflow_definition,workflow,approved_by,VARCHAR(100),False,,,审批主体
+ed_workflow_definition,workflow,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_workflow_case,workflow,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_workflow_case,workflow,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_workflow_case,workflow,definition_id,BIGINT UNSIGNED,False,ed_workflow_definition,COMPOSITE_FK,固定版本
+ed_workflow_case,workflow,owner_domain,VARCHAR(64),False,,,业务权威域
+ed_workflow_case,workflow,business_key,VARCHAR(100),False,,,业务对象或事项ID
+ed_workflow_case,workflow,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：OPEN/WAITING/COMPLETED/CANCELLED/UNCERTAIN
+ed_workflow_case,workflow,current_state,VARCHAR(64),False,,,当前合法状态
+ed_workflow_case,workflow,context_json,JSON,False,,,最小上下文；业务正式数据仍在领域表
+ed_workflow_case,workflow,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_workflow_case,workflow,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_workflow_task,workflow,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_workflow_task,workflow,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_workflow_task,workflow,case_id,BIGINT UNSIGNED,False,ed_workflow_case,COMPOSITE_FK,所属事项
+ed_workflow_task,workflow,step_key,VARCHAR(100),False,,,定义中的步骤键
+ed_workflow_task,workflow,assignee_key,VARCHAR(100),False,,,有权办理主体/组键
+ed_workflow_task,workflow,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：READY/CLAIMED/DONE/REJECTED/CANCELLED
+ed_workflow_task,workflow,due_at,DATETIME(6),True,,,截止时间
+ed_workflow_task,workflow,lease_until,DATETIME(6),True,,,办理租约
+ed_workflow_task,workflow,fence_epoch,BIGINT UNSIGNED,False,,,阻止旧任务写回的栅栏版本
+ed_workflow_task,workflow,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_workflow_task,workflow,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_workflow_task,workflow,claim_token,VARCHAR(64),True,,,每次领取生成的新令牌，不能仅按worker名认领
+ed_workflow_action,workflow,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_workflow_action,workflow,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_workflow_action,workflow,case_id,BIGINT UNSIGNED,False,ed_workflow_case,COMPOSITE_FK,事项
+ed_workflow_action,workflow,task_id,BIGINT UNSIGNED,True,ed_workflow_task,COMPOSITE_FK,任务
+ed_workflow_action,workflow,actor_key,VARCHAR(100),False,,,办理主体
+ed_workflow_action,workflow,action_key,VARCHAR(64),False,,,经过授权的动作
+ed_workflow_action,workflow,from_state,VARCHAR(64),False,,,旧状态
+ed_workflow_action,workflow,to_state,VARCHAR(64),False,,,新状态
+ed_workflow_action,workflow,acted_at,DATETIME(6),False,,,发生时间
+ed_workflow_action,workflow,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_workflow_action,workflow,actor_kind,VARCHAR(16),False,,,USER或SYSTEM
+ed_workflow_action,workflow,trigger_key,VARCHAR(190),False,,,定时器/回执/规则触发ID，幂等来源
+ed_integration_source,integration,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_integration_source,integration,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_integration_source,integration,source_key,VARCHAR(64),False,,,来源编码
+ed_integration_source,integration,plugin_key,VARCHAR(100),False,,,已安装插件标识
+ed_integration_source,integration,secret_ref,VARCHAR(190),False,,,密钥管理引用，绝不存明文密码
+ed_integration_source,integration,endpoint_policy_key,VARCHAR(100),False,,,经过部署审核的地址白名单键
+ed_integration_source,integration,mapping_version,VARCHAR(64),False,,,输入映射契约版本
+ed_integration_source,integration,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：ACTIVE/PAUSED/REVOKED
+ed_integration_source,integration,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_integration_source,integration,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_integration_import_batch,integration,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_integration_import_batch,integration,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_integration_import_batch,integration,source_id,BIGINT UNSIGNED,False,ed_integration_source,COMPOSITE_FK,来源
+ed_integration_import_batch,integration,external_batch_key,VARCHAR(100),False,,,来源批次键
+ed_integration_import_batch,integration,payload_hash,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,输入摘要
+ed_integration_import_batch,integration,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：STAGED/INVALID/READY/COMMITTING/COMMITTED/UNCERTAIN
+ed_integration_import_batch,integration,expected_rows,INT UNSIGNED,False,,,应处理行数
+ed_integration_import_batch,integration,committed_rows,INT UNSIGNED,False,,,已确认提交行数
+ed_integration_import_batch,integration,checkpoint,VARCHAR(190),True,,,恢复游标
+ed_integration_import_batch,integration,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_integration_import_batch,integration,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_integration_import_error,integration,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_integration_import_error,integration,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_integration_import_error,integration,batch_id,BIGINT UNSIGNED,False,ed_integration_import_batch,COMPOSITE_FK,批次
+ed_integration_import_error,integration,row_no,INT UNSIGNED,False,,,输入行号
+ed_integration_import_error,integration,error_code,VARCHAR(64),False,,,结构化错误码
+ed_integration_import_error,integration,field_key,VARCHAR(100),False,,,字段
+ed_integration_import_error,integration,redacted_detail,VARCHAR(512),False,,,脱敏错误说明
+ed_integration_import_error,integration,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_integration_external_action,integration,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_integration_external_action,integration,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_integration_external_action,integration,operation_key,VARCHAR(128),False,,,含目标系统的幂等操作键
+ed_integration_external_action,integration,owner_domain,VARCHAR(64),False,,,发起业务域
+ed_integration_external_action,integration,business_key,VARCHAR(100),False,,,来源业务ID
+ed_integration_external_action,integration,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：PLANNED/SENT/ACKNOWLEDGED/UNCERTAIN/COMPENSATED/FAILED
+ed_integration_external_action,integration,minimal_request,JSON,False,,,最小外部动作参数
+ed_integration_external_action,integration,external_receipt,VARCHAR(190),True,,,外部回执键
+ed_integration_external_action,integration,next_reconcile_at,DATETIME(6),True,,,下一核对时刻
+ed_integration_external_action,integration,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_integration_external_action,integration,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_growth_report,growth,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_growth_report,growth,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_growth_report,growth,enrollment_id,BIGINT UNSIGNED,False,ed_education_enrollment,OWNER_API_CHECK_AND_RECONCILIATION,本报告对应的学籍身份
+ed_growth_report,growth,term_id,BIGINT UNSIGNED,False,ed_education_term,OWNER_API_CHECK_AND_RECONCILIATION,报告学期实例
+ed_growth_report,growth,revision_no,INT UNSIGNED,False,,,同报告修订序号
+ed_growth_report,growth,source_snapshot_json,JSON,False,,,完整来源清单/快照令牌协议snapshot-v1；各域单独游标，不用MAX(id)证明完整性
+ed_growth_report,growth,rule_release_key,VARCHAR(128),False,,,规则版本
+ed_growth_report,growth,template_release_key,VARCHAR(128),False,,,模板版本
+ed_growth_report,growth,model_release_key,VARCHAR(128),True,,,可空的AI版本
+ed_growth_report,growth,evidence_id,BIGINT UNSIGNED,False,ed_evidence_object,OWNER_API_CHECK_AND_RECONCILIATION,成品文档逻辑引用
+ed_growth_report,growth,content_hash,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,报告摘要
+ed_growth_report,growth,approved_by,VARCHAR(100),False,,,审定人
+ed_growth_report,growth,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_growth_report,growth,student_label_snapshot,VARCHAR(190),False,,,冻结报告显示名，敏感
+ed_growth_report,growth,term_label_snapshot,VARCHAR(190),False,,,冻结学期显示名
+ed_growth_report,growth,source_snapshot_hash,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,规范化清单SHA256
+ed_growth_report_item,growth,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_growth_report_item,growth,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_growth_report_item,growth,report_id,BIGINT UNSIGNED,False,ed_growth_report,COMPOSITE_FK,报告
+ed_growth_report_item,growth,source_domain,VARCHAR(64),False,,,事实归属
+ed_growth_report_item,growth,source_type,VARCHAR(64),False,,,事实类型
+ed_growth_report_item,growth,source_id,VARCHAR(190),False,,,事实标识；对象引用协议ref-v1，最多190字符
+ed_growth_report_item,growth,source_version,VARCHAR(64),False,,,事实版本
+ed_growth_report_item,growth,paragraph_key,VARCHAR(100),False,,,报告段落或字段
+ed_growth_report_item,growth,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_reward_account,reward,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_reward_account,reward,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_reward_account,reward,person_id,BIGINT UNSIGNED,False,ed_identity_person,OWNER_API_CHECK_AND_RECONCILIATION,内部人员ID
+ed_reward_account,reward,currency_key,VARCHAR(64),False,,,学校定义的积分种类
+ed_reward_account,reward,balance,"DECIMAL(16,4)",False,,,缓存余额，须能由账本重建
+ed_reward_account,reward,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：ACTIVE/FROZEN/CLOSED
+ed_reward_account,reward,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_reward_account,reward,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_reward_account,reward,unit_scale,TINYINT UNSIGNED,False,,,账户最小单位小数位，创建后不可变，0至4
+ed_reward_entry,reward,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_reward_entry,reward,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_reward_entry,reward,account_id,BIGINT UNSIGNED,False,ed_reward_account,COMPOSITE_FK,账户
+ed_reward_entry,reward,business_key,VARCHAR(128),False,,,业务唯一键
+ed_reward_entry,reward,amount,"DECIMAL(16,4)",False,,,正负变化
+ed_reward_entry,reward,reverses_entry_id,BIGINT UNSIGNED,True,ed_reward_entry,COMPOSITE_FK,原流水
+ed_reward_entry,reward,reason,VARCHAR(190),False,,,原因
+ed_reward_entry,reward,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_reward_entry,reward,entry_type,VARCHAR(16),False,,,AWARD/SPEND/EXPIRE/REFUND/ADJUSTMENT/REVERSAL
+ed_ops_migration_job,ops,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_ops_migration_job,ops,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_ops_migration_job,ops,job_key,VARCHAR(100),False,,,任务唯一键
+ed_ops_migration_job,ops,owner_domain,VARCHAR(64),False,,,领域
+ed_ops_migration_job,ops,plan_hash,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,获批计划摘要
+ed_ops_migration_job,ops,status,VARCHAR(32),False,,,状态取值及转换由领域契约验证：PLANNED/RUNNING/PAUSED/FAILED/VERIFIED/SWITCHED
+ed_ops_migration_job,ops,checkpoint,VARCHAR(190),True,,,已提交稳定游标
+ed_ops_migration_job,ops,source_version,BIGINT UNSIGNED,False,,,源版本水位
+ed_ops_migration_job,ops,verified_rows,BIGINT UNSIGNED,False,,,已核对行数
+ed_ops_migration_job,ops,checks_json,JSON,False,,,数量/摘要/差异口径
+ed_ops_migration_job,ops,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_ops_migration_job,ops,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_ops_legacy_map,ops,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_ops_legacy_map,ops,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_ops_legacy_map,ops,legacy_kind,VARCHAR(32),False,,,旧kind原样保存
+ed_ops_legacy_map,ops,legacy_record_id,VARCHAR(64),False,,,旧record_id原样保存
+ed_ops_legacy_map,ops,legacy_item_key,VARCHAR(190),False,,,整包内稳定记录键，正式探查后定义
+ed_ops_legacy_map,ops,legacy_version,BIGINT UNSIGNED,False,,,源版本
+ed_ops_legacy_map,ops,target_domain,VARCHAR(64),False,,,新领域
+ed_ops_legacy_map,ops,target_type,VARCHAR(64),False,,,新类型
+ed_ops_legacy_map,ops,target_id,VARCHAR(190),False,,,新ID字符串；对象引用协议ref-v1，最多190字符
+ed_ops_legacy_map,ops,item_hash,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,规范化单项摘要
+ed_ops_legacy_map,ops,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_ops_legacy_map,ops,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_ops_release_binding,ops,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_ops_release_binding,ops,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_ops_release_binding,ops,deployment_key,VARCHAR(100),False,,,部署实例/学校组键
+ed_ops_release_binding,ops,manifest_digest,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,全组件发布清单摘要
+ed_ops_release_binding,ops,source_commit,VARCHAR(64),False,,,完整Git SHA
+ed_ops_release_binding,ops,versions_json,JSON,False,,,宿主/插件/配置/界面/数据模式锁定组合
+ed_ops_release_binding,ops,status,VARCHAR(32),False,,,REGISTERED/RETIRED；生效权威在current指针
+ed_ops_release_binding,ops,activated_at,DATETIME(6),True,,,生效时间
+ed_ops_release_binding,ops,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_ops_release_binding,ops,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_reporting_timeline,reporting,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_reporting_timeline,reporting,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_reporting_timeline,reporting,person_id,BIGINT UNSIGNED,False,ed_identity_person,OWNER_API_CHECK_AND_RECONCILIATION,受控投影对象人员ID
+ed_reporting_timeline,reporting,class_id,BIGINT UNSIGNED,True,ed_education_class,OWNER_API_CHECK_AND_RECONCILIATION,来源发生时班级实例；未关联班级的记录不通过教师班级查询；无班级的合法记录为空，绝不伪造班级
+ed_reporting_timeline,reporting,source_domain,VARCHAR(64),False,,,来源域
+ed_reporting_timeline,reporting,source_id,VARCHAR(190),False,,,来源事实ID；对象引用协议ref-v1，最多190字符
+ed_reporting_timeline,reporting,source_version,BIGINT UNSIGNED,False,,,源版本
+ed_reporting_timeline,reporting,occurred_at,DATETIME(6),False,,,发生时刻
+ed_reporting_timeline,reporting,event_type,VARCHAR(64),False,,,事件类型
+ed_reporting_timeline,reporting,redacted_summary,VARCHAR(512) COLLATE utf8mb4_0900_ai_ci,False,,,最小展示文案；人类检索大小写/重音不敏感，绝不作身份键
+ed_reporting_timeline,reporting,purpose_key,VARCHAR(64),False,,,允许的数据集用途
+ed_reporting_timeline,reporting,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_reporting_timeline,reporting,row_version,BIGINT UNSIGNED,False,,,乐观锁版本；更新必须比较旧值
+ed_reporting_timeline,reporting,source_type,VARCHAR(64),False,,,源领域内实体类型
+ed_reporting_timeline,reporting,projection_kind,VARCHAR(64),False,,,投影模式
+ed_reporting_timeline,reporting,is_visible,TINYINT UNSIGNED,False,,,撤回后保留去重墓碑，查询过滤
+ed_reporting_query_release,reporting,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信宿主提供的不透明租户作用域；不截断或重算旧scope_id
+ed_reporting_query_release,reporting,id,BIGINT UNSIGNED,False,,,宿主统一ID分配器生成；API以字符串传输
+ed_reporting_query_release,reporting,query_key,VARCHAR(100),False,,,接口或查询标识
+ed_reporting_query_release,reporting,version_no,INT UNSIGNED,False,,,版本
+ed_reporting_query_release,reporting,code_artifact_ref,VARCHAR(190),False,,,已审查SQL资源/编译DSL的代码位置
+ed_reporting_query_release,reporting,code_hash,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,已审代码摘要
+ed_reporting_query_release,reporting,parameter_schema,JSON,False,,,参数类型及上限
+ed_reporting_query_release,reporting,output_schema,JSON,False,,,可见列与脱敏规则
+ed_reporting_query_release,reporting,required_capability,VARCHAR(100),False,,,必需授权
+ed_reporting_query_release,reporting,created_at,DATETIME(6),False,,,UTC入库时刻
+ed_eval_judgement_series,evaluation,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信租户，不裁剪不规范化
+ed_eval_judgement_series,evaluation,id,BIGINT UNSIGNED,False,,,统一ID；API字符串
+ed_eval_judgement_series,evaluation,observation_id,BIGINT UNSIGNED,False,ed_eval_observation,COMPOSITE_FK,观察事实
+ed_eval_judgement_series,evaluation,indicator_id,BIGINT UNSIGNED,False,ed_eval_indicator,COMPOSITE_FK,固定量规中的指标
+ed_eval_judgement_series,evaluation,judge_key,VARCHAR(100),False,,,独立评价主体
+ed_eval_judgement_series,evaluation,purpose_key,VARCHAR(64),False,,,正式用途
+ed_eval_judgement_series,evaluation,current_judgement_id,BIGINT UNSIGNED,True,ed_eval_judgement,COMPOSITE_FK,当前已确认修订；只允许在创建事务暂空
+ed_eval_judgement_series,evaluation,created_at,DATETIME(6),False,,,UTC入库；连接初始化强制
+ed_eval_judgement_series,evaluation,row_version,BIGINT UNSIGNED,False,,,CAS修订号
+ed_core_security_event,core,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信租户，不裁剪不规范化
+ed_core_security_event,core,id,BIGINT UNSIGNED,False,,,统一ID；API字符串
+ed_core_security_event,core,actor_key,VARCHAR(100),False,,,可信主体或anonymous
+ed_core_security_event,core,operation_id,VARCHAR(100),True,,,业务关联，可能为空
+ed_core_security_event,core,request_attempt_id,VARCHAR(100),False,,,请求尝试
+ed_core_security_event,core,event_code,VARCHAR(64),False,,,白名单稳定错误码
+ed_core_security_event,core,outcome,VARCHAR(16),False,,,DENIED/FAILED/UNKNOWN
+ed_core_security_event,core,safe_context_json,JSON,False,,,白名单结构，不含任意异常正文
+ed_core_security_event,core,occurred_at,DATETIME(6),False,,,事件UTC时间
+ed_core_security_event,core,created_at,DATETIME(6),False,,,UTC入库；连接初始化强制
+ed_core_write_fence,core,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信租户，不裁剪不规范化
+ed_core_write_fence,core,fence_key,VARCHAR(100),False,,,例如policy:tenant或cap:evaluation
+ed_core_write_fence,core,epoch,BIGINT UNSIGNED,False,,,递增代次
+ed_core_write_fence,core,enabled,TINYINT UNSIGNED,False,,,开关
+ed_core_write_fence,core,created_at,DATETIME(6),False,,,UTC入库；连接初始化强制
+ed_core_write_fence,core,row_version,BIGINT UNSIGNED,False,,,CAS修订号
+ed_core_execution_grant,core,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信租户，不裁剪不规范化
+ed_core_execution_grant,core,scope_key,VARCHAR(100),False,,,可信策略作用域：tenant或school:<内部学校ID>；不能从客户端声明授权
+ed_core_execution_grant,core,capability_key,VARCHAR(100),False,,,稳定能力
+ed_core_execution_grant,core,manifest_digest,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,实际执行发布
+ed_core_execution_grant,core,epoch,BIGINT UNSIGNED,False,,,资格代次
+ed_core_execution_grant,core,enabled,TINYINT UNSIGNED,False,,,当前资格
+ed_core_execution_grant,core,created_at,DATETIME(6),False,,,UTC入库；连接初始化强制
+ed_core_execution_grant,core,row_version,BIGINT UNSIGNED,False,,,CAS修订号
+ed_ops_release_current,ops,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信租户，不裁剪不规范化
+ed_ops_release_current,ops,deployment_key,VARCHAR(100),False,,,部署标识
+ed_ops_release_current,ops,scope_key,VARCHAR(100),False,,,产品/能力作用域
+ed_ops_release_current,ops,stable_release_id,BIGINT UNSIGNED,False,ed_ops_release_binding,COMPOSITE_FK,稳定发布
+ed_ops_release_current,ops,desired_generation,BIGINT UNSIGNED,False,,,控制面期望代次
+ed_ops_release_current,ops,observed_generation,BIGINT UNSIGNED,False,,,数据面已确认代次
+ed_ops_release_current,ops,state,VARCHAR(16),False,,,RECONCILING/READY/PAUSED
+ed_ops_release_current,ops,created_at,DATETIME(6),False,,,UTC入库；连接初始化强制
+ed_ops_release_current,ops,row_version,BIGINT UNSIGNED,False,,,CAS修订号
+ed_ops_rollout,ops,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信租户，不裁剪不规范化
+ed_ops_rollout,ops,id,BIGINT UNSIGNED,False,,,统一ID；API字符串
+ed_ops_rollout,ops,deployment_key,VARCHAR(100),False,,,部署
+ed_ops_rollout,ops,scope_key,VARCHAR(100),False,,,能力范围
+ed_ops_rollout,ops,stable_release_id,BIGINT UNSIGNED,False,ed_ops_release_binding,COMPOSITE_FK,基线
+ed_ops_rollout,ops,candidate_release_id,BIGINT UNSIGNED,False,ed_ops_release_binding,COMPOSITE_FK,候选
+ed_ops_rollout,ops,cohort_policy_json,JSON,False,,,分组单位、稳定种子、允许学校与有效期
+ed_ops_rollout,ops,analysis_policy_hash,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,评估策略摘要
+ed_ops_rollout,ops,status,VARCHAR(20),False,,,DRAFT/PILOT/OBSERVING/PAUSED/COMPLETED/ABORTED
+ed_ops_rollout,ops,created_at,DATETIME(6),False,,,UTC入库；连接初始化强制
+ed_ops_rollout,ops,row_version,BIGINT UNSIGNED,False,,,CAS修订号
+ed_ops_rollout_binding,ops,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信租户，不裁剪不规范化
+ed_ops_rollout_binding,ops,deployment_key,VARCHAR(100),False,,,部署
+ed_ops_rollout_binding,ops,scope_key,VARCHAR(100),False,,,能力范围
+ed_ops_rollout_binding,ops,rollout_id,BIGINT UNSIGNED,True,ed_ops_rollout,COMPOSITE_FK,当前计划；NULL表示没有灰度
+ed_ops_rollout_binding,ops,created_at,DATETIME(6),False,,,UTC入库；连接初始化强制
+ed_ops_rollout_binding,ops,row_version,BIGINT UNSIGNED,False,,,CAS修订号
+ed_ops_rollout_decision,ops,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信租户，不裁剪不规范化
+ed_ops_rollout_decision,ops,id,BIGINT UNSIGNED,False,,,统一ID；API字符串
+ed_ops_rollout_decision,ops,rollout_id,BIGINT UNSIGNED,False,ed_ops_rollout,COMPOSITE_FK,计划
+ed_ops_rollout_decision,ops,input_hash,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,输入摘要
+ed_ops_rollout_decision,ops,policy_hash,CHAR(64) CHARACTER SET ascii COLLATE ascii_bin,False,,,策略摘要
+ed_ops_rollout_decision,ops,window_start,DATETIME(6),False,,,UTC窗口开始
+ed_ops_rollout_decision,ops,window_end,DATETIME(6),False,,,UTC窗口结束
+ed_ops_rollout_decision,ops,outcome,VARCHAR(16),False,,,CONTINUE/PAUSE/ABORT
+ed_ops_rollout_decision,ops,reason_codes_json,JSON,False,,,稳定原因码
+ed_ops_rollout_decision,ops,evidence_ref,VARCHAR(190),False,,,受控证据对象引用
+ed_ops_rollout_decision,ops,created_at,DATETIME(6),False,,,UTC入库；连接初始化强制
+ed_identity_account_current,identity,tenant_id,VARCHAR(100) COLLATE utf8mb4_0900_bin,False,,,可信租户，不裁剪不规范化
+ed_identity_account_current,identity,host_user_key,VARCHAR(100),False,,,可信宿主账号键
+ed_identity_account_current,identity,account_link_id,BIGINT UNSIGNED,True,ed_identity_account_link,COMPOSITE_FK,唯一当前账号关联；空表示当前未绑定，不能回退到任意历史关系
+ed_identity_account_current,identity,created_at,DATETIME(6),False,,,UTC建行时间；连接初始化强制
+ed_identity_account_current,identity,row_version,BIGINT UNSIGNED,False,,,当前指针CAS版本

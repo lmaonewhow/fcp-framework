@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CommittedBusinessAuditV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "audit_schema_version",
+    "tenant_id",
+    "actor_key",
+    "action_key",
+    "owner_domain",
+    "object_type",
+    "object_id",
+    "operation_id",
+    "request_attempt_id",
+    "result",
+    "manifest_digest",
+    "occurred_at",
+    "config_revision",
+    "rule_revision",
+    "changes_json"
+  ],
+  "properties": {
+    "audit_schema_version": {
+      "const": "audit-v2"
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "actor_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "action_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "owner_domain": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "object_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "object_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 190
+    },
+    "operation_id": {
+      "type": "string",
+      "format": "uuid",
+      "maxLength": 100
+    },
+    "request_attempt_id": {
+      "type": "string",
+      "format": "uuid",
+      "maxLength": 100
+    },
+    "result": {
+      "const": "COMMITTED"
+    },
+    "manifest_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "maxLength": 64
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[1-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|\\+00:00)$",
+      "description": "UTC且位于MySQL文档保证的DATETIME(6)范围；跨字段持久化前由audit_contract.py检查完整边界。"
+    },
+    "config_revision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "rule_revision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "trace_id": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        }
+      ]
+    },
+    "changes_json": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed_fields"
+      ],
+      "properties": {
+        "changed_fields": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          }
+        },
+        "before_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "after_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "protected_diff_ref": {
+          "type": "string",
+          "maxLength": 190,
+          "pattern": "^[A-Za-z0-9:/._-]+$"
+        }
+      }
+    }
+  }
+}

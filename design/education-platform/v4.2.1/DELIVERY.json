@@ -1,0 +1,50 @@
+{
+  "version": "4.2.1",
+  "date": "2026-11-06",
+  "status": "LOCAL_REFERENCE_VALIDATED",
+  "production_release": "BLOCKED",
+  "original_4_1_sha256": "b6b7965c45f80997d805830a62b744fc38a4b90eed6d74c2e24bf3d7955f5399",
+  "model": {
+    "tables": 54,
+    "column_entries": 548,
+    "foreign_keys": 40,
+    "fresh_schema": "P042"
+  },
+  "local_test_counts": {
+    "python_unique": 254,
+    "node_policy": 22,
+    "failed": 0,
+    "skipped": 0
+  },
+  "reference_runs": [
+    "evidence/local",
+    "evidence/encoding_simulation",
+    "evidence/clean_extract"
+  ],
+  "tested_source_tree_sha256": "b287d71d751d4fa52be7e60a978c936fdd7bf8f320300db27c894d1141e5b662",
+  "unique_python_test_ids_sha256": "5dab41bd00af9f20a5e5db1fbb4867dff4bdd6808d17fbbb27684b266c907ea0",
+  "review": {
+    "independent_original_probes": 12,
+    "issue_groups": 5,
+    "original_python": 220,
+    "original_node": 22,
+    "patched_problem_probes": 0
+  },
+  "remaining_native_requirements": [
+    "MySQL 8.4 approved patch",
+    "Windows native",
+    "FCP authentication and authorization",
+    "account interval/current-pointer transactional command",
+    "school ownership resolver",
+    "task lease and async result fencing",
+    "Vue/browser and old assets",
+    "telemetry stack and independent counters",
+    "load",
+    "migration and restore"
+  ],
+  "limitations": "SQLite reference and Node pure functions do not substitute for native product acceptance; schema/contract changes are not a migration for an existing installation.",
+  "original_4_2_sha256": "c2a6d6a74b253bfac1b8ffcb2c49433837135b92920bb3e7adf548264bdde7a0",
+  "physical_schema_unchanged_from_4_2": true,
+  "patch_scope": "query filters, gray priority, validation contracts and native-test adapters; no physical schema change",
+  "package_file_count": 142
+}

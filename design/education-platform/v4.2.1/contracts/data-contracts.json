@@ -1,0 +1,110 @@
+{
+  "format": "education-data-contracts-v4.2",
+  "tenant_identity": {
+    "comparison": "utf8mb4_0900_bin; no silent normalization",
+    "max_characters": 100,
+    "existing_collision_policy": "quarantine and manual reconciliation"
+  },
+  "object_reference": {
+    "local_id": "unsigned BIGINT; canonical decimal string at API boundary",
+    "cross_domain": [
+      "tenant_id",
+      "owner_domain",
+      "object_type",
+      "object_id"
+    ],
+    "display_label": "snapshot only; never join on label"
+  },
+  "money_and_points": {
+    "score_type": "DECIMAL(12,4)",
+    "reward_type": "DECIMAL(16,4)",
+    "float_input": "REJECT",
+    "excess_fraction": "REJECT; never silently round input",
+    "account_unit_scale": "0..4 fixed on account creation; versioned conversion required for change",
+    "currency_change": "new account and explicit conversion"
+  },
+  "intent": {
+    "identity": [
+      "tenant_id",
+      "effect_namespace",
+      "intent_id"
+    ],
+    "version_fields": [
+      "contract_version",
+      "normalization_version",
+      "implementation_version"
+    ],
+    "conflict": "canonical semantic fingerprint mismatch is CONFLICT; actor/permissions rechecked before replay"
+  },
+  "projection": {
+    "identity": [
+      "tenant_id",
+      "source_domain",
+      "source_type",
+      "source_id",
+      "projection_kind",
+      "purpose_key",
+      "person_id"
+    ],
+    "permission": "purpose is not an authorization token; current scope enforced"
+  },
+  "snapshot": {
+    "format": "source-list-v1",
+    "contents": [
+      "source_domain",
+      "source_type",
+      "source_id",
+      "source_version",
+      "content_hash"
+    ],
+    "watermark": "explicit source set or reliable snapshot token; never MAX(id) as commit guarantee"
+  },
+  "read_rules": {
+    "identity_collation": "binary NO PAD",
+    "human_search_collation": "explicit allowlisted ai_ci columns",
+    "substring_search": "not promised indexed; choose a reviewed dedicated search implementation if needed"
+  },
+  "timestamp": {
+    "database": "DATETIME(6), UTC by connection contract",
+    "pool_init": "SET SESSION time_zone = '+00:00'",
+    "ui": "render school IANA timezone; do not change shared session time_zone",
+    "duration": "monotonic clock"
+  },
+  "fence": {
+    "lock_order": [
+      "tenant/capability shared write-fence",
+      "actor auth epoch shared",
+      "tenant-wide executor grant shared",
+      "exact school executor grant shared when school-scoped",
+      "task claim current",
+      "domain aggregate exclusive",
+      "dedup current"
+    ],
+    "revoke": "same authority row exclusive update increments epoch; no ACK before commit; outstanding external effects reconciled",
+    "missing_authority_row": "DENY, never create implicitly during a write"
+  },
+  "frontend_scope": {
+    "service_worker": false,
+    "offline_writes": false,
+    "old_client": "explicit compatibility window, server reauthorization on every write",
+    "unknown_write_outcome": "reconcile original operation ID before retry"
+  },
+  "trust_boundary": "Reference Python tickets and JS inputs are trusted server inputs in tests; production cannot accept client-constructed epochs or tenant identities.",
+  "execution_scope": {
+    "canonical_values": "tenant | school:<canonical unsigned BIGINT>",
+    "origin": "derive from trusted request domain ownership and current authorized school; not a browser grant",
+    "intersection": "school action requires global tenant fence, actor epoch, tenant-wide executor grant AND matching school executor grant",
+    "missing_scope_grant": "DENY; never fall back to another school or tenant-only grant",
+    "result_replay": "revalidate stored scope; changing school does not grant access to old receipt"
+  },
+  "account_identity": {
+    "current_authority": "ed_identity_account_current, explicit single current link per tenant and host account",
+    "history": "ed_identity_account_link preserves validity intervals; per-account serial transaction forbids overlapping intervals",
+    "switch": "lock account-current row, validate expected version and intervals, close old and append new link, CAS pointer, bump auth epoch and audit in same transaction",
+    "unbound": "NULL current pointer denies person-bound actions; never choose arbitrary history by LIMIT 1"
+  },
+  "nullable_class": {
+    "observation": "PERSON may have no class; CLASS requires class_id=subject_id",
+    "timeline": "no-class entries exist for authorized non-class uses; class-scoped teacher query excludes them; parent reader must check current guardianship"
+  }
+}

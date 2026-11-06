@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { transition, operationForRetry } from '../reference/frontend_release.mjs';
+const old = 'a'.repeat(64), newer = 'b'.repeat(64);
+const boot = { frontendDigest: newer, supportedFrontendDigests: [old,newer], writesAllowed: true };
+test('old supported tab stays stable',()=>assert.equal(transition(boot,{frontendDigest:old}),'KEEP_PAGE'));
+test('unsupported old tab reload only when clean',()=>assert.equal(transition({...boot,supportedFrontendDigests:[newer]},{frontendDigest:old}),'RELOAD_SAFE'));
+test('dirty tab preserves edits',()=>assert.equal(transition({...boot,supportedFrontendDigests:[newer]},{frontendDigest:old},{dirty:true}),'PROMPT_SAVE_OR_DISCARD'));
+test('unknown commit is reconciled before reload',()=>assert.equal(transition(boot,{frontendDigest:old},{unresolvedWrite:true}),'RECONCILE_FIRST'));
+test('revocation beats pinned UI',()=>assert.equal(transition({...boot,writesAllowed:false},{frontendDigest:old}),'READ_ONLY'));
+test('revocation does not auto-submit draft',()=>assert.equal(transition({...boot,writesAllowed:false},{frontendDigest:old},{dirty:true}),'READ_ONLY_KEEP_DRAFT'));
+test('unsupported service worker blocked',()=>assert.equal(transition(boot,{frontendDigest:old},{hasServiceWorker:true}),'BLOCK_UNSUPPORTED_SW'));
+test('malformed config blocked',()=>assert.equal(transition({...boot,frontendDigest:'random'},{frontendDigest:old}),'BLOCK_INVALID_CONFIG'));
+test('two tabs maintain own version identity',()=>{assert.equal(transition(boot,{frontendDigest:old}),'KEEP_PAGE');assert.equal(transition(boot,{frontendDigest:newer}),'KEEP_PAGE');});
+const op={tenant:'t1',actor:'teacher1',operationId:'11111111-1111-1111-1111-111111111111'};
+test('retry keeps original operation id',()=>assert.equal(operationForRetry(op,{tenant:'t1',actor:'teacher1',authorized:true}),op.operationId));
+test('tenant switch blocks queued replay',()=>assert.throws(()=>operationForRetry(op,{tenant:'t2',actor:'teacher1',authorized:true})));
+test('actor switch blocks queued replay',()=>assert.throws(()=>operationForRetry(op,{tenant:'t1',actor:'teacher2',authorized:true})));
+test('revoked session blocks queued replay',()=>assert.throws(()=>operationForRetry(op,{tenant:'t1',actor:'teacher1',authorized:false})));
+
+test('malformed release state is rejected',()=>{for(const state of [null,[],false,7,'invalid'])assert.equal(transition(boot,{frontendDigest:old},state),'BLOCK_INVALID_CONFIG');});
+test('malformed operation id cannot be replayed',()=>assert.throws(()=>operationForRetry({...op,operationId:'-'.repeat(36)},{tenant:'t1',actor:'teacher1',authorized:true})));
+
+test('missing identities are rejected rather than undefined matching undefined',()=>assert.throws(()=>operationForRetry({operationId:op.operationId},{authorized:true})));
+test('null identities are rejected',()=>assert.throws(()=>operationForRetry({tenant:null,actor:null,operationId:op.operationId},{tenant:null,actor:null,authorized:true})));
+test('empty and non-string identities are rejected',()=>{for(const v of ['',1,false,{},[], 'x'.repeat(101)])assert.throws(()=>operationForRetry({tenant:v,actor:'a',operationId:op.operationId},{tenant:v,actor:'a',authorized:true}));});
+test('bootstrap selected asset must be in supported set',()=>assert.equal(transition({...boot,supportedFrontendDigests:[old]},{frontendDigest:old}),'BLOCK_INVALID_CONFIG'));
+test('empty supported set cannot cause reload loop',()=>assert.equal(transition({...boot,supportedFrontendDigests:[]},{frontendDigest:old}),'BLOCK_INVALID_CONFIG'));
+test('duplicate supported digests are invalid config',()=>assert.equal(transition({...boot,supportedFrontendDigests:[old,old,newer]},{frontendDigest:old}),'BLOCK_INVALID_CONFIG'));
+test('array records cannot be retry contexts',()=>assert.throws(()=>operationForRetry([],{authorized:true})));

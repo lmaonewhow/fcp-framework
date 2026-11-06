@@ -1,0 +1,62 @@
+{
+  "version": "4.2.1",
+  "issues": [
+    {
+      "id": "F01",
+      "priority": "P1",
+      "title": "正式查询混入影子代次",
+      "files": [
+        "tools/query_compiler.py",
+        "database/sql/Q042__reviewed_read_EXAMPLE.sql"
+      ],
+      "evidence": "REAL_COMPILER_WITH_SQLITE_MODEL",
+      "fix": "approved projection predicate; real-model fixtures"
+    },
+    {
+      "id": "F02",
+      "priority": "P1",
+      "title": "确认异常被无效政策降级暂停",
+      "files": [
+        "tools/gray_gate.py"
+      ],
+      "evidence": "DIRECT_PYTHON_CODE",
+      "fix": "confirmed hard breach precedes policy validation"
+    },
+    {
+      "id": "F03",
+      "priority": "P2",
+      "title": "字符串声明宽度与行下界缺失",
+      "files": [
+        "tools/check_design.py"
+      ],
+      "evidence": "DIRECT_MODEL_VALIDATOR",
+      "fix": "bounded type declarations and character-storage lower bound"
+    },
+    {
+      "id": "F04",
+      "priority": "P2",
+      "title": "审计时间超出数据库文档支持范围",
+      "files": [
+        "tools/audit_contract.py",
+        "contracts/audit-event.schema.json"
+      ],
+      "evidence": "DIRECT_VALIDATOR_PLUS_OFFICIAL_RANGE",
+      "fix": "explicit persistence range"
+    },
+    {
+      "id": "F05",
+      "priority": "P1",
+      "title": "原生验收错误分类、行容器和运行记录不完整",
+      "files": [
+        "reference/relational_model.py",
+        "tools/mysql_support.py",
+        "tools/mysql_acceptance.py"
+      ],
+      "evidence": "DRIVER_CONTRACT_DOUBLE_NO_SERVER",
+      "fix": "exact constraint classification; result normalization; every-session profile; run lifecycle"
+    }
+  ],
+  "local_regression": "PASS",
+  "native_mysql": "NOT_RUN",
+  "production_release": "BLOCKED"
+}

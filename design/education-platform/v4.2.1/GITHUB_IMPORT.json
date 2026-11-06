@@ -1,0 +1,332 @@
+{
+  "name": "education-platform-design-4.2.1",
+  "status": "REFERENCE_ONLY",
+  "production_release": "BLOCKED",
+  "origin_zip": "教育平台_数据库与可观测灰度_最终核查修订4.2.1_20261106.zip",
+  "origin_zip_sha256": "dd8717c0466f8775cb7dbc8e004b9bee57e651d2443c78d565bb615676886c34",
+  "dev_base": "29368da6acac758bccb011722c3908af69da7b95",
+  "core_version": "4.2.1",
+  "core_model": {
+    "tables": 54,
+    "fields": 548,
+    "composite_fks": 40
+  },
+  "files": [
+    {
+      "path": "DELIVERY.json",
+      "sha256": "a425c246e1771fc2fb3fe2af3aefc1b2079c075f0a230bc95bcf2e3c28e8ee94"
+    },
+    {
+      "path": "README.md",
+      "sha256": "d20ae3b9898dc52a2dd619c41316711fd687133429c8cd56a86cce7a44e844c4"
+    },
+    {
+      "path": "contracts/audit-event.schema.json",
+      "sha256": "2cb28a48a3ebd10899cbeb27a4698d28aab6408134bcaab1da2239b5ac44c075"
+    },
+    {
+      "path": "contracts/data-contracts.json",
+      "sha256": "689e55dbc91190c87e28ed32afc95b74e0d883d0d2f567f83b9be1de2c79fae6"
+    },
+    {
+      "path": "contracts/gray-input.MISSING.json",
+      "sha256": "f23d3f41f681ce44c755e9cc29f00e40227596e8bd96a8f360bc1ba53014f5e3"
+    },
+    {
+      "path": "contracts/gray-policy.ILLUSTRATIVE.json",
+      "sha256": "83c1bfa1f951ab81c7168bd40260a1a50aea423a6d3d12960776390d0fece9a2"
+    },
+    {
+      "path": "contracts/migration-plan.NOT_APPROVED.json",
+      "sha256": "994da9bf7b247a397a283e61dbc052c04461343c069c31e779f133d67352fe7d"
+    },
+    {
+      "path": "contracts/production-evidence.NOT_RUN.json",
+      "sha256": "b70c6aaedf641b05b1a4a6c79c112ab21458ad0ddf54510c9a3a8ea2ce1e808d"
+    },
+    {
+      "path": "contracts/release-manifest.NOT_BUILT.json",
+      "sha256": "c97cecdc68a627f0bea9ed21a7cc757955a9f59c68b52f1584794bc02de9628b"
+    },
+    {
+      "path": "database/fields.csv",
+      "sha256": "f22575ec28b1df1ca347d1c419cb52267c8dfdac5810b13ac29705120a7e7202"
+    },
+    {
+      "path": "database/index_decisions.json",
+      "sha256": "37eb5232c9e4781b375f3cbcd00fe2f189db85fbcfa3ecf9b50308b6b5c98824"
+    },
+    {
+      "path": "database/mappings/180条故事到数据模型映射.csv",
+      "sha256": "13eb7a67265c050ea6e28b9c905ef85a03b1ff448cf441e1fc6b6a9b9be7326b"
+    },
+    {
+      "path": "database/mappings/180条故事到数据模型映射.json",
+      "sha256": "50f9b976b875482c3058e861223affea5294709189587bf779ada3df8ff12960"
+    },
+    {
+      "path": "database/mappings/后续领域模型规划.json",
+      "sha256": "3b38ef2fc341052ce01d58eb4bf387b7c3ac8470aba79dd6178816a3dac3b1ff"
+    },
+    {
+      "path": "database/model.json",
+      "sha256": "490a9811225aa6d0624129485d81eb16ef01bd53d78b936a18c59a062f4d6622"
+    },
+    {
+      "path": "database/sql/P042__fresh_isolated_schema.sql",
+      "sha256": "9f9743dff09d4bb303c53cc2103d5228127430fbf19bc8a636b9004538bbb111"
+    },
+    {
+      "path": "database/sql/Q042__reviewed_read_EXAMPLE.sql",
+      "sha256": "c678bb879f23bce30e569f72557e57dc4cab87e0ab3179bba230b1862bb9c264"
+    },
+    {
+      "path": "database/sql/README.md",
+      "sha256": "57f2099b688047907b017ed5f28badd45136c35402fd141fa440400949479c22"
+    },
+    {
+      "path": "database/sql/T042__commit_fence_protocol_EXAMPLE.sql",
+      "sha256": "378c6964b945f33cd62d29d7b66295d94ed0f01d044a3a8b995fa904440fc6e4"
+    },
+    {
+      "path": "database/tables.csv",
+      "sha256": "6de1475b66cbc965892ab860575875e7e37cd58371a0b3a25635371038f1b7d2"
+    },
+    {
+      "path": "docs/01_交付说明与修订结论.md",
+      "sha256": "22d33444e7051ccfab9ff915d36f4534270c599e998859b9ba5fc205cded9558"
+    },
+    {
+      "path": "docs/02_数据库完整设计基线.md",
+      "sha256": "a75ffe6133522dfdd59ae0f9df85f6c0dc8b69dd93c73e7fec65b4e31735d7e1"
+    },
+    {
+      "path": "docs/03_事务与版本协议.md",
+      "sha256": "de453784deb64f6ea200abb77c5986aad7066be02a83370e6c87200393ece7f7"
+    },
+    {
+      "path": "docs/04_可观测性与前后端灰度.md",
+      "sha256": "23c8f90e0b3beeb6b43e269320baaa270414719aeb94afe841935233eeab1ae1"
+    },
+    {
+      "path": "docs/05_pstack开发约束与原生验收.md",
+      "sha256": "014782c6d017c51dd799d818387477f985458e2d502516cec3d442d119f37f19"
+    },
+    {
+      "path": "docs/06_迁移部署与复测手册.md",
+      "sha256": "a78420d6f3a218e1518fdb38857689247dfa97e4d033bf18a1205e995fd69136"
+    },
+    {
+      "path": "docs/07_来源索引.md",
+      "sha256": "f85a05952a112ce10456d64f99cdce2588a89ee13107e5931e45a00b9ac6b59a"
+    },
+    {
+      "path": "docs/08_问题处置台账.md",
+      "sha256": "3a62d5d5435e5f7813bc651c51c63bdf9a4a8b0ef9e86c7f9ee9e415216915c5"
+    },
+    {
+      "path": "docs/09_实测证据与未执行边界.md",
+      "sha256": "cf1ad8ef10cce33c8169143808ce1fb431a56a378e92a7acf5af60c4cc85933e"
+    },
+    {
+      "path": "docs/10_本轮再核查与修订.md",
+      "sha256": "ecc09df8ff373ff358a8bf08d305bc2153fe0195965a39c7bb0896f10b2f9eea"
+    },
+    {
+      "path": "docs/11_最终核查与4.2.1修订.md",
+      "sha256": "40828aff39d4ae568601c2c27b88e9705110400f42ce46e9173753c89ff98c64"
+    },
+    {
+      "path": "docs/4.2.1问题处置.json",
+      "sha256": "d759bca0a535c4bd552a266fea530c6bd984f403a26467902e4fe1523e331a74"
+    },
+    {
+      "path": "docs/sources.json",
+      "sha256": "728ca2442eff61eb23db86996490ce67e1c4ed93e4eda652fab6f3f8cd2dbdd7"
+    },
+    {
+      "path": "docs/本轮问题处置.csv",
+      "sha256": "a0796d348af6c085868ec912f2edd6a62f7d1a257a9176640620a4da749e8a75"
+    },
+    {
+      "path": "docs/本轮问题处置.json",
+      "sha256": "4e6164d84855b1d85a28947d28b7fcc7941add753f1cf43eac8b05c16490c103"
+    },
+    {
+      "path": "docs/问题处置台账.csv",
+      "sha256": "4a6c40ab91e7f8b98b13809c76729602559b5f7ca1794bd4d480f65e08e42066"
+    },
+    {
+      "path": "docs/问题处置台账.json",
+      "sha256": "f0b42d067e601db38a8d29e4d33c80dcbea9b72afa9fadd5f4773a8fbcad69e5"
+    },
+    {
+      "path": "governance/.agents/skills/edu-canary/SKILL.md",
+      "sha256": "5f0f702870b834f7c57c1edab219d03b40eb3069654d2f3f4deb741dc69c1fae"
+    },
+    {
+      "path": "governance/.agents/skills/edu-data-design/SKILL.md",
+      "sha256": "695b1a8dca7cbf30013e1c3e683c6b683765b4c53009db21e0df73ba3aff1991"
+    },
+    {
+      "path": "governance/.agents/skills/edu-migration/SKILL.md",
+      "sha256": "57216429dca405cf7b3e29a8f7890cbbfc0b1a725ef47afb55485642349f2984"
+    },
+    {
+      "path": "governance/.agents/skills/edu-observability/SKILL.md",
+      "sha256": "f1ee7890d458e1d9ceb8f0cabeba9b59a93a9104d387ba6cbb0a4e09e9c76850"
+    },
+    {
+      "path": "governance/.agents/skills/edu-query-review/SKILL.md",
+      "sha256": "2e0c370667462ecc901b303e42ad3743804c596557cc193003644f8a8f42e109"
+    },
+    {
+      "path": "governance/.agents/skills/edu-release-proof/SKILL.md",
+      "sha256": "86ad264bae419597e6f20f72e514d4c73bd59dd70586360008a898f5b96d5cc1"
+    },
+    {
+      "path": "governance/.agents/skills/edu-verify/SKILL.md",
+      "sha256": "2b05029b9ad4065a5cd4bedbbae6bcc3aa51b2424a62af86b0721da688bfb83c"
+    },
+    {
+      "path": "governance/AGENTS.fragment.md",
+      "sha256": "7332bdd8acfb701e7583726e607860ee4dfe6fdfb825893b8dd50c9a401b8a43"
+    },
+    {
+      "path": "governance/ci-proposal.yml",
+      "sha256": "090d14e4f1a3b1e0c8e990c31705d29eeb3a49693794f5a845f73b8a22c9dc1c"
+    },
+    {
+      "path": "governance/project-policy.json",
+      "sha256": "26396849b961f070ade550bed95b0519533201d353f923565ca284a14578846b"
+    },
+    {
+      "path": "governance/upstream-review.lock.json",
+      "sha256": "f5c27ca0df4d2c8b3c6789e69bb9f4b83934daee9c6398cc200222878003e264"
+    },
+    {
+      "path": "reference/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "reference/frontend_release.mjs",
+      "sha256": "7414aad96c246a35f2afa675d5bc3c6826f3ffaca5aafa520089101886e2fc2e"
+    },
+    {
+      "path": "reference/protocols.py",
+      "sha256": "7d1e3b66d763923c165c7be067f90e388f2e8d82945811b96f32557ab3996d25"
+    },
+    {
+      "path": "reference/relational_model.py",
+      "sha256": "ee81f42b5ae53a391af145f9f75e2056f8cbce4c79b5997311a5a8b1cc98adc3"
+    },
+    {
+      "path": "tests/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "tests/frontend_release.test.mjs",
+      "sha256": "1273510e0b730fe087e056e2fc4e690840e201dd34218b110669ddf4e82006e3"
+    },
+    {
+      "path": "tests/test_audit_contract.py",
+      "sha256": "b7bd14ddd862be758c9dafe162b44a2a1cdc2f0ed028332adb2eb99d56a4181e"
+    },
+    {
+      "path": "tests/test_design.py",
+      "sha256": "1e1c0a4cd760ce5c344ef954519eba3af0d14c4122844398c6f7312f7e73bb4e"
+    },
+    {
+      "path": "tests/test_final_audit.py",
+      "sha256": "ff7f37bb2d6ad2da94f26d3af53f05f79a18e4e03ffdc6783fb00f417fd071d0"
+    },
+    {
+      "path": "tests/test_gray.py",
+      "sha256": "42bf79801a73d3b49bdc4346df9262b95887969e8e021a5b63c7dd914eef78fe"
+    },
+    {
+      "path": "tests/test_native_harness_and_templates.py",
+      "sha256": "939df34af36a3fa5c6e55809df8f0e747707d988891e6a8cce4855fa61f101d2"
+    },
+    {
+      "path": "tests/test_protocols.py",
+      "sha256": "158bf4b547e87b28c84f8d52c7e532d7d6692504a149cc88d7fd3bc28c8c5b2a"
+    },
+    {
+      "path": "tests/test_query.py",
+      "sha256": "d9e88818dff9d2044e8933366e6019c4e7e996b8ac1d901467fcbd047245204d"
+    },
+    {
+      "path": "tests/test_relations.py",
+      "sha256": "9ae9fa8ec68fd710710f8cf2f4c4b6176e05c547a7144ee52f617034269b7451"
+    },
+    {
+      "path": "tests/test_release_gate.py",
+      "sha256": "f9da5f23fef09e8eb790ac12799a0baab26cd6beae60691120b8aa165673b617"
+    },
+    {
+      "path": "tests/test_routing.py",
+      "sha256": "065b0b5764694272e08f75da8d021edac990bb80cbd216465e7bc7b2d382d568"
+    },
+    {
+      "path": "tests/test_second_review.py",
+      "sha256": "1fef59b6524218b33116f61e88d657c79eb14d835de80da2d05d81eb2a8eb51a"
+    },
+    {
+      "path": "tests/test_telemetry.py",
+      "sha256": "afde5a18d49764b26eb5fb07c3c2b8498e431b80998e765c6e087cac26effe1e"
+    },
+    {
+      "path": "tools/audit_contract.py",
+      "sha256": "ca6cd6a849188dbd91ef2eb45165ffc7ecd0243d6cd581f0a7afdeae4c748a3c"
+    },
+    {
+      "path": "tools/check_design.py",
+      "sha256": "662d851ade16744ac64c3008822b1cf7b85ce1bd5445089be521c4b4a8596b69"
+    },
+    {
+      "path": "tools/common.py",
+      "sha256": "c0355a60779288143219eec27d4a5b01509fcb49dd7eb884d95e47b2e2fc559b"
+    },
+    {
+      "path": "tools/generate_schema.py",
+      "sha256": "b9909ef21fd7f0fab34008857bc74ee526b5f02fea12cd3a1bbfb9bca92d1a1c"
+    },
+    {
+      "path": "tools/gray_gate.py",
+      "sha256": "e4cecf3dce049d2ae76c28ee622ad336d11acb1495b5554b9a41d269f0014a11"
+    },
+    {
+      "path": "tools/mysql_acceptance.py",
+      "sha256": "df4ddd6bd1e281755db8a8c6719bddae93ef08dc46f1c5848f221602a3aa7dbf"
+    },
+    {
+      "path": "tools/mysql_support.py",
+      "sha256": "aafe8246f82237bf38a97b500fdecadcde952d41ff62b519c288163d67a13d5f"
+    },
+    {
+      "path": "tools/query_compiler.py",
+      "sha256": "026b71f6c3b03f06c103a2f8f5c67e63f5f7571d90e5880a2350704c2ed40ee3"
+    },
+    {
+      "path": "tools/release_gate.py",
+      "sha256": "8ceabe3e65a9b5f49d3a9e5bc5ba098b58d70a307d6e2454e55851d43a77113c"
+    },
+    {
+      "path": "tools/routing_policy.py",
+      "sha256": "8ca273c679869765fce7e659c32ae20fe7605aa8ef79e09fecf99c76a99eaf8e"
+    },
+    {
+      "path": "tools/run_checks.py",
+      "sha256": "d5b36912297a6cc256f9035acfb6c20cebf97f8062932161c70046920b17d636"
+    },
+    {
+      "path": "tools/telemetry_contract.py",
+      "sha256": "5d2c83b905ca1f2e2a07bbc934d0b429ff6f8904ddb338903f6c878230b067a5"
+    },
+    {
+      "path": "开始阅读.md",
+      "sha256": "ac982c36a6496e61c9e260a889c2ac91793e7f916e17cb8968934cb91c6fba9f"
+    }
+  ]
+}

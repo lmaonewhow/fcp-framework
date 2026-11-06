@@ -1,0 +1,209 @@
+[
+  {
+    "epic": "EN",
+    "domain": "education;enrollment",
+    "phase": "P2+",
+    "objects": "enrollment;候选 admission_application/admission_decision/transfer_case",
+    "invariant": "学籍主权、材料用途与跨校交接",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "TM",
+    "domain": "teaching",
+    "phase": "P3+",
+    "objects": "候选 curriculum_version/course_offering/timetable_slot/room_reservation",
+    "invariant": "课程版本、资源唯一占用与排课锁",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "HW",
+    "domain": "learning",
+    "phase": "P3+",
+    "objects": "候选 assignment/submission/revision/feedback/support_action",
+    "invariant": "任务提交幂等、订正版本及异步回写",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "FA",
+    "domain": "identity;communication",
+    "phase": "P2+",
+    "objects": "ed_identity_relation;候选 notification/recipient_receipt/parent_feedback",
+    "invariant": "监护授权时效、最小可见与通知去重",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "AT",
+    "domain": "attendance;access",
+    "phase": "P2+",
+    "objects": "ed_roster_attendance;候选 leave_request/access_grant/access_receipt",
+    "invariant": "审批不等于执行、外部回执核对",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "AC",
+    "domain": "activities",
+    "phase": "P3+",
+    "objects": "候选 activity/registration/authorization/service_order/refund_case",
+    "invariant": "名额并发与费用权威系统对账",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "KG",
+    "domain": "kindergarten",
+    "phase": "P3+",
+    "objects": "候选 health_observation/pickup_authorization/care_handover",
+    "invariant": "受限健康资料与临时接送授权",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "SE",
+    "domain": "special_support",
+    "phase": "P3+",
+    "objects": "候选 support_plan/plan_revision/intervention/review",
+    "invariant": "个别化目标、专业权限及跨班支持",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "EX",
+    "domain": "examination",
+    "phase": "P3+",
+    "objects": "候选 question_license/exam_session/marking_task/grade_revision",
+    "invariant": "试题保密、成绩更正与发布快照",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "HE",
+    "domain": "higher_education",
+    "phase": "P3+",
+    "objects": "候选 program_version/supervision_relation/milestone/degree_review",
+    "invariant": "培养版本、导师关系及资格确认",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "VT",
+    "domain": "internship",
+    "phase": "P3+",
+    "objects": "候选 employer_verification/placement/tripartite_plan/incident",
+    "invariant": "学校企业授权、异常跟进及认定",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "CE",
+    "domain": "continuing_education",
+    "phase": "P3+",
+    "objects": "候选 course_enrollment/learning_hour_ledger/recognition/certificate_revision",
+    "invariant": "学时结算、费用及证书修订",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "HR",
+    "domain": "staff",
+    "phase": "P3+",
+    "objects": "候选 employment/appointment/qualification/evaluation_case",
+    "invariant": "任职权限、评聘版本及回避",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "RA",
+    "domain": "resources_finance",
+    "phase": "P3+",
+    "objects": "候选 budget_reference/contract_delivery/asset/project_milestone",
+    "invariant": "金额精度、财务主权及受控联办",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "LG",
+    "domain": "logistics",
+    "phase": "P3+",
+    "objects": "候选 maintenance_ticket/verification/dorm_assignment/meal_incident",
+    "invariant": "报修复验与住宿时效",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "RS",
+    "domain": "resources",
+    "phase": "P3+",
+    "objects": "候选 resource_version/license/loan/withdrawal",
+    "invariant": "版权到期、召回与导出",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "RG",
+    "domain": "governance",
+    "phase": "P3+",
+    "objects": "候选 report_definition/report_cycle/cell_confirmation/submission_receipt",
+    "invariant": "报送口径、责任与跨租户汇总授权",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "PR",
+    "domain": "core;evidence;privacy",
+    "phase": "P1+",
+    "objects": "ed_core_access_epoch;ed_evidence_*;候选 retention_job/privacy_request",
+    "invariant": "字段/目的授权、删除与恢复后再次删除",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "DX",
+    "domain": "runtime;ops",
+    "phase": "P1+",
+    "objects": "现有fcp插件状态/契约清单;ed_ops_release_binding",
+    "invariant": "数据归属、SDK与契约兼容",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "LC",
+    "domain": "runtime;ops",
+    "phase": "P1+",
+    "objects": "现有fcp插件状态;ed_ops_migration_job/legacy_map",
+    "invariant": "租户期望状态、栅栏与迁移恢复",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "OP",
+    "domain": "ops",
+    "phase": "P1+",
+    "objects": "ed_ops_release_binding;外部备份目录/恢复清单",
+    "invariant": "同产物证据与真实恢复",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "AI",
+    "domain": "ai",
+    "phase": "P3+",
+    "objects": "候选 ai_run/evidence_citation/action_proposal/model_binding",
+    "invariant": "模型仅提议、检索权限与额度",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  },
+  {
+    "epic": "BM",
+    "domain": "ops;config",
+    "phase": "P1+",
+    "objects": "ed_config_*;ed_ops_release_binding;候选 exit_manifest",
+    "invariant": "学校差异包、退出可读与版本支持",
+    "mapping_version": "4.1",
+    "mapping_boundary": "原180条故事的领域映射保留；物理字段以database/model.json及修订映射说明为准，未来领域未冒充已建表"
+  }
+]

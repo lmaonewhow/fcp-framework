@@ -1,0 +1,14 @@
+{
+  "minimum_requests_per_group": 1000,
+  "minimum_operations_per_group": 500,
+  "minimum_window_seconds": 900,
+  "maximum_sample_age_seconds": 90,
+  "maximum_error_rate": 0.005,
+  "maximum_error_rate_increase": 0.002,
+  "maximum_p95_ms": 500,
+  "maximum_p95_ratio": 1.2,
+  "minimum_coverage": 0.99,
+  "minimum_observation_seconds": 1800,
+  "maximum_denial_rate": 0.02,
+  "maximum_denial_rate_increase": 0.01
+}

@@ -1,0 +1,25 @@
+{
+  "format": "education-migration-plan-v2",
+  "status": "NOT_APPROVED",
+  "source_fingerprint": null,
+  "source_migration_history_hash": null,
+  "target_model_sha256": null,
+  "id_mapping_version": null,
+  "scope": [
+    "REQUIRED_TENANTS_AND_DOMAINS"
+  ],
+  "backup_restore_evidence": null,
+  "steps": {
+    "expand": null,
+    "backfill": null,
+    "verify": null,
+    "switch": null,
+    "contract": null
+  },
+  "unresolved_conflicts": null,
+  "compatible_old_builds": [],
+  "approved_by": null,
+  "irreversible_actions": [],
+  "cutover_fence_protocol": null,
+  "warning": "Fresh P042 DDL must not be applied to an existing installation. Source snapshot and real SQL migration need per-installation validation."
+}
