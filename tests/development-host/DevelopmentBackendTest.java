@@ -2,6 +2,7 @@ package dev.fcp.dev;
 
 import fcp.*;
 import java.nio.file.*;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.*;
 import java.net.*;
 import java.net.http.*;
@@ -31,6 +32,12 @@ public final class DevelopmentBackendTest {
         var viewId=Json.obj("token",viewer,"tenantId","t1","userId","viewer","scopes",List.of("tenant:t1"),"permissions",List.of("fcp:plugin:view"),"grants",List.of());
         var otherId=Json.obj("token",other,"tenantId","t2","userId","other","scopes",List.of("tenant:t2"),"permissions",List.of("fcp:plugin:view","fcp:plugin:manage"),"grants",List.of());
         var configuration=Json.obj("development",true,"identities",List.of(adminId,viewId,otherId),"trustedPublishers",List.of(),"executables",Map.of());Files.writeString(config,Json.write(configuration));
+        Files.setPosixFilePermissions(config,PosixFilePermissions.fromString("rw-r--r--"));
+        try{new DevHost(hostRoot.resolve("unsafe"),config,0);throw new AssertionError();}catch(java.io.IOException expected){checks++;}
+        Files.setPosixFilePermissions(config,PosixFilePermissions.fromString("rw-------"));
+        Files.setPosixFilePermissions(hostRoot,PosixFilePermissions.fromString("rwxr-xr-x"));
+        try{new DevHost(hostRoot.resolve("unsafe-parent"),config,0);throw new AssertionError();}catch(java.io.IOException expected){checks++;}
+        Files.setPosixFilePermissions(hostRoot,PosixFilePermissions.fromString("rwx------"));
         try(var host=new DevHost(hostRoot.resolve("state"),config,0)) {
             host.start();String base="http://localhost:"+host.port();
             check(request(base,"GET","/fcp/session",null,null).statusCode()==401);
@@ -44,6 +51,14 @@ public final class DevelopmentBackendTest {
             check(Schema.map(Schema.map(Schema.map(Json.parse(separate.body())).get("data")).get("values")).isEmpty());
             check(request(base,"POST","/fcp/exchange/configs/roster-fixture/exports",admin,"{}").statusCode()==404);
             check(request(base,"GET","/dev/../identity.json",null,null).statusCode()==404);
+            Files.setPosixFilePermissions(config,PosixFilePermissions.fromString("rw-r--r--"));
+            check(request(base,"GET","/fcp/session",admin,null).statusCode()==403);
+            Files.setPosixFilePermissions(config,PosixFilePermissions.fromString("r--------"));
+            check(request(base,"GET","/fcp/session",admin,null).statusCode()==200);
+            Files.setPosixFilePermissions(config,PosixFilePermissions.fromString("rw-------"));
+            Files.setPosixFilePermissions(hostRoot,PosixFilePermissions.fromString("rwxr-xr-x"));
+            check(request(base,"GET","/fcp/session",admin,null).statusCode()==403);
+            Files.setPosixFilePermissions(hostRoot,PosixFilePermissions.fromString("rwx------"));
             configuration.put("development",false);Files.writeString(config,Json.write(configuration));
             check(request(base,"GET","/fcp/session",admin,null).statusCode()==403);
         }

@@ -12,6 +12,8 @@ import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.nio.file.attribute.*;
+import java.nio.channels.Channels;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -27,8 +29,7 @@ public final class DevHost implements AutoCloseable {
     public DevHost(Path root,Path privateConfig,int port)throws Exception {
         if("production".equalsIgnoreCase(System.getenv("FCP_ENV")))throw new IllegalArgumentException("Development host forbidden in production");
         if(port<0||port>65535)throw new IllegalArgumentException("Port out of range");
-        if(Files.isSymbolicLink(privateConfig)||Files.size(privateConfig)>1024*1024)throw new IOException("Invalid development identity file");
-        Map<String,Object> config=map(Json.parse(Files.readString(privateConfig)));
+        Map<String,Object> config=readPrivateConfiguration(privateConfig);
         if(!Boolean.TRUE.equals(config.get("development")))throw new IllegalArgumentException("Development configuration required");
         authority=new Authority(privateConfig,root);
         Set<String> publishers=new HashSet<>();for(Object v:arr(config,"trustedPublishers"))publishers.add(str(v));
@@ -141,6 +142,29 @@ public final class DevHost implements AutoCloseable {
         };
         return new ExchangeService(authority,execution,new FileStateJournal(root.resolve("exchange")),configs,connectors);
     }
+    /** All identity/credential reads use the same fail-closed POSIX privacy check. */
+    private static Map<String,Object> readPrivateConfiguration(Path path)throws IOException {
+        Path absolute=path.toAbsolutePath().normalize();
+        verifyPrivateConfiguration(absolute);
+        byte[] bytes;
+        try(var channel=Files.newByteChannel(absolute,Set.of(StandardOpenOption.READ,LinkOption.NOFOLLOW_LINKS));var input=Channels.newInputStream(channel)) {
+            bytes=input.readNBytes(1024*1024+1);
+        }
+        if(bytes.length>1024*1024)throw new IOException("Development identity file too large");
+        verifyPrivateConfiguration(absolute);
+        return map(Json.parse(new String(bytes,StandardCharsets.UTF_8)));
+    }
+    private static void verifyPrivateConfiguration(Path path)throws IOException {
+        try {
+            var file=Files.readAttributes(path,PosixFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+            var parent=Files.readAttributes(path.getParent(),PosixFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+            var current=path.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName(System.getProperty("user.name"));
+            if(!file.isRegularFile()||!parent.isDirectory()||!file.owner().equals(current)||!parent.owner().equals(current)
+                ||!Set.of(PosixFilePermissions.fromString("rw-------"),PosixFilePermissions.fromString("r--------")).contains(file.permissions())
+                ||!Set.of(PosixFilePermissions.fromString("rwx------"),PosixFilePermissions.fromString("r-x------")).contains(parent.permissions())
+                ||file.size()>1024*1024)throw new IOException("Development identity requires private owner-only file and directory");
+        } catch(UnsupportedOperationException error){throw new IOException("POSIX identity privacy checks are required",error);}
+    }
     private static void fields(Map<String,Object> body,Set<String> fields){if(!fields.containsAll(body.keySet()))throw new FcpException("INVALID_ARGUMENT","Unknown request field");}
     private void staticResource(HttpExchange x)throws IOException {
         try {
@@ -170,7 +194,7 @@ public final class DevHost implements AutoCloseable {
     private static final class Authority implements HostCapabilities {
         private final Path privateConfig;private final Path audit;
         Authority(Path privateConfig,Path root)throws IOException{this.privateConfig=privateConfig;Files.createDirectories(root);audit=root.resolve("audit.jsonl");}
-        private Map<String,Object> configuration(){try{if(Files.isSymbolicLink(privateConfig)||Files.size(privateConfig)>1024*1024)throw new IOException("Identity config changed");Map<String,Object> config=map(Json.parse(Files.readString(privateConfig)));if(!Boolean.TRUE.equals(config.get("development")))throw new FcpException("PERMISSION_DENIED","Development authentication disabled");return config;}catch(IOException e){throw new FcpException("PERMISSION_DENIED","Development identity unavailable");}}
+        private Map<String,Object> configuration(){try{Map<String,Object> config=readPrivateConfiguration(privateConfig);if(!Boolean.TRUE.equals(config.get("development")))throw new FcpException("PERMISSION_DENIED","Development authentication disabled");return config;}catch(IOException e){throw new FcpException("PERMISSION_DENIED","Development identity unavailable");}}
         private long revision(){return java.nio.ByteBuffer.wrap(java.util.HexFormat.of().parseHex(VerifiedPackageRepository.hash(Json.write(configuration()).getBytes(StandardCharsets.UTF_8)))).getLong()&0x1fffffffffffffL;}
         TrustedContext recoveryContext(String tenant){return new TrustedContext(UUID.randomUUID().toString(),UUID.randomUUID().toString(),tenant,new TrustedContext.Principal(TrustedContext.Kind.TASK,"fcp-control-recovery"),revision(),Set.of(),clock().instant().plusSeconds(60));}
         String verifyEnablement(TrustedContext context,fcp.plugin.PluginManifest manifest,String digest,Map<String,fcp.plugin.PluginManifest> closure) {

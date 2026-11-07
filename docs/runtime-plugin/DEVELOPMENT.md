@@ -12,7 +12,7 @@ python3 tools/init_devhost.py config/private/development
 java -cp build/development-host dev.fcp.dev.DevHost --development config/private/development/identities.json config/private/development/state 18880
 ```
 
-打开 `http://127.0.0.1:18880/dev/`。初始化器生成两个示例租户，各有管理员与只读身份；随机令牌仅写入 0600 的身份文件，不打印、不提交。开发者从自己的私有文件读取所选身份的令牌并输入页面。令牌只留在当前页面内存，退出或刷新后重新输入，不保存到 localStorage、cookie 或 URL。初始化器拒绝覆盖已有配置，初始没有可信发布者或业务授权。
+打开 `http://127.0.0.1:18880/dev/`。初始化器生成两个示例租户，各有管理员与只读身份；随机令牌仅写入 0600 的身份文件，不打印、不提交。启动与每次热重读都要求身份文件为普通非符号链接文件，权限限 0600 或 0400，父目录限当前用户私有。开发者从自己的私有文件读取所选身份的令牌并输入页面。令牌只留在当前页面内存，退出或刷新后重新输入，不保存到 localStorage、cookie 或 URL。初始化器拒绝覆盖已有配置，初始没有可信发布者或业务授权。
 
 页面支持受信 ZIP 上传、列出插件、预览启停计划后明确确认、操作回执、配置页面与预留 `dashboard.status` 槽位。安装不会自动启用或放权。当前用户没有相应权限时，页面不提供管理操作，服务端仍独立校验。插件能力版本或目录变化时，旧页面输入和未确认动作会清理。普通调用不绕过导入预览确认。
 
@@ -22,7 +22,7 @@ java -cp build/development-host dev.fcp.dev.DevHost --development config/private
 
 `GET /fcp/development/configuration` 返回当前租户的开发偏好及 revision；`POST` 接收 `{expectedRevision, values}` 并做 CAS 持久化。它不改变身份、可信发布者、连接器、JDBC 或任何运行配置，也不用于保存秘密。配置文件和状态目录必须保留在私有目录。
 
-没有 `storageJdbc` 时，开发壳可以验证不依赖存储的插件；带存储声明的包不会因为开发模式而跳过结构校验。要运行真实学生数据闭环，显式配置 `storageJdbc` 的 `url`、`user`、`password`，只允许回环 MySQL 地址。使用预先按仓库迁移流程准备的独立开发库、仅 DML 运行账号以及审核过的插件声明表。DevHost 没有自动建库、DDL、权限管理或直接执行 SQL 的接口。
+没有 `storageJdbc` 时，开发壳可以验证不依赖存储的插件；带存储声明的包不会因为开发模式而跳过结构校验。要运行真实学生数据闭环，显式配置 `storageJdbc` 的 `url`、`user`、`password`，只允许回环 MySQL 地址。使用预先按仓库迁移流程准备的独立开发库、仅 DML 运行账号以及审核过的插件声明表。DevHost 没有自动建库、DDL、权限管理或直接执行 SQL 的接口。回环地址只能限制连接位置，不能证明目标是独立库或账号确实只有 DML 权限；这些由部署者配置并核验，当前没有自动审计数据库账号全部有效权限。CI 使用自己新建的隔离库及仅 DML 运行账号，不能把 CI 的条件推定为任意手工配置都安全。
 
 JDBC 驱动由开发者按实际使用版本准备，并加入类路径：
 

@@ -32,6 +32,8 @@ def main():
                 config['identities'].append({'token':token,'userId':'shell-admin','tenantId':tenant,'scopes':['tenant:'+tenant],
                     'permissions':['fcp:plugin:install','fcp:plugin:manage','fcp:plugin:view','fcp:plugin:echo'],
                     'grants':[{'plugin':'test.echo','capability':'echo','operation':'invoke','dataScope':'tenant:'+tenant,'permission':'fcp:plugin:echo'}]})
+            viewer_token=secrets.token_hex(32)
+            config['identities'].append({'token':viewer_token,'userId':'shell-viewer','tenantId':'t1','scopes':['tenant:t1'],'permissions':['fcp:plugin:view'],'grants':[]})
             private=work/'identities.json'; private.write_text(json.dumps(config));private.chmod(0o600)
             cap={'id':'echo','version':'1.0.0','permission':'echo','sideEffects':False,'idempotent':True,'timeoutMillis':2000,'inputSchema':{'type':'object'},'outputSchema':{'type':'object'}}
             manifest={'manifestVersion':1,'pluginId':'test.echo','version':'1.0.0','publisher':'test','contractVersion':'1.0','runtime':{'type':'local','entry':'runtime.py','argv':[]},'provides':[cap],
@@ -45,6 +47,7 @@ def main():
             base=f'http://127.0.0.1:{port}'
             with (REPORT/'server.log').open('w') as log:
                 process=subprocess.Popen(['java','-cp',str(classes),'dev.fcp.dev.DevHost','--development',str(private),str(work/'state'),str(port)],stdout=log,stderr=log)
+                page=None; browser=None; network=[]
                 try:
                     for _ in range(150):
                         try:
@@ -59,30 +62,68 @@ def main():
                         browser=playwright.chromium.launch(headless=True, **({'executable_path':os.environ['FCP_BROWSER_EXECUTABLE']} if os.environ.get('FCP_BROWSER_EXECUTABLE') else {}))
                         page=browser.new_page(viewport={'width':1280,'height':900});errors=[]
                         page.on('pageerror',lambda error:errors.append(str(error)))
-                        page.goto(base+'/dev/');page.locator('#token').fill(tokens[0]);page.get_by_role('button',name='连接',exact=True).click()
-                        expect(page.locator('#identity')).to_contain_text('租户：t1')
-                        check('token not persisted',page.evaluate('localStorage.length === 0 && sessionStorage.length === 0 && document.cookie === ""'))
-                        page.locator('#package').set_input_files(str(package));page.locator('#trusted').check();page.get_by_role('button',name='安装插件包',exact=True).click()
-                        expect(page.locator('#plugins')).to_contain_text('test.echo')
-                        page.get_by_role('button',name='预览启用',exact=True).click();expect(page.locator('#plan')).to_be_visible()
-                        page.get_by_role('button',name='取消计划',exact=True).click();expect(page.locator('#plan')).to_be_hidden()
-                        check('cancel does not publish page',page.locator('#pages button').count()==0)
-                        page.get_by_role('button',name='预览启用',exact=True).click();page.locator('#approve').check();page.get_by_role('button',name='确认执行计划',exact=True).dblclick()
-                        expect(page.locator('#pages')).to_contain_text('Echo test');expect(page.locator('#slots')).to_contain_text('Echo slot active')
-                        check('repeated confirmation one ready plugin',page.locator('#pages button').count()==1)
-                        page.get_by_role('button',name='Echo test',exact=True).click();page.get_by_label('消息',exact=True).fill('<img src=x onerror=alert(1)>')
-                        page.get_by_role('button',name='发送 Echo',exact=True).click();expect(page.locator('#page table')).to_contain_text('<img src=x onerror=alert(1)>')
-                        expect(page.locator('#page table')).to_contain_text('t1');check('result rendered as literal text',page.locator('#page img').count()==0)
-                        page.screenshot(path=str(REPORT/'standalone-shell.png'),full_page=True)
-                        page.go_back();page.go_forward();expect(page.get_by_label('消息',exact=True)).to_be_visible();check('back forward restores namespaced page',True)
-                        page.get_by_role('button',name='预览停用',exact=True).click();page.locator('#approve').check();page.get_by_role('button',name='确认执行计划',exact=True).click()
-                        expect(page.locator('#pages button')).to_have_count(0);expect(page.locator('#slots')).to_be_empty();expect(page.locator('#page')).to_contain_text('已停用')
-                        check('disable clears pages slots stale fields',page.get_by_label('消息',exact=True).count()==0)
-                        page.locator('#logout').click();page.locator('#token').fill(tokens[1]);page.get_by_role('button',name='连接',exact=True).click();expect(page.locator('#identity')).to_contain_text('租户：t2')
-                        check('second tenant does not inherit first tenant page',page.locator('#pages button').count()==0)
-                        page.reload();expect(page.locator('#login')).to_be_visible();expect(page.locator('#workspace')).to_be_hidden()
-                        check('refresh drops memory only authentication',page.locator('#token').input_value()=='')
-                        check('no browser execution errors',not errors);browser.close()
+                        page.on('response',lambda response:network.append({'path':response.url.removeprefix(base).split('?')[0],'method':response.request.method,'status':response.status}) if response.url.startswith(base+'/fcp/') else None)
+                        try:
+                            page.goto(base+'/dev/');page.locator('#token').fill(tokens[0]);page.get_by_role('button',name='连接',exact=True).click()
+                            expect(page.locator('#identity')).to_contain_text('租户：t1')
+                            check('token not persisted',page.evaluate('localStorage.length === 0 && sessionStorage.length === 0 && document.cookie === ""'))
+                            page.locator('#package').set_input_files(str(package));page.locator('#trusted').check();page.get_by_role('button',name='安装插件包',exact=True).click()
+                            expect(page.locator('#plugins')).to_contain_text('test.echo')
+                            # A separate actual browser context has view only; no admin session reuse.
+                            viewer_context=browser.new_context(viewport={'width':1280,'height':900})
+                            viewer=viewer_context.new_page();viewer.on('pageerror',lambda error:errors.append(str(error)))
+                            viewer.goto(base+'/dev/');viewer.locator('#token').fill(viewer_token);viewer.get_by_role('button',name='连接',exact=True).click()
+                            expect(viewer.locator('#identity')).to_contain_text('shell-viewer')
+                            expect(viewer.locator('#plugins')).to_contain_text('test.echo')
+                            expect(viewer.locator('#upload')).to_be_hidden()
+                            expect(viewer.get_by_role('button',name='预览启用',exact=True)).to_have_count(0)
+                            expect(viewer.get_by_role('button',name='预览停用',exact=True)).to_have_count(0)
+                            check('viewer sees installed plugin without installation or lifecycle controls',True)
+                            headers={'Authorization':'Bearer '+viewer_token}
+                            current=viewer.request.get(base+'/fcp/plugins',headers=headers)
+                            check('viewer can read actual plugin state',current.status==200)
+                            current_revision=current.json()['data']['revision']
+                            denied=viewer.request.post(base+'/fcp/plugins/test.echo/plans',headers=headers,data={'action':'enable','expectedRevision':current_revision})
+                            check('viewer direct lifecycle mutation denied by backend',denied.status==403 and denied.json()['data']['fcpCode']=='PERMISSION_DENIED')
+                            denied=viewer.request.post(base+'/fcp/packages',headers={**headers,'Content-Type':'application/octet-stream','X-Fcp-Digest':hashlib.sha256(package.read_bytes()).hexdigest(),'X-Fcp-Revision':str(current_revision),'Idempotency-Key':'viewer-denied-install'},data=package.read_bytes())
+                            check('viewer direct package installation denied by backend',denied.status==403 and denied.json()['data']['fcpCode']=='PERMISSION_DENIED')
+                            viewer.screenshot(path=str(REPORT/'standalone-viewer.png'),full_page=True)
+                            viewer_context.close()
+                            page.get_by_role('button',name='预览启用',exact=True).click();expect(page.locator('#plan')).to_be_visible()
+                            page.get_by_role('button',name='取消计划',exact=True).click();expect(page.locator('#plan')).to_be_hidden()
+                            check('cancel does not publish page',page.locator('#pages button').count()==0)
+                            page.get_by_role('button',name='预览启用',exact=True).click();page.locator('#approve').check();page.get_by_role('button',name='确认执行计划',exact=True).dblclick()
+                            expect(page.locator('#pages')).to_contain_text('Echo test');expect(page.locator('#slots')).to_contain_text('Echo slot active')
+                            check('repeated confirmation one ready plugin',page.locator('#pages button').count()==1)
+                            page.get_by_role('button',name='Echo test',exact=True).click();page.get_by_label('消息',exact=True).fill('<img src=x onerror=alert(1)>')
+                            page.get_by_role('button',name='发送 Echo',exact=True).click();expect(page.locator('#page table')).to_contain_text('<img src=x onerror=alert(1)>')
+                            expect(page.locator('#page table')).to_contain_text('t1');check('result rendered as literal text',page.locator('#page img').count()==0)
+                            page.screenshot(path=str(REPORT/'standalone-shell.png'),full_page=True)
+                            page.go_back();page.go_forward();expect(page.get_by_label('消息',exact=True)).to_be_visible();check('back forward restores namespaced page',True)
+                            page.get_by_role('button',name='预览停用',exact=True).click();page.locator('#approve').check();page.get_by_role('button',name='确认执行计划',exact=True).click()
+                            expect(page.locator('#pages button')).to_have_count(0);expect(page.locator('#slots')).to_be_empty();expect(page.locator('#page')).to_contain_text('已停用')
+                            check('disable clears pages slots stale fields',page.get_by_label('消息',exact=True).count()==0)
+                            page.locator('#logout').click();page.locator('#token').fill(tokens[1]);page.get_by_role('button',name='连接',exact=True).click();expect(page.locator('#identity')).to_contain_text('租户：t2')
+                            check('second tenant does not inherit first tenant page',page.locator('#pages button').count()==0)
+                            page.reload();expect(page.locator('#login')).to_be_visible();expect(page.locator('#workspace')).to_be_hidden()
+                            check('refresh drops memory only authentication',page.locator('#token').input_value()=='')
+                            check('no browser execution errors',not errors);browser.close()
+                        except Exception:
+                            try:
+                                snapshot={key:page.locator('#'+key).inner_text(timeout=1000) for key in ['identity','error','notice','operation','plan-details','plugins','pages']}
+                                snapshot['network']=network[-40:]
+                                (REPORT/'failure-state.json').write_text(json.dumps(snapshot,ensure_ascii=False,indent=2))
+                                page.screenshot(path=str(REPORT/'failure-shell.png'),full_page=True,mask=[page.locator('#token')])
+                            except Exception as evidence_error:
+                                (REPORT/'failure-evidence-error.txt').write_text(type(evidence_error).__name__)
+                            raise
+                except Exception:
+                    audit=work/'state/audit.jsonl'
+                    if audit.exists():
+                        safe=audit.read_text()
+                        for secret in [*tokens,viewer_token]:safe=safe.replace(secret,'[REDACTED]')
+                        (REPORT/'failure-audit.jsonl').write_text(safe)
+                    raise
                 finally:
                     process.terminate()
                     try:process.wait(timeout=15)
