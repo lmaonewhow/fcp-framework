@@ -57,10 +57,16 @@ public final class NativeBridgeRegression {
             var releaseAdmin=new SchoolFacade.Identity("tenant-000000","1",Set.of("fcp:release:view","fcp:release:manage"),Set.of());
             var releaseViewer=new SchoolFacade.Identity("tenant-000000","101",Set.of("fcp:release:view"),Set.of());
             var releaseForeign=new SchoolFacade.Identity("tenant-000001","201",Set.of("fcp:release:view","fcp:release:manage"),Set.of());
+            var workspaceForeign=new SchoolFacade.Identity("tenant-000001","201",Set.of("fcp:plugin:view","fcp:release:view","fcp:release:manage"),Set.of());
             var wildcard=new SchoolFacade.Identity("tenant-000000","1",Set.of("fcp:eval:list","*:*:*"),Set.of());
             ok(UiRoutePolicy.session(releaseAdmin).get("releasePermissions").equals(List.of("fcp:release:view","fcp:release:manage")),"explicit native release grants projected without wildcard");
             ok(UiRoutePolicy.session(releaseViewer).get("releasePermissions").equals(List.of("fcp:release:view")),"release viewer projection cannot become manager");
-            ok(UiRoutePolicy.session(releaseForeign).get("releasePermissions").equals(List.of()),"non-platform release projection remains empty despite menu grants");
+            denied("FORBIDDEN",()->UiRoutePolicy.session(releaseForeign),"non-platform release-only menus do not grant workspace access");
+            denied("FORBIDDEN",()->UiRoutePolicy.soybeanRoutes(releaseForeign),"non-platform release-only menus do not grant teacher routes");
+            ok(UiRoutePolicy.session(workspaceForeign).get("releasePermissions").equals(List.of()),"authorized non-platform workspace projects no release permissions despite menu grants");
+            var foreignRoutes=UiRoutePolicy.soybeanRoutes(workspaceForeign).get(0);
+            ok(arr(foreignRoutes,"children").stream().map(Schema::map).noneMatch(childRoute->"releases".equals(childRoute.get("path"))),"authorized non-platform workspace has no release route");
+            ok(UiRoutePolicy.session(workspaceForeign).get("home").equals("/teacher/fcp/plugins"),"non-platform workspace keeps its authorized plugin home");
             ok(UiRoutePolicy.session(wildcard).get("releasePermissions").equals(List.of()),"native wildcard does not create FCP release permission");
             var noGrant=new SchoolFacade.Identity("tenant-000000","103",Set.of(),Set.of());
             denied("FORBIDDEN",()->UiRoutePolicy.session(noGrant),"UI session requires host grant");

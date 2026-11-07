@@ -16,7 +16,7 @@ export interface NativePluginHost {
   identityKey(): string;
   observeIdentity(changed: () => void): () => void;
 }
-interface PendingAction {ownerId: string; capabilityId: string; input: Record<string,string>; key: string; epoch: number; affinity: string | null}
+interface PendingAction {identityOwner: string; ownerId: string; capabilityId: string; input: Record<string,string>; key: string; epoch: number; affinity: string | null}
 interface CatalogResponse { catalog: Catalog; context: Identity; releaseId?: string; affinity?: string; projectionFingerprint?: string }
 const blank = (): Catalog => ({contractVersion:'1.0',schemaVersion:1,revision:-1,pages:[],slots:[]});
 const components = ['text@1','field@1','button@1','table@1','stack@1'];
@@ -25,7 +25,11 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
   const route = useRoute(), router = useRouter();
   const catalog = shallowRef<Readonly<Catalog>>(blank()), error = ref(''), notice = ref(''), busy = ref(false);
   const fields = ref<Record<string, Record<string, string>>>({}), results = ref<Record<string, unknown>>({});
-  const pending = ref<PendingAction | null>(null);
+  const pending = ref<PendingAction | null>(null), uncertainty = ref(false);
+  // Component-lifetime, payload-free tombstones. Never store credentials or previous-user input.
+  const uncertainOwners = new Set<string>();
+  let activeOwner: string | null = null;
+  const ownerKey = (value:Identity) => value.userId && value.tenantId ? JSON.stringify([value.tenantId,value.userId]) : null;
   let identity: Identity = {userId:null,tenantId:null,language:'en',permissions:[]};
   const identityView = shallowRef<Identity>(identity);
   let alive = true, loading = false, timer: ReturnType<typeof setInterval> | undefined;
@@ -33,11 +37,14 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
   const identityListeners = new Set<() => void>();
   const clear = () => {
     if (pending.value) notice.value = '身份、权限或插件页面已变化，已清除本页待重试信息。上次操作可能已完成，请核对原操作结果，勿直接新建重复请求。';
+    if (pending.value) uncertainOwners.add(pending.value.identityOwner);
     pending.value = null; fields.value = {}; results.value = {};
+    uncertainty.value = activeOwner !== null && uncertainOwners.has(activeOwner);
   };
   function identityChanged() {
     fetchController?.abort(); identity = {userId:null,tenantId:null,language:'en',permissions:[]}; identityView.value = identity;
     for (const changed of identityListeners) changed();
+    activeOwner = null; uncertainty.value = false;
   }
   const stopIdentity = host.observeIdentity(identityChanged);
   const factory = host.shell === 'admin' ? createPlusUiAdapter : createSoybeanAdapter;
@@ -93,12 +100,14 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
       const context = response?.context;
       if (!context || typeof context.userId !== 'string' || typeof context.tenantId !== 'string' || typeof context.language !== 'string' || !Array.isArray(context.permissions) || context.permissions.some(p => typeof p !== 'string')) throw new UiError('VALIDATION','身份目录响应无效');
       const nextIdentity: Identity = {userId:context.userId,tenantId:context.tenantId,language:context.language,permissions:[...context.permissions].sort()};
+      activeOwner = ownerKey(nextIdentity);
       if (JSON.stringify(identity) !== JSON.stringify(nextIdentity)) {
         for (const changed of identityListeners) changed();
         identity = nextIdentity; identityView.value = identity;
       }
       if (typeof response.projectionFingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(response.projectionFingerprint)) { runtime.resetIdentity(); throw new UiError('VALIDATION','权限投影缺失或失效，请刷新页面重新确认。'); }
       runtime.applyProjection(response.catalog,response.projectionFingerprint);
+      uncertainty.value = activeOwner !== null && uncertainOwners.has(activeOwner);
       error.value = '';
     } catch (failure) {
       if (!alive || controller.signal.aborted || key !== host.identityKey()) return;
@@ -110,7 +119,7 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
   const selected = computed(() => catalog.value.pages.find(page => page.path === route.path));
   const isDeepLink = computed(() => route.path !== '/fcp/plugins' && route.path.startsWith('/fcp/plugins/'));
   function edit(id: string, field: string, value: string) {
-    if (pending.value) { error.value = '请先重试或明确放弃待确认的操作，再修改输入。'; return; }
+    if (pending.value || uncertainty.value) { error.value = '请先重试或明确放弃待确认的操作，再修改输入。'; return; }
     if (![...catalog.value.pages,...catalog.value.slots].some(p => p.id === id)) return;
     (fields.value[id] ??= {})[field] = value;
     if (catalog.value.pages.some(p => p.id === id)) runtime.markDirty(id);
@@ -127,34 +136,36 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
     } catch (failure) {
       // No automatic replay. Preserve the original key and exact input unless the
       // identity epoch was revoked. A failed network response does not prove no write.
-      if (alive) error.value = failure instanceof Error ? failure.message : '能力调用结果未确认';
+      if (alive && attempt.identityOwner === activeOwner && attempt.epoch === runtime.identityEpoch) error.value = failure instanceof Error ? failure.message : '能力调用结果未确认';
     } finally { if (alive) busy.value = false; }
   }
   async function invoke(id: string, capabilityId: string) {
     if (busy.value) return;
-    if (pending.value) {error.value = '上次操作结果尚未确认，请明确重试同一请求或放弃后再开始新操作。'; return;}
+    if (pending.value || uncertainty.value) {error.value = '上次操作结果尚未确认，请明确重试同一请求或放弃后再开始新操作。'; return;}
     const epoch = runtime.identityEpoch, affinity = await getReleaseAffinity();
-    if (!alive || epoch !== runtime.identityEpoch || pending.value) return;
-    const attempt: PendingAction = {ownerId:id,capabilityId,input:{...(fields.value[id] ?? {})},key:crypto.randomUUID(),epoch,affinity};
+    if (!alive || epoch !== runtime.identityEpoch || pending.value || uncertainty.value || activeOwner === null) return;
+    const attempt: PendingAction = {identityOwner:activeOwner,ownerId:id,capabilityId,input:{...(fields.value[id] ?? {})},key:crypto.randomUUID(),epoch,affinity};
     pending.value = attempt; await send(attempt);
   }
-  async function retry() { if (pending.value) await send(pending.value); }
-  function abandon() {
+  async function retry() { if (uncertainty.value) {error.value='旧权限或发布上下文已失效，禁止重放。请先核对原操作结果。';return;} if (pending.value) await send(pending.value); }
+  function abandon(confirmed = false) {
     if (busy.value) return;
+    if (!confirmed || activeOwner === null) {error.value='请明确确认已核对原操作结果；放弃重试不会撤销服务端效果。';return;}
+    uncertainOwners.delete(activeOwner); uncertainty.value = false;
     pending.value = null;
     notice.value = '已放弃本页重试信息，这不会撤销服务端可能完成的操作。请先核对，再发起新的操作。';
   }
   const stopNavigation = router.beforeEach(to => {
     if (to.path === '/login') { if (pending.value) identityChanged(); return true; }
-    if (pending.value && to.path !== route.path) {
+    if ((pending.value || uncertainty.value) && to.path !== route.path) {
       error.value = '请先重试或明确放弃待确认操作，再离开插件页面。'; return false;
     }
     return true;
   });
   const beforeUnload = (event: BeforeUnloadEvent) => {
-    if (pending.value) { event.preventDefault(); event.returnValue = ''; }
+    if (pending.value || uncertainty.value) { event.preventDefault(); event.returnValue = ''; }
   };
   onMounted(() => { if (typeof window !== 'undefined') window.addEventListener('beforeunload',beforeUnload); void refresh(); timer = setInterval(() => {void refresh();},5000); });
   onBeforeUnmount(() => { alive = false; fetchController?.abort(); if (timer) clearInterval(timer); stopIdentity(); stopNavigation(); if (typeof window !== 'undefined') window.removeEventListener('beforeunload',beforeUnload); runtime.dispose(); });
-  return {identityView,catalog,error,notice,busy,fields,results,pending,retry,abandon,selected,isDeepLink,edit,invoke,refresh,render:(id:string) => runtime.render(id),navigate:(path:string) => router.push(path)};
+  return {identityView,catalog,error,notice,busy,fields,results,pending,uncertainty,retry,abandon,selected,isDeepLink,edit,invoke,refresh,render:(id:string) => runtime.render(id),navigate:(path:string) => router.push(path)};
 }
