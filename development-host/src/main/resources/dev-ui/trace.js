@@ -17,6 +17,19 @@ export function responseTraceId(response) {
     const body = response.data;
     return validTraceId(header) || validTraceId(body?.traceId) || (body && typeof body === 'object' ? binaryTraces.get(body) || '' : '');
 }
+// A wrapped error may reach a later outer catch after another request completed.
+// Observe each error once so that catch cannot erase a newer request's notice.
+const observedErrors = new WeakSet();
+export function clearUntracedErrorNotice(error) {
+    if (error !== null && typeof error === 'object') {
+        if (observedErrors.has(error))
+            return;
+        observedErrors.add(error);
+        if (validTraceId(error.traceId))
+            return;
+    }
+    clearTraceNotice();
+}
 let panel;
 /** One bounded, selectable diagnostic. It never repeats the server's message/body or takes focus. */
 export function clearTraceNotice() { panel?.remove(); panel = undefined; }
@@ -66,6 +79,12 @@ export function withResponseTrace(error, response) {
             error.message += ` (Trace ID: ${id})`;
         showTraceNotice(id);
     }
+    else {
+        // The latest completed error has no trusted ID. Never leave an older
+        // request's copyable notice beside it; retained Error objects stay intact.
+        clearTraceNotice();
+    }
+    observedErrors.add(error);
     return error;
 }
 export function responseError(message, response) {

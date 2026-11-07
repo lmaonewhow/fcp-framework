@@ -15,6 +15,9 @@ import java.lang.reflect.*;
 
 @Configuration(proxyBeanMethods=false)
 public class FcpTraceConfiguration {
+    @Bean public org.springframework.boot.web.servlet.ServletListenerRegistrationBean<FcpTraceFilter.CompletionListener> fcpTraceCompletion() {
+        return new org.springframework.boot.web.servlet.ServletListenerRegistrationBean<>(new FcpTraceFilter.CompletionListener());
+    }
     @Bean public FilterRegistrationBean<FcpTraceFilter> fcpTraceFilter(Environment environment) {
         Set<String> peers=new HashSet<>();
         String configured=environment.getProperty("fcp.trace.trusted-peers","");
@@ -28,18 +31,9 @@ public class FcpTraceConfiguration {
         bean.setDispatcherTypes(DispatcherType.REQUEST,DispatcherType.ASYNC,DispatcherType.ERROR,DispatcherType.FORWARD);
         return bean;
     }
-    /** Explicit executor avoids Spring @Async's unmanaged fallback, which cannot carry scope. */
-    @Bean(name={"taskExecutor","applicationTaskExecutor"})
-    public ThreadPoolTaskExecutor fcpAsyncExecutor() {
-        var executor=new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);executor.setMaxPoolSize(Math.max(2,Math.min(16,Runtime.getRuntime().availableProcessors())));
-        executor.setQueueCapacity(1024);executor.setThreadNamePrefix("fcp-native-async-");
-        executor.setTaskDecorator(NativeTrace::wrap);
-        // Preserve native audit writes under saturation rather than silently discarding audit tasks.
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.setWaitForTasksToCompleteOnShutdown(true);executor.setAwaitTerminationSeconds(30);
-        return executor;
-    }
+    // The pinned RuoYi sets spring.task.execution.mode=force. Boot owns the reserved
+    // applicationTaskExecutor and its AsyncConfigurer, including pool/virtual-thread settings.
+    // Decorate those existing executors below; never declare aliases or replace their sizing.
     @Bean public static BeanPostProcessor fcpTraceExecutors() {
         return new BeanPostProcessor() {
             @Override public Object postProcessBeforeInitialization(Object bean,String name) {

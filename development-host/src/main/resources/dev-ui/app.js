@@ -1,4 +1,4 @@
-import { clearTraceNotice, readResponseJson, responseError } from './trace.js';
+import { clearTraceNotice, clearUntracedErrorNotice, readResponseJson, responseError } from './trace.js';
 import { UiRuntime } from './runtime.js';
 const $ = id => document.getElementById(id);
 const text = (tag, value) => { const n = document.createElement(tag); n.textContent = value; return n; };
@@ -53,8 +53,9 @@ async function api(path, body, extra = {}, externalSignal) {
 }
 async function run(action) {
   if (busy) return;
+  const mine = epoch;
   busy = true; $('error').textContent = ''; updateControls();
-  try { await action(); } catch (e) { if (e.name !== 'AbortError') $('error').textContent = e.message; }
+  try { await action(); } catch (e) { if (e.name !== 'AbortError') { if (mine === epoch) clearUntracedErrorNotice(e); $('error').textContent = e.message; } }
   finally { busy = false; updateControls(); }
 }
 function updateControls() {

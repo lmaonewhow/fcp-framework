@@ -17,6 +17,17 @@ export function responseTraceId(response?: TraceResponse | null): string {
   const body = response.data as {traceId?: unknown} | null | undefined;
   return validTraceId(header) || validTraceId(body?.traceId) || (body && typeof body === 'object' ? binaryTraces.get(body) || '' : '');
 }
+// A wrapped error may reach a later outer catch after another request completed.
+// Observe each error once so that catch cannot erase a newer request's notice.
+const observedErrors = new WeakSet<object>();
+export function clearUntracedErrorNotice(error: unknown): void {
+  if (error !== null && typeof error === 'object') {
+    if (observedErrors.has(error)) return;
+    observedErrors.add(error);
+    if (validTraceId((error as {traceId?: unknown}).traceId)) return;
+  }
+  clearTraceNotice();
+}
 let panel: HTMLElement | undefined;
 /** One bounded, selectable diagnostic. It never repeats the server's message/body or takes focus. */
 export function clearTraceNotice(): void { panel?.remove(); panel = undefined; }
@@ -49,7 +60,12 @@ export function withResponseTrace<T extends Error>(error: T, response?: TraceRes
     Object.assign(error, {traceId: id});
     if (!error.message.includes(`Trace ID: ${id}`)) error.message += ` (Trace ID: ${id})`;
     showTraceNotice(id);
+  } else {
+    // The latest completed error has no trusted ID. Never leave an older
+    // request's copyable notice beside it; retained Error objects stay intact.
+    clearTraceNotice();
   }
+  observedErrors.add(error);
   return error;
 }
 export function responseError(message: string, response?: TraceResponse | null): Error & {traceId?: string} {

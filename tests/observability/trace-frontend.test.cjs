@@ -64,10 +64,110 @@ test('malformed/non-JSON response retains header; missing response never fabrica
  const body=await trace.readResponseJson(new Response(JSON.stringify({code:403,traceId:id})));
  assert.equal(trace.responseError('Denied',{data:body}).traceId,id);
 });
+test('a new network or invalid-ID error clears the previous notice without changing errors',()=>{
+ const previous=trace.responseError('Previous failure',response());
+ const previousMessage=previous.message;
+ const offline=new Error('Network Error');
+ assert.equal(trace.withResponseTrace(offline),offline);
+ assert.equal(offline.message,'Network Error');assert.equal(offline.traceId,undefined);assert.equal(text(),'');
+ assert.equal(previous.traceId,id);assert.equal(previous.message,previousMessage);
+ for(const value of ['bad', '0'.repeat(32), id+'\n']) {
+  trace.showTraceNotice(id);
+  const failure=trace.responseError('Invalid response trace',response({},value));
+  assert.equal(failure.traceId,undefined);assert.equal(failure.message,'Invalid response trace');assert.equal(text(),'');
+ }
+});
+test('HTML without a response ID clears the previous notice',async()=>{
+ trace.showTraceNotice(id);
+ await assert.rejects(()=>trace.readResponseJson(new Response('<html>gateway</html>',{status:502})),error=>error.traceId===undefined&&!error.message.includes('Trace ID:'));
+ assert.equal(text(),'');
+});
+test('concurrent failures use completion order; stale clipboard completion cannot restore a notice',async()=>{
+ const deferred=()=>{let resolve;const promise=new Promise(done=>resolve=done);return {promise,resolve};};
+ const pendingCopy=deferred();navigator.clipboard.writeText=()=>pendingCopy.promise;
+ const first=trace.responseError('First completed failure',response());
+ const panel=document.querySelector('[data-testid="request-trace"]');
+ const copy=panel.querySelector('button');copy.click();
+ trace.withResponseTrace(first,response());assert.equal(document.querySelector('button'),copy);
+ const pendingWithoutId=deferred(),pendingWithId=deferred();
+ const withoutId=pendingWithoutId.promise.then(()=>trace.responseError('Late network error'));
+ const withId=pendingWithId.promise.then(()=>trace.responseError('Other response',response({},other)));
+ pendingWithId.resolve();const second=await withId;
+ assert.equal(document.querySelector('code').textContent,other);
+ pendingWithoutId.resolve();const latest=await withoutId;assert.equal(text(),'');
+ pendingCopy.resolve();await new Promise(resolve=>setImmediate(resolve));assert.equal(text(),'');
+ assert.equal(first.traceId,id);assert.equal(second.traceId,other);assert.equal(latest.traceId,undefined);
+ // A subsequently completed valid response may display its own ID again.
+ trace.responseError('Next failure',response());assert.equal(document.querySelector('code').textContent,id);
+ navigator.clipboard.writeText=async value=>copied.push(value);trace.clearTraceNotice();
+});
 test('native Blob download retains ID without copying binary content',()=>{
  const blob=new Blob(['not uploaded']);trace.rememberResponseTrace(blob,response());
  assert.equal(trace.responseError('download rejected',{data:blob}).traceId,id);
 });
+test('outer catches preserve traced errors and never clear a newer notice twice',()=>{
+ const earlier=trace.responseError('Earlier untraced error');
+ const latest=trace.responseError('Later traced error',response({},other));
+ const panel=document.querySelector('[data-testid="request-trace"]');
+ trace.clearUntracedErrorNotice(earlier);
+ assert.equal(document.querySelector('[data-testid="request-trace"]'),panel);
+ trace.clearUntracedErrorNotice(latest);assert.equal(document.querySelector('code').textContent,other);
+ const network=new Error('Offline');trace.clearUntracedErrorNotice(network);assert.equal(text(),'');
+ trace.responseError('Next response',response());trace.clearUntracedErrorNotice(network);
+ assert.equal(document.querySelector('code').textContent,id);
+ const retained=Object.assign(new Error('Already correlated'),{traceId:other});
+ trace.clearUntracedErrorNotice(retained);assert.equal(document.querySelector('code').textContent,id);
+ assert.equal(retained.message,'Already correlated');assert.equal(retained.traceId,other);
+ trace.clearUntracedErrorNotice(Object.assign(new Error('Bad ID'),{traceId:'<invalid>'}));assert.equal(text(),'');
+});
+function ingestionClient(fetch) {
+ let unmount;
+ const sandbox={exports:{},Error,AbortController,fetch,crypto:global.crypto,
+  require:name=>name==='vue'?{ref:value=>({value}),computed:get=>({get value(){return get();}}),onMounted:()=>{},onBeforeUnmount:fn=>unmount=fn}
+   :name==='./session'?{readToken:()=> 'fixture-token'}:trace};
+ const code=fs.readFileSync(path.join(root,'integration/frontend-shared/useIngestion.ts'),'utf8').replaceAll('import.meta.env',"({VITE_APP_CLIENT_ID:'fixture-client'})");
+ vm.runInNewContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,sandbox);
+ return {client:sandbox.exports.useIngestion(),unmount:()=>unmount()};
+}
+test('actual ingestion catch clears raw fetch errors, preserves traced errors and ignores unmount',async()=>{
+ trace.responseError('Old error',response());
+ const offline=new Error('Network unavailable');
+ const {client}=ingestionClient(async()=>{throw offline;});
+ await client.reload();assert.equal(text(),'');assert.equal(client.error.value,offline.message);
+ assert.equal(offline.traceId,undefined);
+ const correlated=ingestionClient(async()=>new Response(JSON.stringify({code:500,msg:'Rejected'}),{status:500,headers:{'X-Trace-Id':other}}));
+ await correlated.client.reload();assert.equal(document.querySelector('code').textContent,other);assert.match(correlated.client.error.value,new RegExp(other));
+ let reject;const pending=new Promise((_,no)=>reject=no);
+ const detached=ingestionClient(()=>pending),work=detached.client.reload();detached.unmount();
+ trace.responseError('Another current page error',response());reject(new Error('Old page disconnected'));await work;
+ assert.equal(document.querySelector('code').textContent,id);trace.clearTraceNotice();
+});
+function developmentClient(fetch) {
+ const code=fs.readFileSync(path.join(root,'development-host/src/main/resources/dev-ui/app.js'),'utf8');
+ const ast=ts.createSourceFile('app.js',code,ts.ScriptTarget.ES2022,true,ts.ScriptKind.JS);
+ // Execute the actual API/run functions, without starting app event handlers or timers.
+ const functions=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&['api','run'].includes(n.name?.text)).map(n=>n.getText(ast)).join('\n');
+ const errorElement={textContent:''};
+ const sandbox={...trace,Error,AbortController,ArrayBuffer,Uint8Array,fetch,requests:new Set(),
+  $:()=>errorElement,updateControls:()=>{},clearIdentity:()=>{throw new Error('not used by this test');}};
+ vm.runInNewContext("let epoch=0,busy=false,token='fixture-token';\n"+functions+'\nthis.actions={api,run,setEpoch:value=>epoch=value};',sandbox);
+ return {...sandbox.actions,errorElement};
+}
+test('actual development run clears raw API/download rejection but retains trace and newer identity',async()=>{
+ const offline=new Error('Network unavailable');const dev=developmentClient(async()=>{throw offline;});
+ trace.responseError('Old error',response());await dev.run(()=>dev.api('/fixture'));
+ assert.equal(text(),'');assert.equal(dev.errorElement.textContent,offline.message);assert.equal(offline.traceId,undefined);
+ trace.responseError('Old download error',response());await dev.run(async()=>{throw new Error('Download connection lost');});assert.equal(text(),'');
+ const correlated=developmentClient(async()=>new Response(JSON.stringify({code:500,msg:'Rejected'}),{status:500,headers:{'X-Trace-Id':other}}));
+ await correlated.run(()=>correlated.api('/fixture'));assert.equal(document.querySelector('code').textContent,other);assert.match(correlated.errorElement.textContent,new RegExp(other));
+ trace.clearTraceNotice();
+ let reject;const late=new Promise((_,no)=>reject=no);
+ const old=developmentClient(()=>late),work=old.run(()=>old.api('/fixture'));
+ old.setEpoch(1);trace.responseError('New identity error',response());reject(new Error('Old identity disconnected'));await work;
+ assert.equal(document.querySelector('code').textContent,id);
+ await dev.run(async()=>{throw Object.assign(new Error('Cancelled'),{name:'AbortError'});});assert.equal(document.querySelector('code').textContent,id);trace.clearTraceNotice();
+});
+
 // Supply exact source repositories to execute patched native interceptor functions.
 function native(name) {
  const repository=process.env[name==='admin'?'FCP_TRACE_ADMIN_SOURCE':'FCP_TRACE_TEACHER_SOURCE'];
@@ -99,12 +199,19 @@ for(const name of ['admin','teacher'])test(`${name}: actual pinned native error 
   const failure=Object.assign(new Error('Request failed with status code 403'),{response:response({code:403,msg:'Denied'})});
   await assert.rejects(()=>n.responseHooks[1](failure),e=>e.traceId===id);
   assert.match(n.messages.at(-1),new RegExp(id));
+  const offline=new Error('Network Error');
+  await assert.rejects(()=>n.responseHooks[1](offline),error=>error===offline&&error.traceId===undefined);
+  assert.equal(text(),'');assert.equal(offline.message,'Network Error');
   const success=response({code:200,data:'ok'});success.request={responseType:'json'};
   trace.clearTraceNotice();assert.equal((await n.responseHooks[0](success)).data,'ok');assert.equal(text(),'');
  } else {
   await n.hooks.onBackendFail(logical,{});assert.match(text(),new RegExp(id));assert.equal(logical.data.msg,'Denied');
   const failure=Object.assign(new Error('HTTP failure'),{response:response(),code:'HTTP'});
   n.hooks.onError(failure);assert.equal(failure.traceId,id);assert.equal(n.messages.at(-1),'HTTP failure');assert.match(text(),new RegExp(id));
-  trace.clearTraceNotice();n.hooks.onError(Object.assign(new Error('cancelled'),{code:'CANCELED',response:response()}));assert.equal(text(),'');
+  const offline=Object.assign(new Error('Network Error'),{code:'HTTP'});
+  n.hooks.onError(offline);assert.equal(offline.traceId,undefined);assert.equal(text(),'');assert.equal(n.messages.at(-1),'Network Error');
+  trace.showTraceNotice(id);const notice=document.querySelector('[data-testid="request-trace"]');
+  n.hooks.onError(Object.assign(new Error('cancelled'),{code:'CANCELED',response:response()}));
+  assert.equal(document.querySelector('[data-testid="request-trace"]'),notice);trace.clearTraceNotice();
  }
 });

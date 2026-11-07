@@ -10,8 +10,9 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** First servlet boundary, including native login, captcha and rejected requests.
- * Only explicitly configured socket peers may propagate traceparent. Forwarded headers are ignored.
+/** First servlet boundary. Completion belongs to the entire servlet request lifecycle,
+ * not to an individual nested FORWARD, ERROR or ASYNC filter invocation.
+ * Only explicitly configured socket peers may propagate traceparent; forwarding headers are ignored.
  */
 public final class FcpTraceFilter implements Filter {
     public static final String ATTRIBUTE = FcpTraceFilter.class.getName()+".state";
@@ -25,46 +26,69 @@ public final class FcpTraceFilter implements Filter {
         final long started=System.nanoTime();
         final AtomicBoolean completed=new AtomicBoolean();
         volatile boolean failed;
+        volatile HttpServletResponse response;
         State(TraceContext.Trace trace) { this.trace=trace; }
+    }
+    /** Container invokes this after synchronous/error dispatch or the complete async lifecycle.
+     * It also covers async completion racing the originating filter's return.
+     */
+    public static final class CompletionListener implements ServletRequestListener {
+        @Override public void requestDestroyed(ServletRequestEvent event) {
+            if(event.getServletRequest() instanceof HttpServletRequest request &&
+                    request.getAttribute(ATTRIBUTE) instanceof State state && state.response!=null)
+                complete(request,state.response,state);
+        }
     }
     @Override public void doFilter(ServletRequest raw, ServletResponse output, FilterChain chain) throws IOException, ServletException {
         if (!(raw instanceof HttpServletRequest request) || !(output instanceof HttpServletResponse response)) { chain.doFilter(raw,output);return; }
         State state=(State)request.getAttribute(ATTRIBUTE);
         if(state==null) {
-            // Exact numeric peers only. Proxies must strip public traceparent before forwarding.
             var headers=request.getHeaders("traceparent");
             String parent=headers.hasMoreElements()?headers.nextElement():null;
             if(headers.hasMoreElements())parent=null;
             state=new State(TraceContext.start(parent,peers.contains(request.getRemoteAddr())));
             request.setAttribute(ATTRIBUTE,state);
         }
+        State captured=state;
+        HttpServletResponse traced=new HttpServletResponseWrapper(response) {
+            @Override public void reset() { super.reset();headers(this,captured); }
+        };
+        state.response=traced;
+        headers(traced,state);
+        // Attach async failure callbacks at startAsync, not after chain return (which can race complete).
+        HttpServletRequest wrapped=new HttpServletRequestWrapper(request) {
+            private AsyncContext observe(AsyncContext context) {
+                context.addListener(new AsyncListener() {
+                    public void onComplete(AsyncEvent event) { /* requestDestroyed records final response once. */ }
+                    public void onTimeout(AsyncEvent event) { captured.failed=true; }
+                    public void onError(AsyncEvent event) { captured.failed=true; }
+                    public void onStartAsync(AsyncEvent event) { event.getAsyncContext().addListener(this); }
+                });
+                return context;
+            }
+            @Override public AsyncContext startAsync() { return observe(super.startAsync(this,traced)); }
+            @Override public AsyncContext startAsync(ServletRequest req,ServletResponse res) { return observe(super.startAsync(req,res)); }
+        };
+        try(var ignored=NativeTrace.open(state.trace)) {
+            try { chain.doFilter(wrapped,traced); }
+            catch(IOException|ServletException|RuntimeException|Error failure) { state.failed=true;throw failure; }
+        }
+    }
+    private static void headers(HttpServletResponse response,State state) {
         response.setHeader("X-Trace-Id",state.trace.traceId());
         response.setHeader("X-Request-Id",state.trace.requestId());
-        State captured=state;
-        try(var ignored=NativeTrace.open(state.trace)) {
-            try { chain.doFilter(request,response); }
-            catch(IOException|ServletException|RuntimeException|Error failure) { state.failed=true;throw failure; }
-            finally {
-                if(request.isAsyncStarted()) {
-                    try { request.getAsyncContext().addListener(new AsyncListener() {
-                        public void onComplete(AsyncEvent event) { complete(request,response,captured); }
-                        public void onTimeout(AsyncEvent event) { captured.failed=true; }
-                        public void onError(AsyncEvent event) { captured.failed=true; }
-                        public void onStartAsync(AsyncEvent event) { event.getAsyncContext().addListener(this); }
-                    }); } catch(IllegalStateException alreadyCompleted) { complete(request,response,state); }
-                } else complete(request,response,state);
-            }
-        }
     }
     private static void complete(HttpServletRequest request,HttpServletResponse response,State state) {
         if(!state.completed.compareAndSet(false,true))return;
-        // Matched templates only, never raw URI/query (which may contain user identifiers/secrets).
         Object pattern=request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
         String route=pattern instanceof String value && value.length()<=256 && ROUTE.matcher(value).matches()?value:"unmatched";
         String method=METHODS.contains(request.getMethod())?request.getMethod():"OTHER";
+        Object code=request.getAttribute(NativeBusinessCodeAdvice.ATTRIBUTE);
+        Object businessCode=code instanceof Integer?code:"none";
+        Object businessFailed=code instanceof Integer value?value!=org.dromara.common.core.domain.R.SUCCESS:"none";
         try(var ignored=NativeTrace.open(state.trace)) {
-            LOG.info("request_complete method={} route={} status={} durationMs={} failed={} droppedTotal={}",method,route,
-                state.failed?Math.max(500,response.getStatus()):response.getStatus(),(System.nanoTime()-state.started)/1_000_000,state.failed,TraceAsyncAppender.droppedCount());
+            LOG.info("request_complete method={} route={} status={} durationMs={} failed={} businessCode={} businessFailed={} droppedTotal={}",method,route,
+                response.getStatus(),(System.nanoTime()-state.started)/1_000_000,state.failed||response.getStatus()>=500,businessCode,businessFailed,TraceAsyncAppender.droppedCount());
         }
     }
 }

@@ -256,6 +256,8 @@ class Fixture:
                         video = page.video
                         context.close(); contexts.remove(context)
                         if video: video.save_as(str(self.output/(role+'.webm')))
+                    from ci_trace_frontend import verify as verify_trace_frontend
+                    verify_trace_frontend(self, browser, base, states['admin'], build_id)
                     self.report['status'] = 'PASS'
                 finally:
                     for context in contexts: context.close()

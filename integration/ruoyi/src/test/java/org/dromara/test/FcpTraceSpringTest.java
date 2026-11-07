@@ -52,19 +52,45 @@ class FcpTraceSpringTest {
         assertTrue(response.headers().firstValue("X-Request-Id").orElseThrow().matches("[a-f0-9]{32}"));
         return trace;
     }
-    @Test void actualNativeCaptchaSucceedsAndUnauthenticatedRoutesRejectWithTrace() throws Exception {
-        var captcha=get("/auth/code");String previous=trace(captcha);
-        assertEquals(200,captcha.statusCode());
-        var body=json.readTree(captcha.body());assertEquals(200,body.path("code").asInt());
-        assertTrue(body.path("data").path("captchaEnabled").asBoolean());
-        assertFalse(body.path("data").path("uuid").asText().isEmpty());
-        assertFalse(body.path("data").path("img").asText().isEmpty());
-        for(String path:new String[]{"/system/user/list","/fcp/plugins"}) {
-            var rejected=get(path);String current=trace(rejected);assertNotEquals(previous,current);previous=current;
-            var rejection=json.readTree(rejected.body());
-            assertEquals(401,rejection.path("code").asInt(),"Actual native Sa-Token authentication must reject "+path);
+    private record Summary(String trace,String text) { }
+    private static String awaitSummary(LinkedBlockingQueue<Summary> summaries,String trace) throws Exception {
+        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);
+        while(System.nanoTime()<deadline) {
+            Summary summary=summaries.poll(100,TimeUnit.MILLISECONDS);
+            if(summary!=null&&trace.equals(summary.trace()))return summary.text();
         }
-        assertNull(TraceContext.current());
+        throw new AssertionError("Request completion summary missing for "+trace);
+    }
+    @Test void actualNativeCaptchaSucceedsAndUnauthenticatedRoutesRejectWithTrace() throws Exception {
+        var summaries=new LinkedBlockingQueue<Summary>();
+        var capture=new AppenderBase<ILoggingEvent>() {
+            @Override protected void append(ILoggingEvent event) {
+                event.prepareForDeferredProcessing();summaries.add(new Summary(event.getMDCPropertyMap().get("traceId"),event.getFormattedMessage()));
+            }
+        };
+        Logger logger=(Logger)LoggerFactory.getLogger("fcp.request");
+        capture.setContext(logger.getLoggerContext());capture.start();logger.addAppender(capture);
+        try {
+            var captcha=get("/auth/code");String previous=trace(captcha);
+            assertEquals(200,captcha.statusCode());
+            var body=json.readTree(captcha.body());assertEquals(200,body.path("code").asInt());
+            assertTrue(body.path("data").path("captchaEnabled").asBoolean());
+            assertFalse(body.path("data").path("uuid").asText().isEmpty());
+            assertFalse(body.path("data").path("img").asText().isEmpty());
+            String success=awaitSummary(summaries,previous);
+            assertTrue(success.contains("status=200 "));assertTrue(success.contains("failed=false businessCode=200 businessFailed=false"),success);
+            assertFalse(success.contains(body.path("data").path("uuid").asText()));
+            for(String path:new String[]{"/system/user/list","/fcp/plugins"}) {
+                var rejected=get(path);String current=trace(rejected);assertNotEquals(previous,current);previous=current;
+                var rejection=json.readTree(rejected.body());
+                assertEquals(200,rejected.statusCode(),"Native R rejection preserves its original HTTP semantics");
+                assertEquals(401,rejection.path("code").asInt(),"Actual native Sa-Token authentication must reject "+path);
+                String failure=awaitSummary(summaries,current);
+                assertTrue(failure.contains("status=200 "));assertTrue(failure.contains("failed=false businessCode=401 businessFailed=true"),failure);
+                assertFalse(failure.contains(rejection.path("msg").asText()),"Do not log the native response message");
+            }
+            assertNull(TraceContext.current());
+        } finally { logger.detachAppender(capture);capture.stop(); }
     }
     @Test void nativeAsyncLoginAuditPersistsAndCorrelatesWithoutLoggingUsername() throws Exception {
         // Never publish the synthetic write against a user's existing database.
