@@ -14,7 +14,7 @@ public final class Registry {
     private void loadDirectory(Path directory,String kind)throws IOException{
         try(var paths=Files.list(directory)){for(Path path:paths.filter(p->p.toString().endsWith(".json")).sorted().toList())register(kind,map(Json.parse(Files.readString(path))));}
     }
-    public void register(String kind,Map<String,Object> document){
+    public synchronized void register(String kind,Map<String,Object> document){
         Map<String,Object> doc=map(cloneJson(document));ident(doc.get("id"));String id=str(doc.get("id"));
         Map<String,Map<String,Object>> target=switch(kind){case "contract"->contracts;case "module"->modules;case "composition"->compositions;default->throw new FcpException("MANIFEST",kind);};
         if(target.containsKey(id))throw new FcpException("DUPLICATE",id);
