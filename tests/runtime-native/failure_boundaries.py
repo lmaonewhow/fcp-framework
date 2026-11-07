@@ -114,7 +114,7 @@ class FailureBoundaryFixture:
         hashed = bcrypt.hashpw(login_fixture.password.encode(), bcrypt.gensalt(rounds=10, prefix=b'2a')).decode()
         sql(f"""USE `{database}`;
 INSERT INTO sys_tenant_package(package_id,package_name,menu_ids,status,del_flag,create_by,create_time)
-VALUES(960620,'CI boundaries','942000,942020,942021,942022,950520','0','0',1,NOW());
+VALUES(960620,'CI boundaries','942000,942008,942020,942021,942022,950520','0','0',1,NOW());
 INSERT INTO sys_tenant(id,tenant_id,company_name,package_id,status,del_flag,create_by,create_time)
 VALUES(960620,'{TENANT}','{COMPANY}',960620,'0','0',1,NOW());
 INSERT INTO sys_dept(dept_id,tenant_id,parent_id,ancestors,dept_name,status,del_flag,create_by,create_time)
@@ -124,7 +124,7 @@ VALUES(960610,'000000','CI second manager','fcp_ci_second_manager',92,'5','0','0
 (960611,'{TENANT}','CI tenant manager','fcp_ci_tenant_manager',93,'5','0','0',1,NOW());
 INSERT INTO sys_role_menu(role_id,menu_id) VALUES
 (960610,942000),(960610,942020),(960610,942021),(960610,942022),(960610,950520),
-(960611,942000),(960611,942020),(960611,942021),(960611,942022),(960611,950520);
+(960611,942000),(960611,942008),(960611,942020),(960611,942021),(960611,942022),(960611,950520);
 INSERT INTO sys_user(user_id,tenant_id,dept_id,user_name,nick_name,password,status,del_flag,create_time)
 VALUES(960600,'000000',103,'fcp_second_manager_ci','Synthetic CI manager','{hashed}','0','0',NOW()),
 (960601,'{TENANT}',960620,'fcp_tenant_manager_ci','Synthetic CI tenant manager','{hashed}','0','0',NOW());

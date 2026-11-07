@@ -1,0 +1,15 @@
+{
+  "rendererRegressionBefore": "FAIL_EXPECTED_EXIT_1",
+  "rendererFixed": {
+    "admin": "PASS",
+    "teacher": "PASS"
+  },
+  "rendererScope": "Actual Vue SSR/native component DOM structure, not browser AX tree",
+  "tenantBoundaryNative": "NOT_RUN_PENDING_CI",
+  "tenantBoundaryMethod": "Native logout + genuine encrypted T2 login in same context; not in-session selector",
+  "sourceSha256": {
+    "integration/frontend-shared/PluginWorkspace.vue": "d9950a344e57da0b77acee13783f4fb0988f5856fadfbc3f343a026af454ffba",
+    "tests/frontend-runtime/verify-field-label.mjs": "4aa2eb582b79a9f217846a7418cc6a3be75927ac2839658db5fc26d75b060852",
+    "tests/runtime-native/ui_boundaries.py": "ac388db16f4ac9824729dbc8a160fb73fb36e594ed06696ae2c730bdbff4a814"
+  }
+}

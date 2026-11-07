@@ -62,17 +62,58 @@ def native_logout(page, shell):
         raise AssertionError('Native logout did not return a successful actual response')
 
 
+def make_tenant_relogin(login_fixture, base):
+    """Return same-page genuine native encrypted login callback for seeded T2.
+
+    Uses existing fcp_tenant_manager_ci / 960001 account. The caller must seed
+    fcp:ui:admin for this synthetic role/package when checking both shell routes;
+    this helper cannot grant a shell permission or any plugin capability.
+    """
+    require_loopback(base)
+    def relogin(page, shell):
+        from playwright.sync_api import expect
+        from ci_ingestion import redis_get
+        from native_client import NativeClient
+        # No new browser context: native logout and T2 login share the prior storage.
+        with page.expect_response(lambda r: r.url.endswith('/auth/code'), timeout=30000) as response:
+            page.goto(base+'/admin/login?redirect=/fcp/plugins', wait_until='domcontentloaded')
+        captcha = response.value.json()['data']
+        if not captcha.get('captchaEnabled', True) or not captcha.get('uuid'):
+            raise AssertionError('Genuine native captcha must remain enabled')
+        select = page.locator('.login-form .el-select')
+        expect(select).to_be_visible(timeout=30000); select.click()
+        page.get_by_role('option', name='Synthetic CI tenant', exact=True).click()
+        answer = json.loads(redis_get(login_fixture.redis_password, login_fixture.redis_prefix+':global:captcha_codes:'+captcha['uuid']))
+        if not isinstance(answer,str): raise RuntimeError('Unexpected native captcha codec')
+        page.get_by_placeholder(re.compile(r'^(用户名|Username)$')).fill('fcp_tenant_manager_ci')
+        page.locator('input[type=password]').fill(login_fixture.password)
+        page.get_by_placeholder(re.compile(r'^(验证码|Verification Code)$')).fill(answer)
+        with page.expect_response(lambda r: r.url.endswith('/auth/login'), timeout=30000) as authenticated:
+            page.locator('.login-form button.el-button--primary').click()
+        result = authenticated.value
+        if result.status != 200 or not result.request.headers.get('encrypt-key') or str(result.json().get('code')) != '200':
+            raise AssertionError('Genuine encrypted T2 login did not succeed')
+        page.wait_for_function("Boolean(localStorage.getItem('FCP-Host-Token'))", timeout=30000)
+        token = page.evaluate("localStorage.getItem('FCP-Host-Token')")
+        login_fixture.diagnostic_secrets.append(token)
+        client = NativeClient(base,token,'e5cd7e4891bf95d1d19206ce24a7b32e')
+        if shell not in client.data('/fcp/ui/session').get('allowedShells',[]):
+            raise AssertionError('Synthetic T2 lacks required native shell permission; never bypass route guard')
+        return client
+    return relogin
+
+
 def verify_ui_boundaries(*, browser, base, database, storage_states, viewer_apis,
                          admin_api, build_id, output_dir, capability_id,
                          fixture_plugins=('ci.python', 'ci.node'), plugin_id='ci.python',
                          page_id='demo', slot_text='Native python ready',
-                         logout=native_logout, slow_message=None, timeout_ms=20000):
+                         logout=native_logout, slow_message=None, tenant_login=None, timeout_ms=20000):
     """Synchronous Playwright; injected APIs are genuine NativeClient instances.
 
     logout(page, shell) must perform the native UI logout and return only after its
     real logout response. slow_message, if supplied, must trigger a genuine >=3s
     fixture runtime delay. No callback may intercept/mock network responses.
-    Returns PASS only if both core and logout/in-flight checks actually pass.
+    Returns PASS only if core, logout/in-flight, and real T2 relogin checks actually pass.
     Otherwise optional missing prerequisites produce PARTIAL, never PASS.
     """
     require_fixture(base, database, fixture_plugins, plugin_id)
@@ -85,7 +126,7 @@ def verify_ui_boundaries(*, browser, base, database, storage_states, viewer_apis
     from playwright.sync_api import expect
     output = Path(output_dir); output.mkdir(parents=True, exist_ok=True)
     report = dict(status='RUNNING', buildId=build_id, checks=[], shells={},
-                  tenantSwitch='NOT_RUN: no second-tenant browser fixture supplied',
+                  tenantSwitch='NOT_RUN: no same-context second-tenant login callback supplied',
                   scope='Real native sessions, genuine HTTP, production shells; no mock responses')
     def save(): (output/'ui-boundaries.json').write_text(json.dumps(report, ensure_ascii=False, indent=2)+'\n')
     def checked(name, condition=True):
@@ -114,7 +155,7 @@ def verify_ui_boundaries(*, browser, base, database, storage_states, viewer_apis
             catalog = viewer_apis[shell].data('/fcp/ui/catalog')['catalog']
             checked(shell+' catalog includes target page', any(p['pluginId'] == plugin_id for p in catalog['pages']))
             titles = [p['title'] for p in catalog['pages'] if p['pluginId'] == plugin_id]
-            selected.get_by_label('Message', exact=True).fill('unsaved-'+shell)
+            selected.get_by_role('textbox', name='Message', exact=True).fill('unsaved-'+shell)
             original = admin_api.data('/fcp/plugins')['plugins']
             restore = [p['pluginId'] for p in original if p['pluginId'] in fixture_plugins and p.get('desired') == 'ENABLED']
             checked(shell+' fixture target initially enabled', plugin_id in restore)
@@ -161,12 +202,21 @@ def verify_ui_boundaries(*, browser, base, database, storage_states, viewer_apis
                 continue
             page.reload(wait_until='domcontentloaded')
             selected = page.get_by_test_id('plugin-page'); expect(selected).to_be_visible(timeout=timeout_ms)
+            original_identity = viewer_apis[shell].data('/fcp/ui/catalog')['context']
+            checked(shell+' starts in genuine T1 tenant', original_identity['tenantId'] == '000000')
+            cached_marker = 't1-visible-'+shell+'-'+uuid.uuid4().hex
+            selected.get_by_role('textbox', name='Message', exact=True).fill(cached_marker)
+            with page.expect_response(lambda r: r.url.endswith('/fcp/capabilities/'+capability_id+'/invoke'), timeout=timeout_ms) as cached:
+                selected.get_by_role('button', name='调用插件', exact=True).click()
+            checked(shell+' genuine T1 result was cached visibly', str(cached.value.json().get('code')) == '200')
+            expect(selected.locator('table')).to_contain_text(cached_marker,timeout=timeout_ms)
             marker = slow_message+'-'+shell+'-'+uuid.uuid4().hex
-            selected.get_by_label('Message', exact=True).fill(marker)
+            selected.get_by_role('textbox', name='Message', exact=True).fill(marker)
             finished = []
             page.on('response', lambda r, finished=finished: finished.append(True) if r.url.endswith('/fcp/capabilities/'+capability_id+'/invoke') else None)
-            with page.expect_request(lambda r: r.url.endswith('/fcp/capabilities/'+capability_id+'/invoke'), timeout=timeout_ms):
+            with page.expect_request(lambda r: r.url.endswith('/fcp/capabilities/'+capability_id+'/invoke'), timeout=timeout_ms) as pending_request:
                 selected.get_by_role('button', name='调用插件', exact=True).click()
+            old_submission = pending_request.value.post_data_json
             page.wait_for_timeout(200)
             checked(shell+' actual capability request remains in flight before logout', not finished)
             logout(page,shell)
@@ -176,8 +226,33 @@ def verify_ui_boundaries(*, browser, base, database, storage_states, viewer_apis
             expect(page.locator('body')).not_to_contain_text(marker)
             status, body = viewer_apis[shell].request('/fcp/ui/catalog')
             checked(shell+' native logout invalidates old authenticated API session', is_rejected(status,body))
+            expect(page.locator('body')).not_to_contain_text(cached_marker)
             report['shells'][shell].update(logout='PASS',inFlight='PASS: visible old-identity result did not reappear after actual in-flight request')
-        report['status'] = 'PASS' if all(s['logout']=='PASS' for s in report['shells'].values()) else 'PARTIAL'
+            if tenant_login is not None:
+                original_context = page.context
+                tenant_client = tenant_login(page,shell)
+                checked(shell+' tenant relogin reuses same browser context', page.context is original_context)
+                identity = tenant_client.data('/fcp/ui/catalog')
+                checked(shell+' genuine T2 identity replaces T1', identity['context']['tenantId'] == '960001' and str(identity['context']['userId']) == '960601' and identity['context']['userId'] != original_identity['userId'])
+                checked(shell+' T2 has no grant-derived target page', not any(p['pluginId'] == plugin_id for p in identity['catalog']['pages']))
+                page.goto(base+'/'+shell+'/fcp/plugins/'+plugin_id+'/'+page_id,wait_until='domcontentloaded')
+                expect(page.get_by_test_id('fcp-plugin-workspace')).to_be_visible(timeout=timeout_ms)
+                checked(shell+' stays in its requested authorized shell', '/'+shell+'/fcp/plugins/' in page.url)
+                expect(page.get_by_text('该插件页面不存在、已停用或当前身份无权访问。',exact=True)).to_be_visible(timeout=timeout_ms)
+                expect(page.get_by_test_id('plugin-page')).to_have_count(0)
+                expect(page.locator('[data-slot="dashboard.status"]')).not_to_contain_text(slot_text)
+                expect(page.locator('body')).not_to_contain_text(cached_marker)
+                expect(page.locator('body')).not_to_contain_text(marker)
+                status, denied = tenant_client.request('/fcp/capabilities/'+capability_id+'/invoke',old_submission)
+                checked(shell+' T2 rejects exact T1 input/key/revision submission',is_rejected(status,denied))
+                report['shells'][shell]['tenantSwitch']='PASS: native logout and encrypted T2 relogin in same context; not an in-session tenant-switch control'
+                page.screenshot(path=str(output/(shell+'-tenant2.png')),full_page=True)
+            else:
+                report['shells'][shell]['tenantSwitch']='NOT_RUN: no real second-tenant login callback'
+        if tenant_login is not None:
+            report['tenantSwitch']='PASS' if all(s.get('tenantSwitch','').startswith('PASS:') for s in report['shells'].values()) else 'NOT_RUN'
+
+        report['status'] = 'PASS' if all(s['logout']=='PASS' for s in report['shells'].values()) and report['tenantSwitch']=='PASS' else 'PARTIAL'
         save(); return report
     except Exception as error:
         # Never include request headers, storage state, native token or raw exception details.

@@ -234,7 +234,7 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(1,950510),(950001,950511);
                             page.goto(base+'/'+shell+'/fcp/plugins/ci.python/demo',wait_until='domcontentloaded')
                             workspace=page.get_by_test_id('fcp-plugin-workspace');expect(workspace).to_be_visible(timeout=30000)
                             selected=page.get_by_test_id('plugin-page');expect(selected).to_be_visible(timeout=30000);expect(selected.get_by_role('heading')).to_have_text('CI Python runtime')
-                            selected.get_by_label('Message').fill('native-'+shell+'-browser')
+                            selected.get_by_role('textbox', name='Message', exact=True).fill('native-'+shell+'-browser')
                             with page.expect_response(lambda r:'/fcp/capabilities/' in r.url and r.url.endswith('/invoke'),timeout=30000) as response:selected.get_by_role('button',name='调用插件').click()
                             reply=response.value.json();self.check(shell+' native UI invokes real capability with its own user',str(reply.get('code'))=='200' and str(reply.get('data',{}).get('principalId'))==('1' if role=='admin' else '950001'))
                             if role=='teacher':expect(workspace.get_by_role('button',name='安装与权限管理')).to_have_count(0)
@@ -250,12 +250,12 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(1,950510),(950001,950511);
                             raise
                         finally:context.close()
                     self.report['browser']='PASS';self.assert_pid(pid,pid_provider,'after both browser shells')
-                    from ui_boundaries import verify_ui_boundaries
+                    from ui_boundaries import verify_ui_boundaries, make_tenant_relogin
                     viewers={role:Client(base,self.token(states[role],base),'e5cd7e4891bf95d1d19206ce24a7b32e') for role in states}
                     boundaries=verify_ui_boundaries(browser=browser,base=base,database=self.database,
                         storage_states=states,viewer_apis=viewers,admin_api=admin,build_id=build_id,
                         output_dir=self.output/'ui-boundaries',capability_id=exported('ci.python'),
-                        slow_message='fcp-slow:identity-test')
+                        slow_message='fcp-slow:identity-test',tenant_login=make_tenant_relogin(self.login_fixture,base))
                     self.report['uiBoundaries']=boundaries
                     self.check('both real shells pass declared UI and logout boundaries',boundaries.get('status')=='PASS')
                     self.assert_pid(pid,pid_provider,'after cross-browser and logout boundaries')

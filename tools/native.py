@@ -385,6 +385,7 @@ def build(projects: dict[str,Path], work: Path, resolve_admin_lock: bool, admin_
         # Vite first generates auto-import/Elegant files; then the real project's type checker runs.
         run(['npm','run','build:prod'] if name=='admin' else ['pnpm','run','build'],cwd=project,clean_vite=True)
         run(['npm','exec','--','vue-tsc','--noEmit'] if name=='admin' else ['pnpm','run','typecheck'],cwd=project,clean_vite=True)
+        run(['node',ROOT/'tests/frontend-runtime/verify-field-label.mjs',project,name],cwd=ROOT,clean_vite=True)
         dist=project/'dist'; validate_dist(dist,name)
         copy_files(dist,resources/'static'/name)
         lock=project/('package-lock.json' if name=='admin' else 'pnpm-lock.yaml')
