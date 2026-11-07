@@ -50,7 +50,7 @@ CREATE TABLE fcp_runtime_task_grant (
  tenant_id VARCHAR(128) NOT NULL, task_id VARCHAR(128) NOT NULL,
  plugin_id VARCHAR(128) NOT NULL, capability_id VARCHAR(128) NOT NULL,
  operation VARCHAR(64) NOT NULL, data_scope VARCHAR(192) NOT NULL,
- revision BIGINT NOT NULL, del TINYINT NOT NULL DEFAULT 0, expires_at DATETIME(6) NOT NULL,
+ package_digest CHAR(64) NOT NULL, revision BIGINT NOT NULL, del TINYINT NOT NULL DEFAULT 0, expires_at DATETIME(6) NOT NULL,
  PRIMARY KEY(tenant_id,task_id,plugin_id,capability_id,operation,data_scope)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 CREATE TABLE fcp_runtime_audit (
