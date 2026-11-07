@@ -82,3 +82,10 @@ test('runtime delegates only active validated content to renderer and forwards i
  assert.equal(await runtime.invoke('demo:home','demo.read',{}, {idempotencyKey:'fixed-key'}),42);assert.equal(key,'fixed-key');
  runtime.applyRevision({...catalog(2),pages:[],slots:[]});assert.throws(()=>runtime.render('demo:home'),{code:'PLUGIN_DISABLED'});
 });
+
+test('Soybean bootstrap routes do not eagerly import layout/store modules',async()=>{
+ const fs=await import('node:fs/promises');const source=await fs.readFile(new URL('../../integration/soybean/src/views/fcp/plugins/routes.ts',import.meta.url),'utf8');
+ assert.doesNotMatch(source,/^\s*import\s+(?!type\b)[^\n]*(?:layouts|store|PluginWorkspace|usePlugins)/m);
+ assert.match(source,/component:\s*\(\)\s*=>\s*import\('@\/layouts\/base-layout\/index\.vue'\)/);
+ assert.match(source,/component:\s*\(\)\s*=>\s*import\('\.\/index\.vue'\)/);
+});
