@@ -45,7 +45,9 @@ public final class DevHost implements AutoCloseable {
             TrustedContext context=authority.authenticate(x.getRequestHeaders().getFirst("Authorization"));
             String path=x.getRequestURI().getRawPath();String method=x.getRequestMethod();Object result;
             if(path.contains("%")||path.contains(".."))throw new FcpException("INVALID_ARGUMENT","Invalid API path");
-            if(method.equals("POST")&&path.equals("/fcp/packages")) {
+            if(method.equals("POST")&&path.equals("/fcp/packages/staged")) {
+                result=application.stage(context,x.getRequestBody(),header(x,"X-Fcp-Digest"),header(x,"Idempotency-Key"));
+            } else if(method.equals("POST")&&path.equals("/fcp/packages")) {
                 result=application.install(context,x.getRequestBody(),header(x,"X-Fcp-Digest"),header(x,"Idempotency-Key"),Long.parseLong(header(x,"X-Fcp-Revision")));
             } else if(method.equals("GET")&&path.equals("/fcp/plugins"))result=application.list(context);
             else if(method.equals("GET")&&path.equals("/fcp/ui/catalog"))result=application.catalog(context);

@@ -32,9 +32,10 @@ def private(path:Path,content:str):
 
 def run()->int:
  parser=argparse.ArgumentParser(description=__doc__)
- parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');a=parser.parse_args()
- report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'production':'BLOCKED'}
- process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None
+ parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');a=parser.parse_args()
+ if a.exchange and not a.ingestion:parser.error('--exchange requires genuine --ingestion login fixture')
+ report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'production':'BLOCKED'}
+ process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None
  try:
   if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')
   requirements=doctor()
@@ -71,7 +72,7 @@ def run()->int:
   props=re.sub(r'(?m)^FCP_REDIS_PREFIX=.*$', 'FCP_REDIS_PREFIX='+acceptance_redis_prefix(), props)
   props+='\nFCP_PORT=18787\nFCP_BIND=127.0.0.1\n'
   if (ROOT/'core/src/main/java/fcp/runtime/EngineRuntimePort.java').is_file():
-   props+='\nfcp.runtime.enabled=true\nFCP_RUNTIME_ROOT='+str(private_dir/'runtime-plugins')+'\nFCP_TRUSTED_PUBLISHERS=test\nFCP_RUNTIME_PYTHON='+str(shutil.which('python3'))+'\nFCP_RUNTIME_NODE='+str(shutil.which('node'))+'\n'
+   props+='\nfcp.runtime.enabled=true\nFCP_RUNTIME_ROOT='+str(private_dir/'runtime-plugins')+'\nFCP_TRUSTED_PUBLISHERS='+('test,fcp-fixtures' if a.exchange else 'test')+'\nFCP_RUNTIME_PYTHON='+str(shutil.which('python3'))+'\nFCP_RUNTIME_NODE='+str(shutil.which('node'))+'\n'
   if a.ingestion:
    from ci_ingestion import Fixture
    prefix=re.search(r'(?m)^FCP_REDIS_PREFIX=(.+)$',props)[1]
@@ -81,6 +82,13 @@ def run()->int:
     from native_runtime_acceptance import RuntimeFixture
     runtime_fixture=RuntimeFixture(database,sql,private_dir,fixture)
    props+='\nFCP_INGESTION_CONNECTIONS='+str(fixture.connection_file)+'\n'
+   if a.exchange:
+    sys.path.insert(0,str(ROOT/'tests/runtime-exchange'))
+    from native_exchange_acceptance import ExchangeFixture
+    exchange_fixture=ExchangeFixture(database,sql,private_dir,fixture)
+    deployment_user='fcpx_'+secrets.token_hex(6);deployment_password=secrets.token_hex(24)
+    sql(f"CREATE USER '{deployment_user}'@'%' IDENTIFIED BY '{deployment_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX ON `{database}`.* TO '{deployment_user}'@'%';")
+    props+=exchange_fixture.properties()+'\nfcp.runtime.storage-deployment.enabled=true\nFCP_STORAGE_DEPLOYMENT_JDBC_URL='+url+'\nFCP_STORAGE_DEPLOYMENT_USER='+deployment_user+'\nFCP_STORAGE_DEPLOYMENT_PASSWORD='+deployment_password+'\n'
   private(private_dir/'fcp-runtime.properties',props)
   # @SpringBootTest in the pinned upstream initializes FCP and therefore requires the schema first.
   work=ROOT/'work/ci-native'
@@ -121,6 +129,17 @@ def run()->int:
    grant_env=os.environ.copy();grant_env.update(FCP_STORAGE_TEST_URL=f'jdbc:mysql://127.0.0.1:33306/{grant_database}?sslMode=DISABLED&allowPublicKeyRetrieval=true&serverTimezone=UTC',FCP_STORAGE_TEST_USER=grant_user,FCP_STORAGE_TEST_PASSWORD=grant_password)
    command(['java','-cp',str(grant_classes)+os.pathsep+str(driver),'MysqlGrantBindingTest'],env=grant_env,timeout=180)
    report['runtimePluginGrantBinding']='PASS'
+  # Crash matrix owns a third isolated database and cannot modify application/grant state.
+  if (ROOT/'tests/runtime-crash/run.sh').is_file():
+   crash_database='fcp_ci_crash_'+secrets.token_hex(6);crash_user='fcpc_'+secrets.token_hex(6);crash_password=secrets.token_hex(24)
+   sql(f'CREATE DATABASE `{crash_database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;')
+   sql(f'USE `{crash_database}`;\n'+(ROOT/'sql/native/V005__runtime_plugins.sql').read_text())
+   sql(f"CREATE USER '{crash_user}'@'%' IDENTIFIED BY '{crash_password}'; GRANT SELECT,INSERT,UPDATE ON `{crash_database}`.fcp_runtime_state TO '{crash_user}'@'%';")
+   crash_env=os.environ.copy();crash_env.update(FCP_CRASH_TEST_URL=f'jdbc:mysql://127.0.0.1:33306/{crash_database}?sslMode=DISABLED&allowPublicKeyRetrieval=true&serverTimezone=UTC',FCP_CRASH_TEST_USER=crash_user,FCP_CRASH_TEST_PASSWORD=crash_password,FCP_CRASH_TEST_DRIVER_CLASSPATH=str(driver))
+   command(['bash',ROOT/'tests/runtime-crash/run.sh',ROOT/'reports/runtime-crash-mysql'],env=crash_env,timeout=240)
+   crash_result=json.loads((ROOT/'reports/runtime-crash-mysql/acceptance.json').read_text())
+   if crash_result.get('result')!='PASS' or crash_result.get('journalBackend')!='MYSQL' or crash_result.get('mysqlJournalCrashRecovery')!='PASS' or crash_result.get('crashCases')!=12 or crash_result.get('failedCases')!=0 or crash_result.get('databasePreflight',{}).get('emptyAtStart') is not True:raise RuntimeError('MySQL crash matrix did not produce the required genuine database evidence')
+   report['runtimeCrashRecovery']={'status':'PASS','crashCases':crash_result['crashCases'],'databaseIsolation':'separate freshly-created CI database','permissions':'SELECT,INSERT,UPDATE on own state table only'}
   log_path=private_dir/'native-startup.log';started=time.monotonic()
   def start_host():
    nonlocal process
@@ -149,6 +168,9 @@ def run()->int:
    if runtime_fixture:
     runtime_result=runtime_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],lambda: process.pid if process and process.poll() is None else None)
     report['runtimePlugins']={'status':runtime_result['status'],'totalChecks':runtime_result['totalChecks'],'browser':runtime_result['browser'],'backendPidUnchanged':runtime_result['backendPidUnchanged']}
+   if exchange_fixture:
+    exchange_result=exchange_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],lambda: process.pid if process and process.poll() is None else None)
+    report['runtimeExchange']={'status':exchange_result['status'],'totalChecks':exchange_result['totalChecks'],'authorizationManagement':exchange_result['authorizationManagement']}
 
  except Exception as error:report.update(status=failure_status(error),error=type(error).__name__+': '+str(error))
  finally:
@@ -156,6 +178,7 @@ def run()->int:
    process.terminate()
    try:process.wait(timeout=35);report['processShutdown']='GRACEFUL_EXIT'
    except subprocess.TimeoutExpired:process.kill();process.wait();report.update(status='FAIL',processShutdown='FORCED_KILL')
+  if exchange_fixture:exchange_fixture.close()
   if fixture:fixture.close()
   output=ROOT/'reports';output.mkdir(exist_ok=True)
   if private_dir and (private_dir/'native-startup.log').exists():

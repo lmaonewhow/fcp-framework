@@ -33,6 +33,10 @@ jobs:
         run: python3 tools/verify_runtime_lifecycle.py
       - name: Runtime storage boundary verification
         run: python3 tools/verify_runtime_storage.py
+      - name: Runtime exchange process verification
+        run: bash tests/runtime-exchange/run.sh
+      - name: Actual process crash recovery matrix
+        run: bash tests/runtime-crash/run.sh
       - name: Existing component regressions
         run: python3 tools/verify_components.py
       - name: Existing legacy regressions
@@ -50,6 +54,7 @@ jobs:
             reports/runtime-contracts/
             reports/runtime-lifecycle/
             reports/runtime-storage/
+            reports/runtime-crash/
             reports/components.json
             reports/legacy-regressions.json
             reports/ingestion.json

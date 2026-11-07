@@ -20,13 +20,18 @@ public final class PluginApplication {
     private final LifecycleCoordinator lifecycle;
     private final EngineRuntimePort runtime;
     private final Path uploads;
+    private final PackageStaging staging;
     private final Function<TrustedContext,Set<String>> permissions;
     private final Map<String,PendingPlan> plans=new LinkedHashMap<>();
     public PluginApplication(HostCapabilities host,VerifiedPackageRepository packages,LifecycleCoordinator lifecycle,
                              EngineRuntimePort runtime,Path uploads,Function<TrustedContext,Set<String>> permissions)throws IOException {
+        this.staging=new PackageStaging(host,packages,uploads);
         this.host=host;this.packages=packages;this.lifecycle=lifecycle;this.runtime=runtime;this.permissions=permissions;
         this.uploads=uploads.toAbsolutePath().normalize();Files.createDirectories(this.uploads);
         if(Files.isSymbolicLink(this.uploads))throw new IOException("Upload directory must not be a symlink");
+    }
+    public Map<String,Object> stage(TrustedContext context,InputStream body,String digest,String key)throws IOException {
+        return staging.stage(context,body,digest,key);
     }
     public Map<String,Object> install(TrustedContext context,InputStream body,String digest,String key,long expected)throws IOException {
         host.require(context,new HostCapabilities.Grant("control","plugin.lifecycle","install","tenant:"+context.tenantId()));
@@ -104,7 +109,7 @@ public final class PluginApplication {
         if(snapshot.generation()!=expected)throw new FcpException("VERSION_CONFLICT","Plugin catalog changed");
         for(var entry:snapshot.enabledManifests().entrySet())for(var capability:entry.getValue().provides())
             if(EngineRuntimePort.export(entry.getKey(),capability.id()).equals(exported)) {
-                if(capability.id().equals("exchange.commit"))throw new FcpException("CONFIRMATION_REQUIRED","Use the exchange preview and confirmation endpoint");
+                if(capability.id().startsWith("exchange."))throw new FcpException("CONFIRMATION_REQUIRED","Use the scoped exchange endpoints");
                 return runtime.invoke(context,entry.getKey(),capability.id(),input,key,expected);
             }
         throw new FcpException("PLUGIN_DISABLED","Capability unavailable");

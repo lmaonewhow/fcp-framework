@@ -1,0 +1,7 @@
+*
+!.gitignore
+!README.md
+!acceptance.json
+!source-sha256.txt
+!run.txt
+!exit-code.txt

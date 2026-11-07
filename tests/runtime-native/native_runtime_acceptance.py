@@ -42,9 +42,10 @@ def exported(plugin,capability='echo'):
 
 
 class Client(NativeClient):
-    def upload(self,package,digest,key,revision):
+    def upload(self,package,digest,key,revision=None,staged=False):
         headers={'Content-Type':'application/octet-stream','clientid':self.client_id,'Authorization':'Bearer '+self.token,'X-Fcp-Digest':digest,'Idempotency-Key':key,'X-Fcp-Revision':str(revision)}
-        request=urllib.request.Request(self.base+'/fcp/packages',data=package,headers=headers,method='POST')
+        request=urllib.request.Request(self.base+('/fcp/packages/staged' if staged else '/fcp/packages'),data=package,headers=headers,method='POST')
+        if staged:request.remove_header('X-fcp-revision')
         try:
             with self.opener.open(request,timeout=30) as response:status,data=response.status,response.read(2*1024*1024)
         except urllib.error.HTTPError as error:status,data=error.code,error.read(2*1024*1024)

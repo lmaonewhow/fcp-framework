@@ -73,7 +73,7 @@ jobs:
           git rev-parse HEAD > reports/native-source-commit.txt
           python3 tools/verify_components.py
           python3 tools/verify_ingestion.py
-          python3 tools/ci_native.py --ingestion 2>&1 | tee reports/native-ci-console.log
+          python3 tools/ci_native.py --ingestion --exchange 2>&1 | tee reports/native-ci-console.log
       - uses: actions/cache/save@v4
         if: always() && steps.dependencies.outputs.cache-hit != 'true'
         with:
@@ -96,6 +96,8 @@ jobs:
             reports/ingestion.json
             reports/native-ingestion/
             reports/runtime-native/
+            reports/runtime-crash-mysql/
+            reports/runtime-exchange/
             work/ci-native/release/BUILD-EVIDENCE.json
             work/ci-native/release/admin-package-lock.json
             work/ci-native/release/teacher-pnpm-lock.yaml
