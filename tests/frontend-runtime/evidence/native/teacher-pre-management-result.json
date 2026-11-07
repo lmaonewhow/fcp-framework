@@ -1,0 +1,28 @@
+{
+  "shell": "teacher",
+  "browser": "NOT_RUN",
+  "server": "NOT_RUN",
+  "started": 1794056525.5553627,
+  "lockPolicy": "existing-frozen-install",
+  "sources": {
+    "src/fcp/runtime/index.ts": "d36e8c64af2f0e07a4f7f37fe0e320c3b3b8ff04a6fea47d0ebbdd9c5eca56ec",
+    "src/fcp/usePlugins.ts": "965c56b51cc743dad0cc3a233fecd2db1adda33d0fb1d5f8479f814664c30042",
+    "src/fcp/PluginWorkspace.vue": "39748993d9ac8968221b6cf71fff8648ce192198b9a5eb2e98bf3f29b47685e1",
+    "src/views/fcp/plugins/index.vue": "ca039d7e44e838534f80dd1f69cb2c1a162fbb38637ca5e3b7ff6fe4294da30f",
+    "src/views/fcp/plugins/routes.ts": "565813cfd74f692315de30a489717af33b4989ef40b13f47da65c60d5bb38fbe",
+    "src/router/index.ts": "2d039df0732a94ff0afd489456bdfa089f58c30766b6bedc4484c95bd0c2812f",
+    "src/fcp/session.ts": "2ff8de3b97f222f48c5a124ad09fc1db7602486cacb0b552b3a76a0859001c04",
+    "src/locales/langs/en-us.ts": "21a5cb618f959d889ce9148c35b065aa74da57c0e07faa785025ecbcb46589ef",
+    "src/locales/langs/zh-cn.ts": "5f4e49596fe6321b8d6f1a2ca00b8ef240671ec50dd17962acc42b3245d8903b",
+    "src/router/elegant/imports.ts": "f15532a289efec1ec5ebb1379bfcd25fc707c018e4eb3eb593a041d2186cbf67",
+    "src/router/elegant/routes.ts": "1330ff81c21cc795c0d274bd006b474e6af579fe485f2d6127bedced3667d79d",
+    "src/router/elegant/transform.ts": "d22c2f38d59375f241d7a97aa80520dab30b31f4962aab93fbed9e433f863167"
+  },
+  "build": "PASS",
+  "typecheck": "PASS",
+  "files": 433,
+  "manifestSha256": "eaa7c7f0fe2e37281fcf90e36598b436e0b3678a0865a60744194c2d8ff399c2",
+  "status": "PASS",
+  "elapsed": 90.32042670249939,
+  "buildId": "27b10f3f1a9d4fcb817f36f374944ce8"
+}

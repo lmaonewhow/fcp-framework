@@ -61,7 +61,7 @@ public final class Migrations {
                 int version=Integer.parseInt(match.group(1));byte[] bytes=Files.readAllBytes(path);String hash=digest(bytes);
                 if(!hash.equals(hashes.get(name))||!versions.add(version))throw new IllegalArgumentException("Migration drift or duplicate version");
                 // Baseline tables and native grant scripts are checksum-checked, never executed by this DDL-only runner.
-                boolean grants=name.equals("V004__ingestion_permissions.sql");
+                boolean grants=name.equals("V004__ingestion_permissions.sql")||name.equals("V006__runtime_plugin_permissions.sql");
                 List<String> commands=version>=3&&!grants?statements(new String(bytes,java.nio.charset.StandardCharsets.UTF_8)):List.of();
                 if(version>=3&&!grants&&commands.isEmpty())throw new IllegalArgumentException("Empty migration");
                 result.add(new Script(version,name,hash,commands));
@@ -100,7 +100,7 @@ public final class Migrations {
             if(row==null)row=legacy.get(script.name());
             if(row!=null && (!row.name().equals(script.name())||!row.hash().equals(script.sha256())||!row.status().equals("APPLIED")))
                 throw new SQLException("Migration history is dirty or changed; operator review required");
-            if(script.version()<3||script.name().equals("V004__ingestion_permissions.sql")){
+            if(script.version()<3||script.name().equals("V004__ingestion_permissions.sql")||script.name().equals("V006__runtime_plugin_permissions.sql")){
                 if(row==null)throw new SQLException("Native baseline/grants must be installed by the reviewed deployment installer");continue;
             }
             actions.add(Json.obj("version",script.version(),"name",script.name(),"sha256",script.sha256(),

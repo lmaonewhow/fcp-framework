@@ -98,6 +98,16 @@ public final class LifecycleCoordinator implements AutoCloseable {
         map("tenants").put(supplied.tenant(),new LinkedHashMap<>(Map.of("enabled",new ArrayList<>(desired))));bump();persist();
         execute(c,id,op,false);return operation(id,op);
     }
+    /** Durable confirmation receipt lookup before any ephemeral HTTP plan lookup. */
+    public synchronized Operation replayConfirmation(TrustedContext c,String digest,Set<String> confirmed,String key) {
+        live();if(key==null||key.isBlank()||key.length()>256)throw fail("INVALID_ARGUMENT","Invalid idempotency key");
+        String id=hash(c.principal().kind()+"\n"+c.principal().id()+"\n"+c.tenantId()+"\n"+key);
+        Object previous=map("operations").get(id);if(previous==null)return null;
+        Map<String,Object> op=obj(previous);
+        for(String p:strings(op.get("plugins")))require(c,(String)op.get("tenant"),p,((String)op.get("action")).toLowerCase(Locale.ROOT));
+        if(!Objects.equals(digest,op.get("planDigest"))||!new HashSet<>(strings(op.get("plugins"))).equals(confirmed))throw fail("IDEMPOTENCY_CONFLICT","Different confirmation for key");
+        audit(c,String.join(",",strings(op.get("plugins"))),"lifecycle.replay",(String)op.get("outcome"));return operation(id,op);
+    }
     public synchronized Operation decideDrain(TrustedContext c,String id,DrainDecision decision) {
         live();Map<String,Object> op=op(id);String tenant=(String)op.get("tenant");
         for(String p:strings(op.get("plugins")))require(c,tenant,p,"drain."+decision.name().toLowerCase(Locale.ROOT));
