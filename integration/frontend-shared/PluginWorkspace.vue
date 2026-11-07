@@ -15,7 +15,7 @@ function renderNode(node: UiNode, id: string): VNode {
   if (node.type === 'text') return h('p',node.text ?? '');
   if (node.type === 'field') return h('label',{class:'fcp-plugin-field'},[
     h('span',node.text ?? node.field ?? ''),
-    h(props.host.input,{[props.host.fieldValueProp]:fields.value[id]?.[node.field ?? ''] ?? '',[props.host.fieldUpdateProp]:(value:string) => {if(node.field) edit(id,node.field,value);},disabled:busy.value || Boolean(pending.value),'aria-label':node.text ?? node.field})
+    h(props.host.input,{[props.host.fieldValueProp]:fields.value[id]?.[node.field ?? ''] ?? '',[props.host.fieldUpdateProp]:(value:string) => {if(node.field) edit(id,node.field,value);},disabled:busy.value || Boolean(pending.value)})
   ]);
   if (node.type === 'button') return h(props.host.button,{disabled:busy.value || Boolean(pending.value) || !node.capabilityId,onClick:() => {if(node.capabilityId) void invoke(id,node.capabilityId);}},() => node.text ?? '执行');
   // Results are rendered as literal text cells, never as markup, URLs or script.

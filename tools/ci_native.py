@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools'))
 from native import doctor
+from ci_cleanup import OwnedDisposableDirectory,record_private_cleanup
 
 class PrerequisiteError(RuntimeError):
  """The isolated CI environment is missing an explicitly required prerequisite."""
@@ -34,14 +35,14 @@ def run()->int:
  parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');a=parser.parse_args()
  if a.exchange and not a.ingestion:parser.error('--exchange requires genuine --ingestion login fixture')
  report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'production':'BLOCKED'}
- process=None;private_dir=None;fixture=None;runtime_fixture=None;exchange_fixture=None
+ process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None
  try:
   if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')
   requirements=doctor()
   if requirements['status']!='READY' or not shutil.which('mysql'):raise PrerequisiteError('Build tools/network/mysql CLI missing')
   root_password=os.environ.get('FCP_CI_MYSQL_PASSWORD','')
   if not re.fullmatch('[A-Za-z0-9_-]{16,100}',root_password):raise PrerequisiteError('Explicit CI MySQL fixture password is required')
-  private_dir=Path(tempfile.mkdtemp(prefix='fcp-native-ci-'));private_dir.chmod(0o700)
+  private_cleanup=OwnedDisposableDirectory.create();private_dir=private_cleanup.path
   command(['java',ROOT/'bootstrap/GenerateKeys.java',private_dir/'keys'])
   sources=ROOT/'work/ci-sources'
   command([sys.executable,ROOT/'tools/native.py','assemble','--work',sources,'--build-env',private_dir/'keys/build.env'])
@@ -190,7 +191,9 @@ def run()->int:
    if fixture:text=text.replace(fixture.password,'[REDACTED_FIXTURE_PASSWORD]')
    (output/'native-startup-redacted.log').write_text(text)
   (output/'ci-native.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
-  if private_dir:shutil.rmtree(private_dir)
+  # Redacted diagnostics and original gate failure are persisted before scoped cleanup.
+  record_private_cleanup(report,private_cleanup,process_stopped=process is None or process.poll() is not None)
+  (output/'ci-native.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
   print(json.dumps(report,ensure_ascii=False,indent=2))
  return 0 if report['status']=='PASS' else 2
 if __name__=='__main__':raise SystemExit(run())
