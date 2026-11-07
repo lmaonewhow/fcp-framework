@@ -3,13 +3,32 @@ from pathlib import Path
 import sys
 import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'tools'))
-from native_login import authenticated_storage_state, native_token
+from native_login import authenticated_storage_state, native_token, require_encrypted_login, verify_native_identity
 
 BASE='http://127.0.0.1:8080'
 def state(values=('synthetic-unit-token',)):
     return {'origins':[{'origin':BASE,'localStorage':[{'name':'FCP-Host-Token','value':v} for v in values]}]}
 
 class NativeLoginTests(unittest.TestCase):
+    def test_auth_metadata_does_not_read_discarded_response_body(self):
+        class Response:
+            status = 200
+            class request:
+                headers = {'encrypt-key':'synthetic-unit-marker'}
+            def json(self):raise AssertionError('Pre-navigation body must never be read')
+            def body(self):raise AssertionError('Pre-navigation body must never be read')
+        require_encrypted_login(Response())
+        response=Response();response.status=401
+        with self.assertRaises(AssertionError):require_encrypted_login(response)
+    def test_fresh_session_verifies_exact_user_and_tenant(self):
+        class Client:
+            def data(self,path):
+                self_test.assertEqual(path,'/fcp/ui/session')
+                return {'subject':'960601','scope':'tenant-960001','allowedShells':['admin','teacher']}
+        self_test=self
+        self.assertEqual(verify_native_identity(Client(),'960601','960001')['subject'],'960601')
+        with self.assertRaises(AssertionError):verify_native_identity(Client(),'1','960001')
+        with self.assertRaises(AssertionError):verify_native_identity(Client(),'960601','000000')
     def test_wait_for_destination_and_visible_ui_before_single_context_snapshot(self):
         events=[]
         class Marker:
