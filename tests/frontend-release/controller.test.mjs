@@ -86,15 +86,15 @@ test('late safe recovery response cannot cross identity boundary',async()=>{
 // Real native adapters report the super-admin wildcard, while FCP requires explicit JDBC grants.
 import {ReleasePermissionHost} from '../../integration/frontend-release/permission-host.ts';
 function nativeProjection(shell='admin',grants=['fcp:release:view','fcp:release:manage']) {
-  let identity='native-user-1', changed=()=>{};
+  let identity='native-user-1', changed=()=>{}, permissionsChanged=()=>{};
   let response=async()=>grants;
+  let releaseResponse=async path=>path.endsWith('/versions')?{releases:[{id:'ci-system-release'}]}:{revision:1,phase:'EMPTY',capabilities:['DEPLOY']};
   const calls=[];
-  const host={shell,identityKey:()=>identity,permissions:()=>['*:*:*'],observeIdentity(fn){changed=fn;return()=>{}},
-    async request(path,method,body,signal){calls.push({path,signal});const data=path==='/fcp/ui/session'?{releasePermissions:await response()}:
-      path.endsWith('/versions')?{releases:[{id:'ci-system-release'}]}:{revision:1,phase:'EMPTY'};
+  const host={shell,identityKey:()=>identity,permissions:()=>['*:*:*'],observeIdentity(fn){changed=fn;return()=>{}},observePermissions(fn){permissionsChanged=fn;return()=>{}},
+    async request(path,method,body,signal){calls.push({path,method,body,signal});const data=path==='/fcp/ui/session'?{releasePermissions:await response()}:await releaseResponse(path,method,body,signal);
       return shell==='admin'?{code:200,data}:{data,error:null};}};
   const projected=new ReleasePermissionHost(host), console=new ReleaseConsole(projected);
-  return {projected,console,calls,switchIdentity(){identity='native-user-2';changed()},respond(fn){response=fn}};
+  return {projected,console,calls,switchIdentity(){identity='native-user-2';changed()},respond(fn){response=fn},releaseRespond(fn){releaseResponse=fn},nativePermissionChange(){permissionsChanged()}};
 }
 test('native wildcard is not a grant but explicit server projection loads both consoles',async()=>{
   for(const shell of ['admin','teacher']) {
@@ -123,4 +123,73 @@ test('permission refresh failure revokes old projection and cannot retain manage
   const f=nativeProjection();await f.projected.refresh();await f.console.load();assert.equal(f.console.canManage,true);
   f.respond(async()=>{throw new Error('network')});await assert.rejects(()=>f.projected.refresh(),/network/);
   assert.equal(f.console.canManage,false);assert.equal(f.console.data.state,null);
+});
+
+
+test('same grants refresh preserves native identity, reviewed state and UNKNOWN write latch',async()=>{
+  for(const shell of ['admin','teacher']) {
+    const f=nativeProjection(shell);await f.projected.refresh();await f.console.load();
+    const identity=f.projected.identityKey();let changes=0;f.projected.observeIdentity(()=>changes++);
+    f.releaseRespond(async(path,method)=>{if(method==='POST')throw Error('response lost');return {revision:1,phase:'READY',capabilities:['DEPLOY']}});
+    await f.console.execute('DEPLOY',0,true);assert.equal(f.console.data.unknown,true);
+    f.respond(async()=>['fcp:release:manage','fcp:release:view']);
+    await f.projected.refresh();await f.console.load();
+    assert.equal(f.projected.identityKey(),identity);assert.equal(changes,0);assert.equal(f.console.data.unknown,true);
+    await assert.rejects(()=>f.console.execute('DEPLOY',0,true),/RECONCILE_REQUIRED/);
+    assert.equal(f.calls.filter(c=>c.method==='POST').length,1);
+  }
+});
+test('ordinary permission refresh keeps the reviewed plan and emits no identity transition',async()=>{
+  const f=nativeProjection();await f.projected.refresh();await f.console.load();f.console.review(plan());
+  const reviewed=f.console.data.review;let identities=0,permissions=0;
+  f.projected.observeIdentity(()=>identities++);f.projected.observePermissions(()=>permissions++);
+  f.respond(async()=>['fcp:release:manage','fcp:release:view']);await f.projected.refresh();
+  assert.equal(f.console.data.review,reviewed);assert.equal(identities,0);assert.equal(permissions,0);
+});
+test('permission failure and reauthorization never settle an UNKNOWN mutation',async()=>{
+  const f=nativeProjection();await f.projected.refresh();await f.console.load();
+  f.releaseRespond(async(path,method)=>{if(method==='POST')throw Error('response lost');return {revision:1,phase:'READY',capabilities:['DEPLOY']}});
+  await f.console.execute('DEPLOY',0,true);
+  f.respond(async()=>{throw Error('permission unavailable')});await assert.rejects(()=>f.projected.refresh());
+  assert.equal(f.console.canView,false);assert.equal(f.console.data.state,null);assert.equal(f.console.data.unknown,true);
+  f.respond(async()=>['fcp:release:view','fcp:release:manage']);await f.projected.refresh();await f.console.load();
+  assert.equal(f.console.canManage,true);assert.equal(f.console.data.unknown,true);
+  await assert.rejects(()=>f.console.execute('DEPLOY',0,true),/RECONCILE_REQUIRED/);
+  assert.equal(f.calls.filter(c=>c.method==='POST').length,1);
+});
+test('same grants refresh while a mutation is running does not abort or unlock it',async()=>{
+  const f=nativeProjection();await f.projected.refresh();await f.console.load();let finish;
+  f.releaseRespond(()=>new Promise(done=>finish=done));const writing=f.console.execute('DEPLOY',0,true);
+  const signal=f.calls.at(-1).signal;await f.projected.refresh();
+  assert.equal(signal.aborted,false);assert.equal(f.console.data.busy,true);
+  await f.console.execute('DEPLOY',0,true);assert.equal(f.calls.filter(c=>c.method==='POST').length,1);
+  finish({revision:2,phase:'READY',capabilities:['DEPLOY']});await writing;
+  assert.equal(f.console.data.unknown,false);assert.equal(f.console.data.state.revision,2);
+});
+test('revoking authorization during a dispatched mutation preserves uncertainty through regrant',async()=>{
+  for(const revoke of ['server','native','failure']) {
+    const f=nativeProjection();await f.projected.refresh();await f.console.load();let finish;
+    f.releaseRespond(()=>new Promise(done=>finish=done));const writing=f.console.execute('DEPLOY',0,true);const signal=f.calls.at(-1).signal;
+    if(revoke==='native')f.nativePermissionChange();
+    else {f.respond(async()=>{if(revoke==='failure')throw Error('permission unavailable');return ['fcp:release:view']});if(revoke==='failure')await assert.rejects(()=>f.projected.refresh());else await f.projected.refresh()}
+    assert.equal(signal.aborted,true);assert.equal(f.console.canManage,false);assert.equal(f.console.data.state,null);assert.equal(f.console.data.unknown,true);
+    finish({revision:999,phase:'READY'});await writing;assert.equal(f.console.data.state,null);
+    f.respond(async()=>['fcp:release:view','fcp:release:manage']);await f.projected.refresh();
+    f.releaseRespond(async()=>({revision:2,phase:'READY',capabilities:['DEPLOY']}));await f.console.load();
+    assert.equal(f.console.data.unknown,true);await assert.rejects(()=>f.console.execute('DEPLOY',0,true),/RECONCILE_REQUIRED/);
+    await f.console.reconcile();assert.equal(f.console.data.unknown,false);
+  }
+});
+test('superseded permission failures cannot revoke a newer successful projection',async()=>{
+  const f=nativeProjection();await f.projected.refresh();let fail;
+  f.respond(()=>new Promise((_,reject)=>fail=reject));const old=f.projected.refresh();const oldSignal=f.calls.at(-1).signal;
+  f.respond(async()=>['fcp:release:view','fcp:release:manage']);await f.projected.refresh();
+  fail(Error('old network failure'));await assert.rejects(()=>old);
+  assert.equal(oldSignal.aborted,true);assert.equal(f.console.canManage,true);
+});
+test('superseded successful projection cannot restore revoked permissions',async()=>{
+  const f=nativeProjection();await f.projected.refresh();let finish;
+  f.respond(()=>new Promise(done=>finish=done));const old=f.projected.refresh();
+  f.respond(async()=>[]);await f.projected.refresh();finish(['fcp:release:view','fcp:release:manage']);
+  await assert.rejects(()=>old,/STALE_IDENTITY/);assert.equal(f.console.canView,false);
 });

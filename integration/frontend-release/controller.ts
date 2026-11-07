@@ -4,6 +4,8 @@ export interface ReleaseHost {
   identityKey(): string;
   permissions(): readonly string[];
   observeIdentity(changed: () => void): () => void;
+  /** Authorization changes invalidate data, never the outcome of a submitted write. */
+  observePermissions?(changed: () => void): () => void;
   request(path: string, method: 'GET' | 'POST', body: unknown, signal: AbortSignal): Promise<unknown>;
 }
 export type ReleaseAction = 'DEPLOY' | 'CANARY' | 'EXPAND' | 'PAUSE' | 'ABORT' | 'PROMOTE' | 'ROLLBACK' | 'RETIRE';
@@ -38,25 +40,30 @@ export class ReleaseConsole {
   private alive = true;
   private requests = new Set<AbortController>();
   private stop: () => void;
+  private stopPermissions: () => void;
+  private mutationInFlight = false;
   private host: ReleaseHost;
   private changed: (state: ConsoleState) => void;
   constructor(host: ReleaseHost, changed: (state: ConsoleState) => void = () => {}) {
     this.host = host; this.changed = changed;
     this.stop = host.observeIdentity(() => this.reset());
+    this.stopPermissions = host.observePermissions?.(() => this.reset(true)) ?? (() => {});
   }
   get canView() { return this.host.permissions().includes('fcp:release:view'); }
   get canManage() { return this.canView && this.host.permissions().includes('fcp:release:manage'); }
   get canRecover() { return this.canManage && this.data.state?.supportsRecovery === true && this.data.state.pending != null && integer(this.data.state.revision); }
   supports(action: ReleaseAction) { return Array.isArray(this.data.state?.capabilities) && this.data.state.capabilities.includes(action); }
   private emit() { this.changed({...this.data}); }
-  reset() {
+  reset(preserveUncertainty = false) {
+    const unknown = preserveUncertainty && (this.data.unknown || this.mutationInFlight);
+    this.mutationInFlight = false;
     this.epoch++;
     for (const request of this.requests) request.abort();
     this.requests.clear();
-    Object.assign(this.data, {busy: false, state: null, versions: null, review: null, unknown: false, error: '', notice: '身份或权限已变化，请重新加载。之前已提交的操作可能仍在执行，请回原身份核对。'});
+    Object.assign(this.data, {busy: false, state: null, versions: null, review: null, unknown, error: '', notice: '身份或权限已变化，请重新加载。之前已提交的操作可能仍在执行，请回原身份核对。'});
     this.emit();
   }
-  dispose() { this.alive = false; this.stop(); this.reset(); }
+  dispose() { this.alive = false; this.stop(); this.stopPermissions(); this.reset(); }
   private require(manage = false) {
     if (!this.alive || !(manage ? this.canManage : this.canView)) throw new Error('PERMISSION_DENIED');
   }
@@ -75,6 +82,7 @@ export class ReleaseConsole {
     if (this.data.busy) return;
     if (mutation && this.data.unknown && !allowUncertain) throw new Error('RECONCILE_REQUIRED');
     const epoch = this.epoch;
+    this.mutationInFlight = mutation;
     this.data.busy = true; this.data.error = ''; this.emit();
     try { await fn(); }
     catch (error) {
@@ -83,7 +91,7 @@ export class ReleaseConsole {
       // A response error does not prove a mutating request was never committed.
       if (mutation) { this.data.unknown = true; this.data.review = null; }
       this.data.error = code === 'SERVER_REJECTED' ? '请求被拒绝。若已提交变更，请先核对服务器状态。' : '请求未完成。请核对状态，不要重复提交。';
-    } finally { if (epoch === this.epoch && this.alive) { this.data.busy = false; this.emit(); } }
+    } finally { if (epoch === this.epoch && this.alive) { this.mutationInFlight = false; this.data.busy = false; this.emit(); } }
   }
   async load() {
     return this.work(false, async () => {

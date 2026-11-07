@@ -19,7 +19,9 @@ watch([action,percentage], () => { actionConfirmed.value = false; });
 watch(() => state.value.review, () => { confirmed.value = false; });
 watch(() => state.value.state?.revision, () => { actionConfirmed.value = false; recoveryConfirmed.value = false; });
 watch(() => state.value.state?.pending, () => { recoveryConfirmed.value = false; });
-const stop = props.host.observeIdentity(() => {draft.value='';confirmed.value=false;actionConfirmed.value=false;recoveryConfirmed.value=false;localError.value='';});
+const clearInputs = () => {draft.value='';confirmed.value=false;actionConfirmed.value=false;recoveryConfirmed.value=false;localError.value='';};
+const stop = permissionHost.observeIdentity(clearInputs);
+const stopPermissions = permissionHost.observePermissions(clearInputs);
 async function safely(work: () => unknown) { localError.value='';try {await work();} catch {localError.value='请先加载状态并检查输入、权限和确认项。';} }
 async function load() { await permissionHost.refresh(); await console.load(); }
 function review() { return safely(() => console.review(JSON.parse(draft.value))); }
@@ -29,7 +31,7 @@ function execute() {
   return safely(() => console.execute(action.value,bp,actionConfirmed.value));
 }
 onMounted(() => { void safely(load); });
-onBeforeUnmount(() => {stop();console.dispose();permissionHost.dispose();});
+onBeforeUnmount(() => {stop();stopPermissions();console.dispose();permissionHost.dispose();});
 </script>
 <template>
   <main class="fcp-release-console" aria-label="系统发布与版本管理">
