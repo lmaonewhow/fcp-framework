@@ -120,6 +120,7 @@ export class UiRuntime {
     catalog = freeze(empty());
     epoch = 0;
     disposed = false;
+    projectionFingerprint = null;
     controllers = new Set();
     resources = new Map();
     dirty = new Set();
@@ -147,6 +148,7 @@ export class UiRuntime {
         this.active();
         this.epoch++;
         this.abort();
+        this.projectionFingerprint = null;
         const ids = [...this.resources.keys(), ...this.catalog.pages.map(p => p.id)];
         this.notice(ids);
         ids.forEach(id => this.cleanup(id));
@@ -154,6 +156,23 @@ export class UiRuntime {
         this.adapter.clearCaches();
         this.adapter.replaceCatalog(this.catalog);
         this.adapter.restoreDeepLink(null);
+    }
+    /** Authorization projection changes independently of Engine generation. Never invent an invoke revision. */
+    applyProjection(value, fingerprint, epoch = this.epoch) {
+        this.active();
+        if (epoch !== this.epoch)
+            return false;
+        if (!/^[a-f0-9]{64}$/.test(fingerprint))
+            throw new UiError('VALIDATION', 'Invalid projection fingerprint');
+        const next = validateCatalog(value, this.adapter);
+        if (next.revision < this.catalog.revision)
+            return false;
+        if (this.projectionFingerprint !== null && this.projectionFingerprint !== fingerprint)
+            this.resetIdentity();
+        const applied = this.applyRevision(next);
+        if (applied || next.revision === this.catalog.revision)
+            this.projectionFingerprint = fingerprint;
+        return applied;
     }
     applyRevision(value, epoch = this.epoch) {
         this.active();

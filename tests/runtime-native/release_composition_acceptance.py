@@ -31,6 +31,29 @@ def manifest_digest(value):
                                      separators=(',', ':')).encode()).hexdigest()
 
 
+def observation_policy(revision):
+    # Deliberately insufficient real traffic; never substitute a business classifier or Sample.
+    return dict(expectedRevision=revision, stages=[5000, 10000], minimumDwellMillis=1000,
+                minimumSamples=10000, maximumAgeMillis=60000, maximumErrorRate=.05, maximumP95Millis=10000)
+
+
+def observation_pause_matches(before, after, automation, operation_id):
+    receipt = after.get('operations', {}).get(operation_id, {})
+    observed = after.get('observed', {})
+    return (automation.get('status') == 'PAUSED' and 'pending' not in automation and
+            after.get('phase') == 'PAUSED' and 'pending' not in after and
+            after.get('basisPoints') == before['basisPoints'] and
+            after.get('generation') == before['generation']+1 and
+            automation.get('generation') == after['generation'] and
+            after.get('revision', -1) > before['revision'] and
+            set(after.get('operations', {}))-set(before.get('operations', {})) == {operation_id} and
+            receipt.get('status') == 'COMPLETE' and receipt.get('command', {}).get('action') == 'PAUSE' and
+            receipt.get('command', {}).get('basisPoints') == before['basisPoints'] and
+            observed.get('operationId') == operation_id and observed.get('complete') is True and
+            observed.get('outcome') == 'SUCCEEDED' and observed.get('routingMode') == 'ACTIVE' and
+            observed.get('generation') == after['generation'] and observed.get('basisPoints') == before['basisPoints'])
+
+
 def package_artifact(language, version, content):
     plugin = 'ci.'+language
     return dict(id='ci-package-'+language+'-'+version.replace('.', '-'), kind='PLUGIN',
@@ -80,7 +103,9 @@ class ReleaseCompositionFixture(RuntimeFixture):
         self.report = dict(status='NOT_RUN', browser='NOT_RUN', production='NOT_ACCEPTED',
                            scope='Real MySQL + encrypted native login + Spring composite executor + two rebuilt Vue shells + isolated Python/Node release processes',
                            checks=[], screenshots=[], operations=[], packages=[], observedBindings=[], browserErrors=[], backendPidUnchanged='NOT_RUN',
-                           taskAffinity='NOT_RUN: native TASK scheduler/Exchange adapter is intentionally not enabled')
+                           taskAffinity='NOT_RUN: native TASK scheduler/Exchange adapter is intentionally not enabled',
+                           observation=dict(status='NOT_RUN', endpoints=[], automaticExpansion='NOT_RUN',
+                               securityContainment='NOT_RUN', scope='Live native USER-approved WindowedObservation pause only; default business classifier UNKNOWN, insufficient samples'))
         self._write()
 
     def grant(self, admin, artifact, allow=True, tenant='000000'):
@@ -113,6 +138,93 @@ class ReleaseCompositionFixture(RuntimeFixture):
                     revision=result['revision'], observation=result['observed']))
         self._write()
         return result
+
+    def observation_request(self, client, actor, action, body=None, page=None):
+        path = '/fcp/releases/automation/'+action
+        if page is None:
+            status, payload = client.request(path, body)
+        else:
+            # Actual same-origin browser fetch with the existing genuine native session.
+            # No storage write, network interception, response substitution or sample injection path.
+            response = page.evaluate("""async ({path, body, token, clientId}) => {
+                const response = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json',
+                    Authorization:'Bearer '+token, clientid:clientId}, body:JSON.stringify(body)});
+                return {status:response.status, payload:await response.json()};
+            }""", dict(path=path, body=body, token=client.token, clientId=client.client_id))
+            status, payload = response['status'], response['payload']
+        self.report['observation']['endpoints'].append(dict(actor=actor, path=path,
+            method='GET' if body is None else 'POST', transport='browser-fetch' if page is not None else 'native-http',
+            httpStatus=status, code=payload.get('code'), data=payload.get('data')))
+        self._write()
+        return status, payload
+
+    def observation_data(self, admin, action, body=None):
+        status, payload = self.observation_request(admin, 'admin', action, body)
+        self.check('native observation '+action+' returns an authorized response',
+                   status == 200 and str(payload.get('code')) == '200' and isinstance(payload.get('data'), dict))
+        return payload['data']
+
+    def observation_denied(self, client, actor, before):
+        for action, body in [('enable', observation_policy(before['revision'])), ('tick', {})]:
+            status, payload = self.observation_request(client, actor, action, body)
+            self.check(actor+' cannot '+action+' native observation policy',
+                       status == 403 or (status == 200 and str(payload.get('code')) == '403'))
+
+    def verify_observation_pause(self, admin, viewer, canary, catalog, page):
+        self.report['observation']['status'] = 'RUNNING'
+        before = self.observation_data(admin, 'state')
+        self.check('native observation starts disabled with no pending step', before['status'] == 'DISABLED' and 'pending' not in before)
+        status, body = self.observation_request(viewer, 'viewer', 'state')
+        self.check('native observation viewer can read but not manage',
+                   status == 200 and str(body.get('code')) == '200' and body['data']['revision'] == before['revision'])
+        self.observation_denied(viewer, 'viewer', before)
+        policy = observation_policy(before['revision'])
+        status, body = self.observation_request(admin, 'admin', 'enable', dict(policy, sample={}), page)
+        self.check('actual browser cannot submit a Sample while enabling observation',
+                   status == 400 and body.get('data', {}).get('fcpCode') == 'INVALID_ARGUMENT')
+        self.check('rejected observation writes leave policy unchanged', self.observation_data(admin, 'state') == before)
+        enabled = self.observation_data(admin, 'enable', policy)
+        enabled_at = time.monotonic()
+        self.check('live admin enables observation for exact canary generation',
+                   enabled['status'] == 'ENABLED' and enabled['generation'] == canary['generation'] and
+                   enabled['release'] == RELEASES['candidate'] and enabled['policy']['dwellMillis'] == 1000 and
+                   enabled['policy']['minimumSamples'] == policy['minimumSamples'])
+        status, body = self.observation_request(admin, 'admin', 'tick', {'sample': {}}, page)
+        self.check('actual browser cannot submit a Sample to the tick endpoint',
+                   status == 400 and body.get('data', {}).get('fcpCode') == 'INVALID_ARGUMENT')
+        self.check('browser Sample rejection neither advances nor replaces policy', self.observation_data(admin, 'state') == enabled)
+        # Node's exact digest is authorized in both real release groups. Honor the
+        # real tenant bucket instead of forcing a candidate token or authorizing Python early.
+        message = 'native-observation-post-approval'
+        reply = admin.selected('/fcp/capabilities/'+exported('ci.node')+'/invoke', catalog['affinity'],
+            dict(input=dict(message=message, dependency=False), expectedRevision=catalog['catalog']['revision'], idempotencyKey=message))
+        self.check('post-approval observation traffic is an actual authorized native Node call',
+                   reply.get('language') == 'node' and reply.get('message') == message and reply.get('tenantId') == '000000')
+        self.assert_child(reply['pluginPid'], self.pid, message)
+        self.report['observation']['traffic'] = dict(releaseId=catalog['releaseId'], pluginId='ci.node',
+            generation=canary['generation'], pluginPid=reply['pluginPid'], businessClassifier='default UNKNOWN; no fixture override',
+            candidateInvocation=catalog['releaseId'] == RELEASES['candidate'], sampleCounts='NOT_EXPOSED_BY_NATIVE_ENDPOINT')
+        time.sleep(max(0, 1.1-(time.monotonic()-enabled_at)))
+        self.check('policy enable and rejected Sample do not themselves change canary', admin.data('/fcp/releases/state') == canary)
+        settled = self.observation_data(admin, 'tick', {})
+        after = admin.data('/fcp/releases/state')
+        operation_id = 'auto-'+enabled['id']+'-0'
+        self.check('real UNKNOWN or insufficient-sample observation pauses without expanding',
+                   observation_pause_matches(canary, after, settled, operation_id))
+        self.report['observation'].update(automaticPause='PASS', generationBefore=canary['generation'],
+            generationAfter=after['generation'], releaseBefore=canary, releaseAfter=after,
+            enabledPolicy=enabled, settledPolicy=settled, elapsedSinceEnableSeconds=round(time.monotonic()-enabled_at, 3))
+        self.report['operations'].append(dict(action='PAUSE', source='native-observation-tick',
+            operationId=operation_id, phase=after['phase'], generation=after['generation'],
+            revision=after['revision'], observation=after['observed']))
+        repeat = self.observation_data(admin, 'tick', {})
+        self.check('paused policy tick cannot replay or silently resume deployment',
+                   repeat == settled and admin.data('/fcp/releases/state') == after)
+        disabled = self.observation_data(admin, 'disable', {'expectedRevision': settled['revision']})
+        self.check('live admin explicitly disables tested policy before manual expansion',
+                   disabled['status'] == 'DISABLED' and 'pending' not in disabled and admin.data('/fcp/releases/state') == after)
+        self._write()
+        return after
 
     def selection(self, client, shell, stage=None, affinity=None):
         manifest = (client.data('/fcp/ui/releases/bootstrap?shell='+shell) if affinity is None else
@@ -255,13 +367,13 @@ class ReleaseCompositionFixture(RuntimeFixture):
                         expect(page.locator('meta[name="fcp-ui-bundle"]')).to_have_attribute('content', self.ui_versions['digests']['stable'][shell])
                         self.browser_invoke(page, shell, '1.0.0', 'stable-'+shell+'-browser')
                         stable_pages.append((page, shell))
-                    self.operation(admin, 'CANARY', 2500, 'CANARY')
+                    canary = self.operation(admin, 'CANARY', 2500, 'CANARY')
                     first = self.selection(admin, 'admin')
                     second = self.selection(admin, 'admin')
                     same_tenant = self.selection(teacher, 'teacher')
                     self.check('canary tenant bucketing stable across requests and native users',
                                first['releaseId'] == second['releaseId'] == same_tenant['releaseId'])
-                    self.operation(admin, 'PAUSE', 2500, 'PAUSED')
+                    self.verify_observation_pause(admin, teacher, canary, first, stable_pages[0][0])
                     self.check('pause retains actual canary assignment', self.selection(admin, 'admin')['releaseId'] == first['releaseId'])
                     self.operation(admin, 'EXPAND', 5000, 'CANARY')
                     self.operation(admin, 'PROMOTE', 10000, 'FULL')
@@ -325,6 +437,10 @@ class ReleaseCompositionFixture(RuntimeFixture):
                     self.check('non-platform release view denied despite explicit role grant', is_rejected(status, body))
                     status, body = tenant.request('/fcp/releases/reconcile', {})
                     self.check('non-platform release management denied despite explicit role grant', is_rejected(status, body))
+                    observation_before = self.observation_data(admin, 'state')
+                    self.observation_denied(tenant, 'non-platform tenant with explicit release menus', observation_before)
+                    self.check('foreign observation writes do not change policy', self.observation_data(admin, 'state') == observation_before)
+                    self.report['observation']['status'] = 'PASS'
                     for artifact in [packages[('python', '1.1.0')], packages[('node', '1.0.0')]]:
                         self.grant(admin, artifact, tenant='960001')
                     foreign = self.selection(tenant, 'teacher', 'candidate')
@@ -387,6 +503,8 @@ class ReleaseCompositionFixture(RuntimeFixture):
                         context.close()
                     browser.close()
         except Exception as error:
+            if self.report['observation']['status'] == 'RUNNING':
+                self.report['observation']['status'] = 'FAIL'
             self.report.update(status='FAIL', browser='FAIL' if self.report['browser'] == 'RUNNING' else self.report['browser'], errorType=type(error).__name__,
                                error=safe_diagnostic(str(error), self.login_fixture.diagnostic_secrets))
             raise

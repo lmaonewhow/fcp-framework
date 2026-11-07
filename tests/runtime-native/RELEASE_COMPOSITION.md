@@ -8,6 +8,10 @@
 
 检查范围包括 DEPLOY、CANARY、PAUSE、EXPAND、PROMOTE、ABORT、ROLLBACK、RETIRE 及同操作重放。真实 Python 1.0.0 和 1.1.0、Node 回调、父 JVM 和不同子进程 PID 都会断言。候选摘要不得继承旧版本授权，管理员和教师两个实际 Vue 页面都必须调用所选版本；老页面在推广后保留原版本，刷新选取新的不可变包。原生退出登录后在同一个浏览器上下文切换第二租户，检查旧页面和结果清空、未授权目录不可见、第二租户单独授权及撤销、跨租户 affinity 被拒绝。停止路由后旧 affinity 不能调用或回退至旧静态页面，受 RBAC 保护的管理员治理入口仍能打开，回退后恢复原版，退役后候选子进程必须实际退出而稳定版继续工作。
 
+组合模式还启用真实 `fcp.release.observation.enabled=true`，使用原生 `WindowedObservation` Bean 和默认 UNKNOWN 业务分类，不注册测试分类器、不制造安全事件。确认 CANARY 后，当前管理员通过真实 `/fcp/releases/automation/enable` 启用最短驻留 1000ms、最低样本数 10000 的策略，完成一次真实授权 Node 调用并等待驻留，再由 `/tick` 驱动实际组合执行器进入 PAUSED。断言比例仍为 2500、只新增同一条自动 PAUSE 回执、generation 与实际观察一致；再次 tick 不重放也不自动恢复。随后显式停用该策略，再继续原有手动 EXPAND/PROMOTE。
+
+管理员浏览器使用真实会话发起同源 fetch，向 enable/tick 增加 `sample:{}` 必须返回 INVALID_ARGUMENT，且不改变策略修订。原生 viewer 可读取策略但不能 enable/tick；已授予发布菜单的非平台租户仍必须被拒绝。报告保留实际端点状态、策略和发布代数、自动操作回执及真实调用选择的 release，不保存登录令牌或 affinity。真实租户分桶可能选择稳定组，因此报告单独标明该调用是否实际进入候选组，不把空候选窗口说成候选采样成功。该场景证明默认 UNKNOWN/低样本下安全暂停，不能证明健康业务指标自动扩量或安全事件自动封禁；后二者保持 NOT_RUN，生产自动发布也未认证。
+
 原生 TASK 调度器和 release-aware Exchange 端口没有在这个模式中启用，报告明确写 `NOT_RUN`，不能用 USER 登录测试冒充 TASK、存储写入或未知结果恢复验收。多 JVM、外部后端部署、生产上线和长期稳定性同样不由此夹具认证。
 
 该工作流上传 `reports/native-source-commit.txt`、`reports/ci-native.json`、`reports/native-release-composition/acceptance.json`、失败或成功截图、控制台和脱敏启动日志、`BUILD-EVIDENCE.json` 与 `UI-VARIANT-candidate.json`。会话令牌、affinity、私钥和登录状态仅留在本次私有目录或进程内存，不能进入上传证据。一次失败不会被后续模块成功覆盖。

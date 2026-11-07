@@ -14,6 +14,9 @@ export interface NativePluginHost {
   request(path: string, method: 'GET' | 'POST', input: unknown, signal: AbortSignal, options?: {headers?: Record<string,string>}): Promise<unknown>;
   controlPermissions?(): readonly string[];
   identityKey(): string;
+  /** Trusted shell principal: JSON.stringify([String(tenantId), String(userId)]), null on logout. No credentials. */
+  principalKey?(): string | null;
+  observePermissions?(changed: () => void): () => void;
   observeIdentity(changed: () => void): () => void;
 }
 interface PendingAction {identityOwner: string; ownerId: string; capabilityId: string; input: Record<string,string>; key: string; epoch: number; affinity: string | null}
@@ -41,11 +44,17 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
     pending.value = null; fields.value = {}; results.value = {};
     uncertainty.value = activeOwner !== null && uncertainOwners.has(activeOwner);
   };
-  function identityChanged() {
+  function authorizationInvalidated() {
     fetchController?.abort(); identity = {userId:null,tenantId:null,language:'en',permissions:[]}; identityView.value = identity;
     for (const changed of identityListeners) changed();
-    activeOwner = null; uncertainty.value = false;
   }
+  function identityChanged() {
+    // Legacy adapters cannot prove a different principal; retain the fence until a fresh server context does.
+    const samePrincipal = !host.principalKey || (activeOwner !== null && host.principalKey() === activeOwner);
+    authorizationInvalidated();
+    if (!samePrincipal) { activeOwner = null; uncertainty.value = false; }
+  }
+  const stopPermissions = host.observePermissions?.(authorizationInvalidated) ?? (() => {});
   const stopIdentity = host.observeIdentity(identityChanged);
   const factory = host.shell === 'admin' ? createPlusUiAdapter : createSoybeanAdapter;
   const runtime = new UiRuntime(factory({
@@ -112,7 +121,7 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
     } catch (failure) {
       if (!alive || controller.signal.aborted || key !== host.identityKey()) return;
       // Auth failures revoke immediately; invalid candidates never replace the valid snapshot.
-      if (failure instanceof UiError && ['UNAUTHENTICATED','FORBIDDEN'].includes(failure.code)) identityChanged();
+      if (failure instanceof UiError && ['UNAUTHENTICATED','FORBIDDEN'].includes(failure.code)) authorizationInvalidated();
       error.value = failure instanceof Error ? failure.message : '插件目录加载失败';
     } finally { loading = false; if (fetchController === controller) fetchController = undefined; }
   }
@@ -166,6 +175,6 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
     if (pending.value || uncertainty.value) { event.preventDefault(); event.returnValue = ''; }
   };
   onMounted(() => { if (typeof window !== 'undefined') window.addEventListener('beforeunload',beforeUnload); void refresh(); timer = setInterval(() => {void refresh();},5000); });
-  onBeforeUnmount(() => { alive = false; fetchController?.abort(); if (timer) clearInterval(timer); stopIdentity(); stopNavigation(); if (typeof window !== 'undefined') window.removeEventListener('beforeunload',beforeUnload); runtime.dispose(); });
+  onBeforeUnmount(() => { alive = false; fetchController?.abort(); if (timer) clearInterval(timer); stopIdentity(); stopPermissions(); stopNavigation(); if (typeof window !== 'undefined') window.removeEventListener('beforeunload',beforeUnload); runtime.dispose(); });
   return {identityView,catalog,error,notice,busy,fields,results,pending,uncertainty,retry,abandon,selected,isDeepLink,edit,invoke,refresh,render:(id:string) => runtime.render(id),navigate:(path:string) => router.push(path)};
 }

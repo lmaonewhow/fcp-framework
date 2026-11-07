@@ -14,7 +14,9 @@ export interface ReleasePlan {
   stableDigest: string; candidateDigest: string; schemaVersion: number;
   stableSchemaMin: number; stableSchemaMax: number; candidateSchemaMin: number; candidateSchemaMax: number;
 }
+export interface ContainmentReview {revision: number; plan: ReleasePlan; pendingOperationId: string}
 export interface ConsoleState {
+  containmentReview?: ContainmentReview | null;
   busy: boolean; error: string; notice: string; unknown: boolean;
   state: Record<string, unknown> | null; versions: Record<string, unknown> | null;
   review: { plan: ReleasePlan; revision: number } | null;
@@ -42,6 +44,7 @@ export class ReleaseConsole {
   private stop: () => void;
   private stopPermissions: () => void;
   private mutationInFlight = false;
+  private containmentUncertain = false;
   private host: ReleaseHost;
   private changed: (state: ConsoleState) => void;
   constructor(host: ReleaseHost, changed: (state: ConsoleState) => void = () => {}) {
@@ -52,15 +55,29 @@ export class ReleaseConsole {
   get canView() { return this.host.permissions().includes('fcp:release:view'); }
   get canManage() { return this.canView && this.host.permissions().includes('fcp:release:manage'); }
   get canRecover() { return this.canManage && this.data.state?.supportsRecovery === true && this.data.state.pending != null && integer(this.data.state.revision); }
+  get canContain() { return this.canManage && !this.containmentUncertain && this.eligibleContainment(this.data.state); }
+  private eligibleContainment(state: Record<string,unknown> | null): boolean {
+    try { if (!state || state.supportsFencedContainment !== true || !Array.isArray(state.capabilities) || !state.capabilities.includes('ABORT') || !integer(state.revision)) return false;
+      const pending = object(state.pending); if (typeof pending.operationId !== 'string' || !pending.operationId || pending.action === 'ABORT') return false;
+      parsePlan(state.plan); return true;
+    } catch { return false; }
+  }
+  private containmentSnapshot(state: Record<string,unknown>): ContainmentReview {
+    return {revision: state.revision as number, plan: parsePlan(state.plan), pendingOperationId: object(state.pending).operationId as string};
+  }
+  private sameContainment(a: ContainmentReview, b: ContainmentReview) {
+    return a.revision === b.revision && a.pendingOperationId === b.pendingOperationId && Object.keys(a.plan).every(k => a.plan[k as keyof ReleasePlan] === b.plan[k as keyof ReleasePlan]);
+  }
   supports(action: ReleaseAction) { return Array.isArray(this.data.state?.capabilities) && this.data.state.capabilities.includes(action); }
   private emit() { this.changed({...this.data}); }
   reset(preserveUncertainty = false) {
+    if (!preserveUncertainty) this.containmentUncertain = false;
     const unknown = preserveUncertainty && (this.data.unknown || this.mutationInFlight);
     this.mutationInFlight = false;
     this.epoch++;
     for (const request of this.requests) request.abort();
     this.requests.clear();
-    Object.assign(this.data, {busy: false, state: null, versions: null, review: null, unknown, error: '', notice: '身份或权限已变化，请重新加载。之前已提交的操作可能仍在执行，请回原身份核对。'});
+    Object.assign(this.data, {busy: false, state: null, versions: null, review: null, containmentReview: null, unknown, error: '', notice: '身份或权限已变化，请重新加载。之前已提交的操作可能仍在执行，请回原身份核对。'});
     this.emit();
   }
   dispose() { this.alive = false; this.stop(); this.stopPermissions(); this.reset(); }
@@ -77,14 +94,15 @@ export class ReleaseConsole {
       return object(raw.data);
     } finally { this.requests.delete(controller); }
   }
-  private async work(mutation: boolean, fn: () => Promise<void>, allowUncertain = false) {
+  private async work(mutation: boolean, fn: (guard: () => void) => Promise<void>, allowUncertain = false) {
     this.require(mutation);
     if (this.data.busy) return;
     if (mutation && this.data.unknown && !allowUncertain) throw new Error('RECONCILE_REQUIRED');
-    const epoch = this.epoch;
+    const epoch = this.epoch, identity = this.host.identityKey();
+    const guard = () => { if (!this.alive || epoch !== this.epoch || identity !== this.host.identityKey()) throw new Error('STALE_OPERATION'); this.require(mutation); };
     this.mutationInFlight = mutation;
     this.data.busy = true; this.data.error = ''; this.emit();
-    try { await fn(); }
+    try { guard(); await fn(guard); }
     catch (error) {
       if (epoch !== this.epoch || !this.alive) return;
       const code = error instanceof Error ? error.message : '';
@@ -94,12 +112,13 @@ export class ReleaseConsole {
     } finally { if (epoch === this.epoch && this.alive) { this.mutationInFlight = false; this.data.busy = false; this.emit(); } }
   }
   async load() {
-    return this.work(false, async () => {
-      const state = await this.request('/state', 'GET');
+    return this.work(false, async guard => {
+      const state = await this.request('/state', 'GET'); guard();
       if (!integer(state.revision)) throw new Error('INVALID_RESPONSE');
-      const versions = await this.request('/versions', 'GET');
+      const versions = await this.request('/versions', 'GET'); guard();
       this.data.state = state; this.data.versions = versions;
       this.data.unknown = this.data.unknown || state.pending != null || state.phase === 'UNKNOWN' || state.phase === 'PENDING';
+      this.data.containmentReview = null;
       if (this.data.review?.revision !== state.revision) this.data.review = null;
       this.data.notice = this.data.unknown ? '读取状态不会解除未决操作，请执行对账。' : '已读取服务器状态。期望状态不代表实际部署成功。';
     });
@@ -113,8 +132,8 @@ export class ReleaseConsole {
   async confirmPlan(confirmed: boolean) {
     if (!confirmed || !this.data.review) throw new Error('CONFIRMATION_REQUIRED');
     const review = this.data.review;
-    return this.work(true, async () => {
-      const result = await this.request('/plans', 'POST', {expectedRevision: review.revision, operationId: crypto.randomUUID(), plan: review.plan});
+    return this.work(true, async guard => {
+      const result = await this.request('/plans', 'POST', {expectedRevision: review.revision, operationId: crypto.randomUUID(), plan: review.plan}); guard();
       this.accept(result); this.data.review = null; this.data.notice = '发布计划已提交；尚未表示候选版本已部署。';
     });
   }
@@ -125,8 +144,8 @@ export class ReleaseConsole {
     if (!this.data.state || !integer(this.data.state.revision)) throw new Error('LOAD_STATE_FIRST');
     if (!this.supports(action)) throw new Error('UNSUPPORTED_ACTION');
     const revision = this.data.state.revision;
-    return this.work(true, async () => {
-      const result = await this.request('/operations', 'POST', {expectedRevision: revision, operationId: crypto.randomUUID(), action, basisPoints});
+    return this.work(true, async guard => {
+      const result = await this.request('/operations', 'POST', {expectedRevision: revision, operationId: crypto.randomUUID(), action, basisPoints}); guard();
       this.accept(result); this.data.notice = '操作已提交，请检查实际观测状态。';
     });
   }
@@ -138,10 +157,44 @@ export class ReleaseConsole {
   }
   async reconcile() {
     this.require(true);
-    return this.work(false, async () => {
-      const result = await this.request('/reconcile', 'POST', {});
-      this.accept(result); this.data.notice = this.data.unknown ? '执行结果尚不明确，请保留现场并继续查询。' : '已完成服务器对账，请检查实际状态。';
+    return this.work(false, async guard => {
+      const result = await this.request('/reconcile', 'POST', {}); guard();
+      this.accept(result); if (!this.data.unknown) this.containmentUncertain = false; this.data.notice = this.data.unknown ? '执行结果尚不明确，请保留现场并继续查询。' : '已完成服务器对账，请检查实际状态。';
     });
+  }
+  /** Explicit emergency closure only; it cannot expand, roll back, or retry an unknown write. */
+  async reviewContainment() {
+    this.require(true);
+    if (this.containmentUncertain) throw new Error('RECONCILE_REQUIRED');
+    return this.work(false, async guard => {
+      this.data.containmentReview = null;
+      const current = await this.request('/state', 'GET'); guard(); this.require(true);
+      if (!this.eligibleContainment(current)) throw new Error('FENCED_CONTAINMENT_UNAVAILABLE');
+      this.data.state = current; this.data.unknown = true;
+      this.data.containmentReview = this.containmentSnapshot(current);
+      this.data.notice = '已读取待决操作。封禁将关闭全部受管新入口，不回切旧版，也不撤销已执行效果。';
+    });
+  }
+  async contain(confirmed: boolean) {
+    this.require(true);
+    if (!confirmed || !this.data.containmentReview) throw new Error('CONFIRMATION_REQUIRED');
+    if (!this.canContain) throw new Error('FENCED_CONTAINMENT_UNAVAILABLE');
+    const review = this.data.containmentReview;
+    return this.work(true, async guard => {
+      const current = await this.request('/state', 'GET'); guard(); this.require(true);
+      if (!this.eligibleContainment(current) || !this.sameContainment(review, this.containmentSnapshot(current))) {
+        this.data.containmentReview = null;
+        if (integer(current.revision)) this.data.state = current;
+        this.data.notice = '发布状态或能力已变化，未发送封禁。请重新读取并确认。';
+        return;
+      }
+      this.data.containmentReview = null; this.containmentUncertain = true;
+      const result = await this.request('/operations', 'POST', {expectedRevision: review.revision, operationId: crypto.randomUUID(), action: 'ABORT', basisPoints: 0}); guard();
+      this.accept(result);
+      // Emergency closure does not settle the original unknown write or authorize normal operations.
+      this.data.unknown = true;
+      this.data.notice = '封禁请求已提交，请对账确认实际入口已关闭。原操作效果仍须核对；没有回切旧版。';
+    }, true);
   }
   /** Recovery is an executor-proven atomic claim of the original command, never a new submission. */
   async recover(confirmed: boolean) {
@@ -149,8 +202,8 @@ export class ReleaseConsole {
     if (!confirmed) throw new Error('CONFIRMATION_REQUIRED');
     if (!this.canRecover) throw new Error('SAFE_RECOVERY_UNAVAILABLE');
     const expectedRevision = this.data.state!.revision;
-    return this.work(true, async () => {
-      const result = await this.request('/recover', 'POST', {expectedRevision});
+    return this.work(true, async guard => {
+      const result = await this.request('/recover', 'POST', {expectedRevision}); guard();
       this.accept(result);
       this.data.notice = this.data.unknown ? '安全恢复尚未确认，请继续对账；没有创建第二个发布操作。' : '已完成安全恢复检查，请核对实际部署结果。';
     }, true);

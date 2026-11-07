@@ -19,12 +19,14 @@ export function policy(input:ObservationPolicy):ObservationPolicy {
 }
 export class ObservationConsole {
   readonly data:ObservationState={busy:false,unknown:false,unavailable:false,error:'',notice:'',state:null,release:null};
-  private host:ObservationHost; private blocked:()=>boolean;private changed:(s:ObservationState)=>void;private epoch=0;private alive=true;private requests=new Set<AbortController>();private stop:()=>void;private stopPermissions:()=>void;private mutationInFlight=false;
-  constructor(host:ObservationHost,blocked:()=>boolean,changed:(s:ObservationState)=>void=()=>{}){this.host=host;this.blocked=blocked;this.changed=changed;this.stop=host.observeIdentity(()=>this.reset());this.stopPermissions=host.observePermissions?.(()=>this.permissionsChanged())??(()=>{});}
+  private safetyAllowed:()=>boolean;private host:ObservationHost; private blocked:()=>boolean;private changed:(s:ObservationState)=>void;private epoch=0;private alive=true;private requests=new Set<AbortController>();private stop:()=>void;private stopPermissions:()=>void;private mutationInFlight=false;
+  constructor(host:ObservationHost,blocked:()=>boolean,changed:(s:ObservationState)=>void=()=>{},safetyAllowed:()=>boolean=()=>false){this.safetyAllowed=safetyAllowed;this.host=host;this.blocked=blocked;this.changed=changed;this.stop=host.observeIdentity(()=>this.reset());this.stopPermissions=host.observePermissions?.(()=>this.permissionsChanged())??(()=>{});}
   get canView(){return this.host.permissions().includes('fcp:release:view')}
   get canManage(){return this.canView&&this.host.permissions().includes('fcp:release:manage')}
   get pending(){return this.data.state?.pending!=null}
-  get canAct(){return this.canManage&&!this.data.busy&&!this.data.unknown&&!this.data.unavailable&&!this.blocked()&&this.data.state!=null&&this.data.release!=null&&this.data.release.pending==null}
+  get canCheck(){return this.canManage&&!this.data.busy&&!this.data.unknown&&!this.data.unavailable&&!this.blocked()&&this.data.state!=null&&this.data.release!=null}
+  get canSafety(){return this.canManage&&!this.data.busy&&!this.data.unknown&&!this.data.unavailable&&this.safetyAllowed()&&this.data.state?.status==='ENABLED'&&this.data.state.pending!=null&&this.data.release?.pending!=null&&this.data.release.supportsFencedContainment===true}
+  get canAct(){return this.canCheck&&this.data.release?.pending==null}
   private emit(){this.changed({...this.data})}
   private clear(unknown:boolean,notice:string){this.epoch++;for(const c of this.requests)c.abort();this.requests.clear();this.mutationInFlight=false;Object.assign(this.data,{busy:false,unknown,unavailable:false,error:'',notice,state:null,release:null});this.emit()}
   reset(){this.clear(false,'身份已改变，旧观察结果已清除。请回原身份核对已提交操作。')}
@@ -45,23 +47,40 @@ export class ObservationConsole {
       const data=object(raw.data);if(!integer(data.revision))throw new Error('INVALID_RESPONSE');return data;
     }finally{this.requests.delete(c)}
   }
-  private async run(mutation:boolean,fn:()=>Promise<void>){
+  private async run(mutation:boolean,fn:(guard:()=>void)=>Promise<void>,containmentCheck=false,safetyOnly=false){
     this.require(mutation);if(this.data.busy)return;
-    if(mutation&&(!this.canAct))throw new Error('RECONCILE_REQUIRED');
-    const mine=this.epoch;this.mutationInFlight=mutation;this.data.busy=true;this.data.error='';this.emit();
-    try{await fn()}
+    if(mutation&&(!(safetyOnly?this.canSafety:containmentCheck?this.canCheck:this.canAct)))throw new Error('RECONCILE_REQUIRED');
+    const mine=this.epoch,identity=this.host.identityKey();const guard=()=>{if(!this.alive||mine!==this.epoch||identity!==this.host.identityKey())throw new Error('STALE_OPERATION');this.require(mutation)};this.mutationInFlight=mutation;this.data.busy=true;this.data.error='';this.emit();
+    try{guard();await fn(guard)}
     catch(error){if(mine!==this.epoch||!this.alive)return;const code=error instanceof Error?error.message:'';
       if(code==='UNAUTHENTICATED'){this.permissionsChanged();this.data.error='登录已失效，请重新登录并读取状态。';this.emit();return}
       if(code==='UNAVAILABLE'){this.data.unavailable=true;this.data.error='';this.data.notice='观察能力未启用或接口不可用，请检查服务端配置。';}
       else{if(mutation)this.data.unknown=true;this.data.error=mutation?'操作结果未确认，已禁止重复动作。请先只读核对观察及发布状态。':'未能读取状态，请检查连接后手动刷新。';}
     }finally{if(mine===this.epoch&&this.alive){this.mutationInFlight=false;this.data.busy=false;this.emit()}}
   }
-  async load(){return this.run(false,async()=>{const state=await this.request('/automation/state','GET');const release=await this.request('/state','GET');this.data.state=state;this.data.release=release;this.data.unavailable=false;this.data.notice=this.data.unknown?'已读回状态，未知请求仍未自动解锁；请由发布管理员核对服务端操作记录。':'只读状态已更新。没有自动执行观察或放量。';})}
-  private async releaseReady(){const release=await this.request('/state','GET');this.data.release=release;if(this.blocked()||release.pending!=null||release.phase==='UNKNOWN'||release.phase==='PENDING')throw new Error('RELEASE_PENDING');return release}
+  async load(){return this.run(false,async guard=>{const state=await this.request('/automation/state','GET');guard();const release=await this.request('/state','GET');guard();this.data.state=state;this.data.release=release;this.data.unavailable=false;this.data.notice=this.data.unknown?'已读回状态，未知请求仍未自动解锁；请由发布管理员核对服务端操作记录。':'只读状态已更新。没有自动执行观察或放量。';})}
+  private async releaseReady(guard:()=>void,containmentCheck=false){const release=await this.request('/state','GET');guard();this.data.release=release;if(this.blocked()||(!containmentCheck&&(release.pending!=null||release.phase==='UNKNOWN'||release.phase==='PENDING')))throw new Error('RELEASE_PENDING');return release}
   async enable(input:ObservationPolicy,confirmed:boolean){
     if(!confirmed)throw new Error('CONFIRMATION_REQUIRED');const p=policy(input);if(this.pending)throw new Error('AUTOMATION_PENDING');
-    return this.run(true,async()=>{const release=await this.releaseReady();if(release.phase!=='CANARY'||p.stages[0]! <= Number(release.basisPoints))throw new Error('CONFIRMED_CANARY_REQUIRED');this.data.state=await this.request('/automation/enable','POST',{expectedRevision:this.data.state!.revision,...p});this.data.notice='观察策略已启用。没有启动后台定时器；每一步由管理员确认检查。';})
+    return this.run(true,async guard=>{const release=await this.releaseReady(guard);guard();if(release.phase!=='CANARY'||p.stages[0]! <= Number(release.basisPoints))throw new Error('CONFIRMED_CANARY_REQUIRED');{const value=await this.request('/automation/enable','POST',{expectedRevision:this.data.state!.revision,...p});guard();this.data.state=value;}this.data.notice='观察策略已启用。没有启动后台定时器；每一步由管理员确认检查。';})
   }
-  async disable(confirmed:boolean){if(!confirmed)throw new Error('CONFIRMATION_REQUIRED');if(this.pending)throw new Error('AUTOMATION_PENDING');return this.run(true,async()=>{await this.releaseReady();this.data.state=await this.request('/automation/disable','POST',{expectedRevision:this.data.state!.revision});this.data.notice='观察策略已停用，当前发布流量不因此回退。';})}
-  async tick(confirmed:boolean){if(!confirmed)throw new Error('CONFIRMATION_REQUIRED');if(this.data.state?.status!=='ENABLED')throw new Error('NOT_ENABLED');return this.run(true,async()=>{await this.releaseReady();this.data.state=await this.request('/automation/tick','POST',{});this.data.release=await this.request('/state','GET');this.data.notice=this.pending?'当前观察步骤尚待发布对账，未允许新推进。':'本次服务器观察检查已返回，请核对策略和实际发布状态。';})}
+  async disable(confirmed:boolean){if(!confirmed)throw new Error('CONFIRMATION_REQUIRED');if(this.pending)throw new Error('AUTOMATION_PENDING');return this.run(true,async guard=>{await this.releaseReady(guard);guard();{const value=await this.request('/automation/disable','POST',{expectedRevision:this.data.state!.revision});guard();this.data.state=value;}this.data.notice='观察策略已停用，当前发布流量不因此回退。';})}
+  async safety(confirmed:boolean){
+    if(!confirmed)throw new Error('CONFIRMATION_REQUIRED');
+    const reviewed=this.data.state,reviewedRelease=this.data.release;
+    return this.run(true,async guard=>{
+      const state=await this.request('/automation/state','GET');guard();const release=await this.request('/state','GET');guard();
+      this.require(true);
+      const same=(a:unknown,b:unknown):boolean=>{if(a===b)return true;if(!a||!b||typeof a!=='object'||typeof b!=='object')return false;const x=a as Record<string,unknown>,y=b as Record<string,unknown>;return Object.keys(x).length===Object.keys(y).length&&Object.keys(x).every(k=>same(x[k],y[k]));};
+      this.data.state=state;this.data.release=release;
+      if(!this.safetyAllowed()||!reviewed||!reviewedRelease||state.status!=='ENABLED'||state.pending==null||release.pending==null||release.supportsFencedContainment!==true||state.revision!==reviewed.revision||release.revision!==reviewedRelease.revision||!same(state.pending,reviewed.pending)||!same(state.owner,reviewed.owner)||!same(release.plan,reviewedRelease.plan)||!same(release.pending,reviewedRelease.pending)){
+        this.data.notice='观察或发布状态已变化，未执行安全检查。请重新读取并确认。';return;
+      }
+      const pending=object(release.pending);if(typeof pending.operationId!=='string'||!pending.operationId)throw new Error('INVALID_PENDING');
+      {const value=await this.request('/automation/safety','POST',{expectedRevision:state.revision,expectedReleaseRevision:release.revision,pendingOperationId:pending.operationId});guard();this.data.state=value;}
+      {const value=await this.request('/state','GET');guard();this.data.release=value;}
+      this.data.notice='已检查服务器安全信号；健康时不会放量。若已封禁，请核对实际入口关闭状态。';
+    },false,true);
+  }
+  async tick(confirmed:boolean){if(!confirmed)throw new Error('CONFIRMATION_REQUIRED');if(this.data.state?.status!=='ENABLED')throw new Error('NOT_ENABLED');return this.run(true,async guard=>{await this.releaseReady(guard,true);guard();{const value=await this.request('/automation/tick','POST',{});guard();this.data.state=value;}{const value=await this.request('/state','GET');guard();this.data.release=value;}this.data.notice=this.pending?'当前观察步骤尚待发布对账，未允许新推进。':'本次服务器观察检查已返回，请核对策略和实际发布状态。';},true)}
 }

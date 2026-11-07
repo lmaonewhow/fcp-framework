@@ -193,3 +193,25 @@ test('superseded successful projection cannot restore revoked permissions',async
   f.respond(async()=>[]);await f.projected.refresh();finish(['fcp:release:view','fcp:release:manage']);
   await assert.rejects(()=>old,/STALE_IDENTITY/);assert.equal(f.console.canView,false);
 });
+const containmentState=()=>({revision:3,phase:'CANARY',basisPoints:1000,plan:plan(),pending:{operationId:'deploy-original',action:'EXPAND'},supportsFencedContainment:true,capabilities:['ABORT','EXPAND','ROLLBACK']});
+test('pending unknown permits only separately reviewed fenced ABORT zero',async()=>{
+ const f=fixture();f.setHandler(async()=>containmentState());await f.console.load();assert.equal(f.console.data.unknown,true);await assert.rejects(()=>f.console.execute('EXPAND',2000,true),/RECONCILE_REQUIRED/);await assert.rejects(()=>f.console.execute('ROLLBACK',0,true),/RECONCILE_REQUIRED/);await f.console.reviewContainment();await assert.rejects(()=>f.console.contain(false),/CONFIRMATION_REQUIRED/);await f.console.contain(true);const posts=f.calls.filter(c=>c[1]==='POST');assert.equal(posts.length,1);assert.equal(posts[0][2].action,'ABORT');assert.equal(posts[0][2].basisPoints,0);assert.equal(posts[0][2].expectedRevision,3);assert.equal(f.console.data.unknown,true);assert.equal(f.console.canContain,false);
+});
+test('containment requires fenced support and ABORT capability, no fallback',async()=>{
+ for(const override of [{supportsFencedContainment:false},{capabilities:['EXPAND']},{pending:null},{plan:{bad:true}}]){const f=fixture();f.setHandler(async()=>({...containmentState(),...override}));await f.console.load();assert.equal(f.console.canContain,false);await f.console.reviewContainment();assert.equal(f.console.data.containmentReview,null);assert.equal(f.calls.filter(c=>c[1]==='POST').length,0)}
+});
+test('containment fresh CAS, pending or plan change requires new confirmation',async()=>{
+ for(const override of [{revision:4},{plan:{...plan(),candidateRelease:'v3'}},{pending:{operationId:'new-op',action:'EXPAND'}},{supportsFencedContainment:false}]){const f=fixture();f.setHandler(async()=>containmentState());await f.console.load();await f.console.reviewContainment();f.setHandler(async()=>({...containmentState(),...override}));await f.console.contain(true);assert.equal(f.calls.filter(c=>c[1]==='POST').length,0);assert.equal(f.console.data.containmentReview,null);assert.equal(f.console.data.unknown,true)}
+});
+test('containment lost response stays locked, no second emergency request',async()=>{
+ const f=fixture();f.setHandler(async()=>containmentState());await f.console.load();await f.console.reviewContainment();f.setHandler(async(path,method)=>{if(method==='POST')throw new Error('response lost');return containmentState()});await f.console.contain(true);assert.equal(f.console.data.unknown,true);await f.console.load();assert.equal(f.console.canContain,false);await assert.rejects(()=>f.console.reviewContainment(),/RECONCILE_REQUIRED/);assert.equal(f.calls.filter(c=>c[1]==='POST').length,1);
+});
+test('containment busy duplicate and native identity change cannot resend or expose response',async()=>{
+ const f=fixture();f.setHandler(async()=>containmentState());await f.console.load();await f.console.reviewContainment();let finish;f.setHandler(async(path,method)=>method==='POST'?new Promise(r=>finish=r):containmentState());const first=f.console.contain(true);await f.console.contain(true);await new Promise(r=>setImmediate(r));assert.equal(f.calls.filter(c=>c[1]==='POST').length,1);f.switchIdentity();finish({revision:8,phase:'ABORTED'});await first;assert.equal(f.console.data.state,null);assert.equal(f.console.data.containmentReview,null);
+});
+test('containment permission revocation during fresh read prevents POST',async()=>{
+ const f=fixture();f.setHandler(async()=>containmentState());await f.console.load();await f.console.reviewContainment();let finish;f.setHandler(()=>new Promise(r=>finish=r));const operation=f.console.contain(true);f.permissions(['fcp:release:view']);finish(containmentState());await operation;assert.equal(f.calls.filter(c=>c[1]==='POST').length,0);assert.equal(f.console.data.containmentReview,null);
+});
+test('real permission projection invalidates emergency review without clearing original unknown',async()=>{
+ const f=nativeProjection();await f.projected.refresh();f.releaseRespond(async()=>containmentState());await f.console.load();await f.console.reviewContainment();f.respond(async()=>['fcp:release:view']);await f.projected.refresh();assert.equal(f.console.data.containmentReview,null);assert.equal(f.console.data.unknown,true);f.respond(async()=>['fcp:release:view','fcp:release:manage']);await f.projected.refresh();await assert.rejects(()=>f.console.contain(true),/CONFIRMATION_REQUIRED/);assert.equal(f.calls.filter(c=>c.method==='POST').length,0);
+});

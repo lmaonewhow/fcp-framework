@@ -8,7 +8,7 @@ const props = defineProps<{host: ReleaseHost}>();
 const state = shallowRef<ConsoleState>({busy:false,error:'',notice:'',unknown:false,state:null,versions:null,review:null});
 const permissionHost = new ReleasePermissionHost(props.host);
 const console = new ReleaseConsole(permissionHost, next => { state.value = next; });
-const draft = ref(''), confirmed = ref(false), actionConfirmed = ref(false), recoveryConfirmed = ref(false), localError = ref('');
+const draft = ref(''), confirmed = ref(false), actionConfirmed = ref(false), recoveryConfirmed = ref(false), containmentConfirmed = ref(false), localError = ref('');
 const action = ref<ReleaseAction>('DEPLOY'), percentage = ref(1);
 const actions: {value: ReleaseAction; label: string}[] = [
   {value:'DEPLOY',label:'部署候选'}, {value:'CANARY',label:'开始灰度'}, {value:'EXPAND',label:'扩大比例'},
@@ -20,8 +20,9 @@ watch(draft, () => { confirmed.value = false; console.clearReview(); });
 watch([action,percentage], () => { actionConfirmed.value = false; });
 watch(() => state.value.review, () => { confirmed.value = false; });
 watch(() => state.value.state?.revision, () => { actionConfirmed.value = false; recoveryConfirmed.value = false; });
+watch(() => state.value.containmentReview, () => { containmentConfirmed.value = false; });
 watch(() => state.value.state?.pending, () => { recoveryConfirmed.value = false; });
-const clearInputs = () => {draft.value='';confirmed.value=false;actionConfirmed.value=false;recoveryConfirmed.value=false;localError.value='';};
+const clearInputs = () => {draft.value='';confirmed.value=false;actionConfirmed.value=false;recoveryConfirmed.value=false;containmentConfirmed.value=false;localError.value='';};
 const stop = permissionHost.observeIdentity(clearInputs);
 const stopPermissions = permissionHost.observePermissions(clearInputs);
 async function safely(work: () => unknown) { localError.value='';try {await work();} catch {localError.value='请先加载状态并检查输入、权限和确认项。';} }
@@ -40,7 +41,7 @@ onBeforeUnmount(() => {stop();stopPermissions();console.dispose();permissionHost
     <h1>系统发布、版本与灰度</h1>
     <p>管理系统产物及发布组合，不管理源码分支。部署能力由当前执行适配器提供。</p>
     <PluginReleaseManager :host="permissionHost" />
-    <ReleaseObservation :host="permissionHost" :blocked="state.busy || state.unknown || !state.state || state.state.pending != null" @changed="safely(() => console.load())" />
+    <ReleaseObservation :host="permissionHost" :blocked="state.busy || state.unknown || !state.state || state.state.pending != null" :server-pending-safety="!state.busy && !!state.state?.pending && state.state.supportsFencedContainment === true" @changed="safely(() => console.load())" />
     <button type="button" :disabled="state.busy" @click="safely(load)">刷新状态</button>
     <p v-if="state.error || localError" role="alert">{{ localError || state.error }}</p>
     <p v-if="!console.canView" role="alert">当前账号没有发布查询权限。</p>
@@ -51,6 +52,16 @@ onBeforeUnmount(() => {stop();stopPermissions();console.dispose();permissionHost
       </div>
       <p v-if="state.notice" role="status">{{ state.notice }}</p>
       <p v-if="state.unknown" role="alert">存在未确认结果，已阻止再次变更。请对账，不能重复部署或重发写入。</p>
+      <section v-if="console.canContain" aria-label="紧急封禁全部受管新入口">
+        <h2>紧急封禁全部受管新入口</h2>
+        <p>仅在执行器支持隔离旧代次时可用。此操作关闭全部受管新入口，不回切旧版本，不撤销已执行效果。不会解锁或重试其他未知操作。</p>
+        <button type="button" :disabled="state.busy" @click="safely(() => console.reviewContainment())">读取待决操作并预览封禁</button>
+        <template v-if="state.containmentReview">
+          <p>环境：{{ state.containmentReview.plan.environment }}；待决操作：{{ state.containmentReview.pendingOperationId }}；修订：{{ state.containmentReview.revision }}</p>
+          <label><input v-model="containmentConfirmed" type="checkbox" :disabled="state.busy" />确认关闭全部受管新入口；不回切旧版、不撤销已执行效果</label>
+          <button type="button" :disabled="state.busy || !containmentConfirmed" @click="safely(() => console.contain(containmentConfirmed))">确认紧急封禁入口</button>
+        </template>
+      </section>
       <section v-if="console.canRecover" aria-label="安全恢复未决发布操作">
         <h2>安全恢复未决操作</h2>
         <p>仅支持安全恢复协议的执行器可用。服务端先核实原操作是否被接收，只有明确未接收时才原子认领同一条命令；普通超时或找不到记录不等于未执行。</p>

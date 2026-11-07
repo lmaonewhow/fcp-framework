@@ -84,7 +84,7 @@ def run()->int:
   if a.plugin_releases:
    key=private_dir/'release-routing.key';key.write_bytes(secrets.token_bytes(32));key.chmod(0o600)
    bundle_root=ROOT/'work/ci-native/release/ui-bundles';bundle_root.mkdir(parents=True,exist_ok=True)
-   props+='\nfcp.release.enabled=true\nfcp.release.routing.enabled=true\nfcp.ui.release.enabled=true\nfcp.plugin.release.enabled=true\nFCP_RELEASE_ENVIRONMENT=ci\nFCP_RELEASE_EXECUTOR_MODE=native\nFCP_RELEASE_ROUTING_KEY_FILE='+str(key)+'\nFCP_UI_BUNDLE_ROOT='+str(bundle_root)+'\nFCP_RELEASE_EXECUTOR_LOCK_FILE='+str(private_dir/'release-executor.lock')+'\n'
+   props+='\nfcp.release.enabled=true\nfcp.release.routing.enabled=true\nfcp.ui.release.enabled=true\nfcp.plugin.release.enabled=true\nfcp.release.observation.enabled=true\nFCP_RELEASE_ENVIRONMENT=ci\nFCP_RELEASE_EXECUTOR_MODE=native\nFCP_RELEASE_ROUTING_KEY_FILE='+str(key)+'\nFCP_UI_BUNDLE_ROOT='+str(bundle_root)+'\nFCP_RELEASE_EXECUTOR_LOCK_FILE='+str(private_dir/'release-executor.lock')+'\n'
   elif (ROOT/'core/src/main/java/fcp/release/control/ReleaseController.java').is_file():
    # Registry/UI acceptance only. No requests are sent to the disabled deployment destination.
    props+='\nfcp.release.enabled=true\nFCP_RELEASE_ENVIRONMENT=ci\nFCP_RELEASE_EXECUTOR_ENDPOINT=https://127.0.0.1:19443/\nFCP_RELEASE_EXECUTOR_ACTIONS=DEPLOY\n'
@@ -213,7 +213,7 @@ def run()->int:
    modules=[]
    if composition_fixture:
     modules.append(NativeModule('runtimeComposition',lambda:composition_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
-     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'browser':value['browser'],'backendPidUnchanged':value['backendPidUnchanged']}))
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'browser':value['browser'],'backendPidUnchanged':value['backendPidUnchanged'],'observation':value['observation']}))
    if runtime_fixture and not a.plugin_releases:
     modules.append(NativeModule('runtimePlugins',lambda:runtime_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
      lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'browser':value['browser'],'backendPidUnchanged':value['backendPidUnchanged']}))

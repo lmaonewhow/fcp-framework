@@ -30,5 +30,6 @@ public final class FcpReleaseObservationController {
     }
     @PostMapping("/disable") @SaCheckPermission("fcp:release:manage") public ResponseEntity<String> disable(@RequestBody String text)throws Exception{var b=body(text,Set.of("expectedRevision"));return ok(automation.disable(host.current(),number(b.get("expectedRevision"))));}
     @PostMapping("/tick") @SaCheckPermission("fcp:release:manage") public ResponseEntity<String> tick(@RequestBody String text)throws Exception{body(text,Set.of());return ok(automation.tick(host.current()));}
+    @PostMapping("/safety") @SaCheckPermission("fcp:release:manage") public ResponseEntity<String> safety(@RequestBody String text)throws Exception{var b=body(text,Set.of("expectedRevision","expectedReleaseRevision","pendingOperationId"));return ok(automation.checkSafety(host.current(),number(b.get("expectedRevision")),number(b.get("expectedReleaseRevision")),str(b.get("pendingOperationId"))));}
     private static Map<String,Object> body(String text,Set<String> keys){if(text.length()>16384)throw new IllegalArgumentException("Observation request size");var b=map(Json.parse(text));if(!b.keySet().equals(keys))throw new IllegalArgumentException("Observation request schema");return b;}
 }

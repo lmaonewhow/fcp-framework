@@ -17,3 +17,7 @@ ReleaseHost 必须提供原生已认证请求、显式 `fcp:release:view/manage`
 ReleaseObservation 是独立可折叠面板，仅手动读取 `/fcp/releases/automation/state`。显式 view 权限只允许查询，manage 权限才能确认 enable、disable、tick。enable 投影为服务端七个策略字段加 expectedRevision，disable 仅 expectedRevision，tick 仅空对象；浏览器不会提交 MetricsGate.Sample 或伪造监控值。后续阶段由百分比准确转为万分位，必须递增且以100%结束。启用策略不启动浏览器轮询或无人值守定时器。
 
 执行前再次读取实际发布状态。系统发布有 pending、父控制台有未知结果时禁止推进；观察本身 pending 时禁止 enable/disable，只在系统发布已对账且无 pending 后允许明确确认“对账当前观察步骤”，由服务器继续同一持久操作，不创建新操作。网络未知结果阻止重复动作，只读刷新不自动清除锁定，需要管理员核对服务端记录。HTTP404显示未启用/接口不可用，不自动重试；HTTP401清空身份相关显示。解除跨页/跨设备的未知状态仍依赖服务端持久操作及权限，不把前端按钮当作一致性边界。
+
+紧急封禁入口独立于普通发布动作。仅live manage、supportsFencedContainment=true、ABORT能力以及有效pending/plan存在时可预览。确认绑定计划、pending操作ID与修订，发送前重新读取并逐项核对；变化必须重确认，成功才提交新ABORT/0。此操作关闭全部受管新入口，不自动切旧版或撤销既有业务效果。失响应和仍待决状态锁住二次封禁；普通未知写入保护始终保持，需服务器对账后再进行其他操作。
+
+待决观察安全检查使用独立 `/automation/safety`，不是普通tick的unknown豁免。父控制台仅在已读到core pending且支持fenced containment时给出该窄能力；观察模块自身busy/unknown、管理权限和确认仍生效。发送前重新读取观察和core快照，核对owner、计划、pending及双修订，变化要求重确认。请求仅含expectedRevision、expectedReleaseRevision、pendingOperationId，服务端原子核验且健康时绝不advance。普通enable/disable/tick仍受父unknown阻断；此路径不提交浏览器Sample。

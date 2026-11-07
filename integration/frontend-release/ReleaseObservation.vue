@@ -2,16 +2,16 @@
 import { onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import type { ReleaseHost } from './controller';
 import { ObservationConsole, percentageStages, type ObservationState } from './observation';
-const props=defineProps<{host:ReleaseHost & {observePermissions?(changed:()=>void):()=>void};blocked:boolean}>();
+const props=defineProps<{host:ReleaseHost & {observePermissions?(changed:()=>void):()=>void};blocked:boolean;serverPendingSafety?:boolean}>();
 const emit=defineEmits<{changed:[]}>();
 const state=shallowRef<ObservationState>({busy:false,unknown:false,unavailable:false,error:'',notice:'',state:null,release:null});
-const manager=new ObservationConsole(props.host,()=>props.blocked,next=>{state.value=next});
-const stages=ref(''),dwell=ref(60),samples=ref(100),age=ref(120),errorRate=ref(1),p95=ref(1000),confirmed=ref(false),localError=ref('');
+const manager=new ObservationConsole(props.host,()=>props.blocked,next=>{state.value=next},()=>props.serverPendingSafety===true);
+const stages=ref(''),dwell=ref(60),samples=ref(100),age=ref(120),errorRate=ref(1),p95=ref(1000),confirmed=ref(false),safetyConfirmed=ref(false),localError=ref('');
 const pretty=(value:unknown)=>JSON.stringify(value,null,2);
 watch([stages,dwell,samples,age,errorRate,p95],()=>{confirmed.value=false});
-watch(()=>state.value.state?.revision,()=>{confirmed.value=false});
+watch(()=>[state.value.state,state.value.release,props.serverPendingSafety],()=>{confirmed.value=false;safetyConfirmed.value=false});
 watch(()=>props.blocked,()=>{confirmed.value=false});
-const stop=props.host.observeIdentity(()=>{stages.value='';confirmed.value=false;localError.value=''});
+const stop=props.host.observeIdentity(()=>{stages.value='';confirmed.value=false;safetyConfirmed.value=false;localError.value=''});
 const stopPermissions=props.host.observePermissions?.(()=>{confirmed.value=false;localError.value='';})??(()=>{});
 async function run(fn:()=>Promise<void>,mutation=false){localError.value='';try{await fn();if(mutation){confirmed.value=false;emit('changed')}}catch{localError.value='请先读取状态、核对权限和输入，并确认本次操作。'}}
 async function enable(){await run(()=>manager.enable({stages:percentageStages(stages.value),minimumDwellMillis:dwell.value*1000,minimumSamples:samples.value,maximumAgeMillis:age.value*1000,maximumErrorRate:errorRate.value/100,maximumP95Millis:p95.value},confirmed.value),true)}
@@ -28,8 +28,14 @@ onBeforeUnmount(()=>{stop();stopPermissions();manager.dispose()});
       <p v-if="state.notice" role="status">{{ state.notice }}</p>
       <p v-if="state.unknown" role="alert">上次操作结果未知，已禁止重复动作。只读刷新不会自动解除锁定。</p>
       <p v-if="state.state">状态：{{ state.state.status }}；观察策略修订：{{ state.state.revision }}；当前步骤：{{ state.state.step ?? '未开始' }}</p>
-      <p v-if="manager.pending" role="alert">观察步骤待决。先在发布控制台对账到真实终态，再确认“对账当前观察步骤”，不会创建新的推进步骤。</p>
+      <p v-if="state.state?.blockedReason" role="alert">安全检查受阻：{{ state.state.blockedReason }}。未确认入口已封禁，请在发布控制台处理。</p>
+      <p v-if="manager.pending" role="alert">观察步骤待决。可确认“对账当前观察步骤”检查可信安全信号；发现事故时请求独立安全封禁。普通待决执行仍需发布控制台对账，不会重复推进。</p>
       <pre v-if="state.state">{{ pretty(state.state) }}</pre>
+      <section v-if="manager.canSafety" aria-label="待决发布安全检查">
+        <p>仅检查已存在步骤的服务器安全信号。健康时不会继续放量；确认安全异常时可能封禁全部受管新入口，不回切旧版本。</p>
+        <label><input v-model="safetyConfirmed" type="checkbox" :disabled="state.busy" />确认检查当前待决步骤的安全信号，不推进普通灰度</label>
+        <button type="button" :disabled="!safetyConfirmed || state.busy" @click="run(()=>manager.safety(safetyConfirmed),true)">仅检查待决步骤安全信号</button>
+      </section>
       <fieldset v-if="manager.canManage" :disabled="state.busy || state.unknown || state.unavailable || props.blocked">
         <legend>观察策略</legend>
         <p>先完成手动灰度。后续比例严格递增，大于当前候选比例，最后为100%。门槛只是配置，不是实测结果。</p>
@@ -43,7 +49,7 @@ onBeforeUnmount(()=>{stop();stopPermissions();manager.dispose()});
         <label><input v-model="confirmed" type="checkbox" />确认本次所选动作及当前策略；检查可能推进流量、暂停或封禁入口</label>
         <button type="button" :disabled="!confirmed || !manager.canAct || manager.pending" @click="enable">启用此策略</button>
         <button type="button" :disabled="!confirmed || !manager.canAct || manager.pending" @click="run(()=>manager.disable(confirmed),true)">停用策略（不改变当前流量）</button>
-        <button type="button" :disabled="!confirmed || !manager.canAct || state.state?.status !== 'ENABLED'" @click="run(()=>manager.tick(confirmed),true)">{{ manager.pending ? '对账当前观察步骤' : '检查服务器指标并推进一步' }}</button>
+        <button type="button" :disabled="!confirmed || !manager.canCheck || state.state?.status !== 'ENABLED'" @click="run(()=>manager.tick(confirmed),true)">{{ manager.pending ? '对账当前观察步骤' : '检查服务器指标并推进一步' }}</button>
       </fieldset>
     </template>
   </details>

@@ -26,9 +26,11 @@ jobs:
       - name: Install pinned TypeScript checker
         run: npm install --global typescript@5.8.3
       - name: Install pinned isolated Vue contract test tools
-        run: npm install --prefix "$RUNNER_TEMP/fcp-vue-contracts" --no-save --package-lock=false vue@3.5.30 vue-router@5.0.3 vite@7.3.2 typescript@5.9.3 vue-tsc@3.3.14
+        run: npm install --prefix "$RUNNER_TEMP/fcp-vue-contracts" --no-save --package-lock=false vue@3.5.30 vue-router@5.0.3 vite@7.3.2 typescript@5.9.3 vue-tsc@3.3.14 jsdom@26.0.0
       - name: Actual Vue business uncertainty boundary
         run: FCP_VUE_ROOT="$RUNNER_TEMP/fcp-vue-contracts/node_modules" bash tests/plugin-business-ui/run.sh
+      - name: Actual release console confirmation component
+        run: FCP_VUE_TOOLS="$RUNNER_TEMP/fcp-vue-contracts/node_modules" node --experimental-strip-types --test tests/frontend-release/containment-sfc.test.mjs tests/frontend-release/observation-safety-sfc.test.mjs
       - name: Archive exact source before tests
         run: mkdir -p evidence && git archive --format=zip --output=evidence/source.zip HEAD && git rev-parse HEAD > evidence/commit.txt
       - name: System version and release component verification
