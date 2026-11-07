@@ -30,6 +30,13 @@ class ContractWiringTest(unittest.TestCase):
         self.assertLess(native.index('admin.evidence()'), native.index("self.report['portability']=run_http_contract(adapter)"))
         self.assertIn("NativeAdapter(admin,", native)
 
+    def test_both_hosts_execute_same_student_business_contract(self):
+        for path in ('tests/runtime-portability/development_business.py', 'tests/runtime-exchange/native_exchange_acceptance.py'):
+            source = (ROOT/path).read_text()
+            self.assertIn('from business_contract import run_business_contract', source)
+            self.assertIn('run_business_contract(', source)
+        self.assertIn("NativeModule('developmentBusiness'", (ROOT/'tools/ci_native.py').read_text())
+
     def test_build_and_install_use_same_policy(self):
         self.assertIn('PluginDependencyPolicy.verify(contents)', (ROOT/'core/src/main/java/fcp/plugin/PackageInstaller.java').read_text())
         self.assertIn('fcp.plugin.PluginDependencyPolicy', (ROOT/'tools/check_plugin_dependencies.py').read_text())

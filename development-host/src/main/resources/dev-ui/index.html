@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FCP 开发宿主</title><link rel="stylesheet" href="/dev/style.css"></head>
+<body><main><h1>FCP 开发宿主</h1><p>仅限回环开发环境。这里不替代若依登录，不代表生产验收。</p>
+<form id="login"><label>开发令牌<input id="token" type="password" autocomplete="off" required minlength="32"></label><button>连接</button></form><button id="logout" hidden>断开并清除身份</button>
+<p id="identity"></p><p id="error" role="alert"></p><p id="notice" role="status"></p>
+<section id="pending" hidden><p>上次操作结果尚未确认。请核对后重试同一请求；放弃不会撤销已完成操作。</p><button id="retry">重试同一请求</button><button id="abandon">放弃重试信息</button></section>
+<div id="workspace" hidden><button id="refresh">刷新目录与状态</button>
+<section><h2>插件管理</h2><form id="upload"><label>可信插件包<input id="package" type="file" accept=".zip" required></label><label><input id="trusted" type="checkbox" required>我确认这是可信开发者的插件；安装不代表授权或启用</label><button>安装插件包</button></form><div id="plugins"></div>
+<section id="plan" hidden><h3>确认影响范围</h3><pre id="plan-details"></pre><label><input id="approve" type="checkbox">我确认上述全部受影响插件</label><button id="confirm-plan">确认执行计划</button><button id="cancel-plan">取消计划</button></section><pre id="operation"></pre></section>
+<section><h2>配置插件页面</h2><nav id="pages" aria-label="插件页面"></nav><section id="slots" aria-label="工作台状态槽位" data-slot="dashboard.status"></section><section id="page"></section></section>
+<section id="exchange"><h2>统一数据交换（测试夹具）</h2><p>使用部署者预先配置的配置 ID，不接受自定义目标地址或数据库连接。此界面不定义正式学生数据格式。</p><label>交换配置 ID<input id="exchange-config" autocomplete="off"></label><label>CSV 文件<input id="csv" type="file" accept=".csv"></label><button id="preview-file">预览 CSV</button><button id="preview-api">预览已配置 API</button><pre id="exchange-preview"></pre><label><input id="exchange-approve" type="checkbox">确认预览摘要与变更</label><button id="confirm-exchange">确认导入</button><label>导出字段（逗号分隔）<input id="export-fields" placeholder="由配置声明的字段"></label><button id="export">生成并下载导出</button><pre id="exchange-result"></pre></section>
+</div></main><script type="module" src="/dev/app.js"></script></body></html>

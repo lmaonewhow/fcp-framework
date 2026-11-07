@@ -11,6 +11,7 @@ on:
       - 'core/**'
       - 'business/**'
       - 'host/**'
+      - 'development-host/**'
       - 'deploy/**'
       - 'integration/**'
       - 'runtime/**'
@@ -73,6 +74,7 @@ jobs:
           git rev-parse HEAD > reports/native-source-commit.txt
           python3 tools/verify_components.py
           python3 tools/verify_ingestion.py
+          python3 tools/verify_devhost_shell.py
           python3 tools/ci_native.py --ingestion --exchange 2>&1 | tee reports/native-ci-console.log
       - uses: actions/cache/save@v4
         if: always() && steps.dependencies.outputs.cache-hit != 'true'
@@ -102,6 +104,8 @@ jobs:
             reports/runtime-crash-mysql/
             reports/runtime-exchange/
             reports/runtime-exchange-native/
+            reports/development-business/
+            reports/development-host/
             work/ci-native/release/BUILD-EVIDENCE.json
             work/ci-native/release/admin-package-lock.json
             work/ci-native/release/teacher-pnpm-lock.yaml
