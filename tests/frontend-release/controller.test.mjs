@@ -1,0 +1,84 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {ReleaseConsole, parsePlan} from '../../integration/frontend-release/controller.ts';
+
+const plan = () => ({environment:'test',stableRelease:'v1',candidateRelease:'v2',stableDigest:'a'.repeat(64),candidateDigest:'b'.repeat(64),schemaVersion:1,stableSchemaMin:0,stableSchemaMax:2,candidateSchemaMin:1,candidateSchemaMax:3});
+function fixture(shell='admin') {
+  let identity='tenant-a/user-a', listener=()=>{}, permissions=['fcp:release:view','fcp:release:manage'];
+  const calls=[];
+  let handler=async path=>path.endsWith('/versions')?{provider:'local',artifacts:[],releases:[]}:{revision:1,phase:'EMPTY',basisPoints:0,capabilities:['DEPLOY','CANARY','EXPAND','PAUSE','ABORT','PROMOTE','ROLLBACK','RETIRE']};
+  const host={shell,identityKey:()=>identity,permissions:()=>permissions,observeIdentity(fn){listener=fn;return()=>{listener=()=>{}}},async request(...args){calls.push(args);const result=await handler(...args);return shell==='admin'?{code:200,data:result}:{data:result,error:null}}};
+  const console=new ReleaseConsole(host);
+  return {console,calls,host,setHandler(fn){handler=fn},switchIdentity(){identity='tenant-b/user-b';listener()},permissions(p){permissions=p;listener()}};
+}
+test('plan validation enforces schema, immutable digest and safe integer versions',()=>{
+  assert.deepEqual(parsePlan(plan()),plan());
+  for(const invalid of [{...plan(),candidateRelease:'v1'},{...plan(),candidateDigest:'no'},{...plan(),schemaVersion:NaN},{...plan(),schemaVersion:1.5},{...plan(),extra:true}])assert.throws(()=>parsePlan(invalid));
+});
+test('both host envelope formats load state and versions',async()=>{
+  for(const shell of ['admin','teacher']) {const f=fixture(shell);await f.console.load();assert.equal(f.console.data.state.revision,1);assert.equal(f.console.data.versions.provider,'local');assert.equal(f.calls.length,2);f.console.dispose()}
+});
+test('requires explicit permissions, does not honor wildcard',async()=>{
+  const f=fixture();f.permissions(['*:*:*']);await assert.rejects(()=>f.console.load(),/PERMISSION_DENIED/);assert.equal(f.calls.length,0);
+});
+test('view-only role cannot create or execute plans',async()=>{
+  const f=fixture();f.permissions(['fcp:release:view']);await f.console.load();assert.throws(()=>f.console.review(plan()),/PERMISSION_DENIED/);await assert.rejects(()=>f.console.execute('DEPLOY',0,true),/PERMISSION_DENIED/);
+});
+test('confirmation sends only reviewed plan with CAS revision and unique operation',async()=>{
+  const f=fixture();await f.console.load();f.console.review(plan());await assert.rejects(()=>f.console.confirmPlan(false),/CONFIRMATION_REQUIRED/);
+  f.setHandler(async()=>({revision:2,phase:'PLANNED'}));await f.console.confirmPlan(true);
+  const [path,method,body]=f.calls.at(-1);assert.equal(path,'/fcp/releases/plans');assert.equal(method,'POST');assert.equal(body.expectedRevision,1);assert.deepEqual(body.plan,plan());assert.match(body.operationId,/^[a-f0-9-]{36}$/);assert.equal(f.console.data.review,null);
+});
+test('duplicate click while busy does not submit twice',async()=>{
+  const f=fixture();await f.console.load();let release;f.setHandler(()=>new Promise(resolve=>release=resolve));
+  const first=f.console.execute('DEPLOY',0,true);await f.console.execute('DEPLOY',0,true);assert.equal(f.calls.filter(x=>x[1]==='POST').length,1);release({revision:2,phase:'READY'});await first;
+});
+test('network uncertainty blocks new mutation and read cannot erase uncertainty',async()=>{
+  const f=fixture();await f.console.load();f.setHandler(async()=>{throw new Error('network')});await f.console.execute('DEPLOY',0,true);
+  assert.equal(f.console.data.unknown,true);await assert.rejects(()=>f.console.execute('DEPLOY',0,true),/RECONCILE_REQUIRED/);
+  f.setHandler(async()=>({revision:2,phase:'READY'}));await f.console.load();assert.equal(f.console.data.unknown,true);await f.console.reconcile();assert.equal(f.console.data.unknown,false);
+});
+test('pending server result locks further writes until observed',async()=>{
+  const f=fixture();await f.console.load();f.setHandler(async()=>({revision:2,phase:'PLANNED',pending:{operationId:'x'}}));await f.console.execute('DEPLOY',0,true);assert.equal(f.console.data.unknown,true);
+  await f.console.reconcile();assert.equal(f.console.data.unknown,true);
+  f.setHandler(async()=>({revision:3,phase:'READY',observed:{complete:true}}));await f.console.reconcile();assert.equal(f.console.data.unknown,false);
+});
+test('identity switch aborts request, clears state and ignores late response',async()=>{
+  const f=fixture();let release;f.setHandler(()=>new Promise(resolve=>release=resolve));const loading=f.console.load();const signal=f.calls[0][3];f.switchIdentity();assert.equal(signal.aborted,true);release({revision:999});await loading;
+  assert.equal(f.console.data.state,null);assert.equal(f.console.data.versions,null);assert.equal(f.console.data.busy,false);assert.equal(f.calls.length,1);
+});
+test('permissions changing clears review even when user identifier remains same',async()=>{
+  const f=fixture();await f.console.load();f.console.review(plan());f.permissions(['fcp:release:view']);assert.equal(f.console.data.review,null);assert.equal(f.console.data.state,null);
+});
+test('revision change invalidates confirmed preview',async()=>{
+  const f=fixture();await f.console.load();f.console.review(plan());f.setHandler(async()=>({revision:2}));await f.console.load();assert.equal(f.console.data.review,null);
+});
+test('invalid action or fraction never sends mutation',async()=>{
+  const f=fixture();await f.console.load();await assert.rejects(()=>f.console.execute('DELETE',0,true),/INVALID_ACTION/);await assert.rejects(()=>f.console.execute('CANARY',NaN,true),/INVALID_ACTION/);await assert.rejects(()=>f.console.execute('CANARY',10001,true),/INVALID_ACTION/);assert.equal(f.calls.length,2);
+});
+test('unsupported executor capability is disabled and rejected before transport',async()=>{
+  const f=fixture();f.setHandler(async()=>({revision:1,capabilities:[]}));await f.console.load();assert.equal(f.console.supports('DEPLOY'),false);await assert.rejects(()=>f.console.execute('DEPLOY',0,true),/UNSUPPORTED_ACTION/);assert.equal(f.calls.length,2);
+});
+test('disposed console rejects new operations and discards pending response',async()=>{
+  const f=fixture();let release;f.setHandler(()=>new Promise(resolve=>release=resolve));const pending=f.console.load();f.console.dispose();release({revision:1});await pending;assert.equal(f.console.data.state,null);await assert.rejects(()=>f.console.load(),/PERMISSION_DENIED/);
+});
+test('loading a pending operation locks mutations even in a fresh browser session',async()=>{
+  const f=fixture();f.setHandler(async()=>({revision:3,pending:{operationId:'original'},capabilities:['DEPLOY']}));await f.console.load();assert.equal(f.console.data.unknown,true);await assert.rejects(()=>f.console.execute('DEPLOY',0,true),/RECONCILE_REQUIRED/);
+});
+test('safe recovery requires explicit advertised capability, pending state, and confirmation',async()=>{
+  const f=fixture();await f.console.load();assert.equal(f.console.canRecover,false);await assert.rejects(()=>f.console.recover(true),/SAFE_RECOVERY_UNAVAILABLE/);
+  f.setHandler(async()=>({revision:3,pending:{operationId:'original'},supportsRecovery:false}));await f.console.load();assert.equal(f.console.canRecover,false);
+  f.setHandler(async()=>({revision:3,pending:{operationId:'original'},supportsRecovery:true}));await f.console.load();assert.equal(f.console.canRecover,true);await assert.rejects(()=>f.console.recover(false),/CONFIRMATION_REQUIRED/);
+});
+test('safe recovery sends CAS only without generating a second operation id',async()=>{
+  const f=fixture();f.setHandler(async()=>({revision:3,pending:{operationId:'original'},supportsRecovery:true}));await f.console.load();
+  f.setHandler(async()=>({revision:4,phase:'READY',supportsRecovery:true}));await f.console.recover(true);
+  const [path,method,body]=f.calls.at(-1);assert.equal(path,'/fcp/releases/recover');assert.equal(method,'POST');assert.deepEqual(body,{expectedRevision:3});assert.equal(f.console.data.unknown,false);assert.equal(f.console.canRecover,false);
+});
+test('unknown recovery result remains blocked and is not retried automatically',async()=>{
+  const f=fixture();f.setHandler(async()=>({revision:3,pending:{operationId:'original'},supportsRecovery:true}));await f.console.load();await f.console.recover(true);assert.equal(f.console.data.unknown,true);
+  const count=f.calls.length;f.setHandler(async()=>{throw new Error('timeout')});await f.console.recover(true);assert.equal(f.calls.length,count+1);assert.equal(f.console.data.unknown,true);assert.equal(f.calls.filter(c=>c[0].endsWith('/operations')).length,0);
+});
+test('late safe recovery response cannot cross identity boundary',async()=>{
+  const f=fixture();f.setHandler(async()=>({revision:3,pending:{operationId:'original'},supportsRecovery:true}));await f.console.load();let finish;f.setHandler(()=>new Promise(resolve=>finish=resolve));const recovery=f.console.recover(true);f.switchIdentity();finish({revision:4,phase:'READY'});await recovery;assert.equal(f.console.data.state,null);assert.equal(f.console.canRecover,false);
+});

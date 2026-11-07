@@ -279,6 +279,7 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
             target.parent.mkdir(parents=True,exist_ok=True)
             shutil.copy2(ROOT/'integration/frontend-shared'/file,target)
         copy_files(ROOT/'integration/frontend-runtime', project/'src/fcp/runtime')
+        copy_files(ROOT/'integration/frontend-release', project/'src/fcp/release')
         router=project/'src/router/index.ts'
         router_source=router.read_text(encoding='utf-8')
         router_source="import { fcpPluginRoutes } from '@/views/fcp/plugins/routes';\n"+router_source
@@ -324,7 +325,7 @@ def add_school_locale(path: Path, parent_label: str, school_label: str, ingestio
     if re.search(r'^\s*fcp(?:_school)?:', path.read_text(encoding='utf-8'), re.MULTILINE):
         raise BuildError('FCP route locale already exists; refusing duplicate adaptation')
     edit(path, '  route: {\n',
-         "  route: {\n    fcp: "+repr(parent_label)+",\n    fcp_school: "+repr(school_label)+",\n    fcp_ingestion: "+repr(ingestion_label)+",\n    fcp_plugins: "+repr(plugins_label)+",\n")
+         "  route: {\n    fcp_releases: '系统版本与发布',\n    fcp: "+repr(parent_label)+",\n    fcp_school: "+repr(school_label)+",\n    fcp_ingestion: "+repr(ingestion_label)+",\n    fcp_plugins: "+repr(plugins_label)+",\n")
 
 def install_frontend(project: Path, name: str, resolve_admin_lock: bool, admin_lock: Path|None=None) -> str:
     if name=='teacher':
