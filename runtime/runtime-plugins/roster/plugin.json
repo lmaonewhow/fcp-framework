@@ -1,0 +1,200 @@
+{
+  "manifestVersion": 1,
+  "pluginId": "roster",
+  "version": "1.0.0",
+  "publisher": "fcp-fixtures",
+  "contractVersion": "1.0",
+  "runtime": {
+    "type": "local",
+    "entry": "worker.py",
+    "argv": []
+  },
+  "dependencies": [],
+  "provides": [
+    {
+      "id": "exchange.preview",
+      "version": "1.0.0",
+      "permission": "exchange.read",
+      "sideEffects": false,
+      "idempotent": true,
+      "timeoutMillis": 30000,
+      "inputSchema": {
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object"
+      }
+    },
+    {
+      "id": "exchange.commit",
+      "version": "1.0.0",
+      "permission": "exchange.import",
+      "sideEffects": true,
+      "idempotent": true,
+      "timeoutMillis": 30000,
+      "inputSchema": {
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object"
+      }
+    },
+    {
+      "id": "exchange.read",
+      "version": "1.0.0",
+      "permission": "exchange.read",
+      "sideEffects": false,
+      "idempotent": true,
+      "timeoutMillis": 30000,
+      "inputSchema": {
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object"
+      }
+    }
+  ],
+  "requires": [
+    {
+      "id": "host.storage.get",
+      "version": "1.0.0",
+      "permission": "storage.read",
+      "sideEffects": false,
+      "idempotent": true,
+      "timeoutMillis": 30000,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "collection": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "dataScope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 192
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "collection",
+          "dataScope",
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {}
+    },
+    {
+      "id": "host.storage.put",
+      "version": "1.0.0",
+      "permission": "storage.write",
+      "sideEffects": true,
+      "idempotent": true,
+      "timeoutMillis": 30000,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "collection": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "dataScope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 192
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "body": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "collection",
+          "dataScope",
+          "id",
+          "expectedRevision",
+          "idempotencyKey",
+          "body"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {}
+    }
+  ],
+  "storage": {
+    "schemaVersion": 1,
+    "compatibleVersions": [
+      1
+    ],
+    "tables": [
+      {
+        "name": "roster",
+        "fields": [
+          {
+            "name": "rows",
+            "type": "json",
+            "nullable": false
+          }
+        ],
+        "indexes": []
+      }
+    ],
+    "migrations": []
+  },
+  "ui": {
+    "contractVersion": "1.0",
+    "pages": [
+      {
+        "id": "roster-page",
+        "title": "学生名单",
+        "permissions": [
+          "exchange.read"
+        ],
+        "components": [
+          "stack@1",
+          "text@1",
+          "button@1"
+        ],
+        "capabilities": [
+          "exchange.read"
+        ],
+        "content": {
+          "children": [
+            {
+              "text": "Campus-v1 合成样例，班级范围原子批次，不覆盖已有记录",
+              "type": "text"
+            }
+          ],
+          "type": "stack"
+        }
+      }
+    ],
+    "slots": []
+  },
+  "secretRefs": [],
+  "lifecycle": {
+    "drainable": true,
+    "cancellable": false,
+    "upgradeMode": "stop-start"
+  }
+}

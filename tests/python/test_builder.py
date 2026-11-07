@@ -91,9 +91,13 @@ export function fetchGetRoutes() {
  def test_no_reference_server_in_source(self):
   # Inspect delivered source, not disposable upstream checkouts and dependency
   # caches under work/. The assembler's source roots are checked in full.
-  java=[p for tree in ['core','business','host','integration','deploy','bootstrap','tests']
+  java=[p for tree in ['core','business','host','integration','deploy','bootstrap']
         for p in (ROOT/tree).rglob('*.java') if 'build' not in p.parts]
   self.assertFalse(any('com.sun.net.httpserver' in p.read_text() for p in java))
+  # Development HTTP and test connector fixtures are outside production assembly.
+  assembler=(ROOT/'tools/native.py').read_text()
+  self.assertNotIn("copy_files(ROOT/'development-host'",assembler)
+  self.assertNotIn("copy_files(ROOT/'tests'",assembler)
  def test_roles_separate_manage_and_read(self):
   sql=(ROOT/'sql/native/V002__fcp_permissions.sql').read_text()
   self.assertIn('(942102,942005)',sql);self.assertNotIn('(942102,942006)',sql)
