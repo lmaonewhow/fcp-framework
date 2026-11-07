@@ -9,7 +9,7 @@ Required keyword arguments:
 - `database`: exact `fcp_ci_<12 lowercase hex>` matching `FCP_ACCEPTANCE_DATABASE`, with `GITHUB_ACTIONS=true`.
 - `storage_states`: dict `admin` / `teacher` of genuine encrypted native login storage states, kept in memory/private files only.
 - `viewer_apis`: dict `admin` / `teacher` of genuine NativeClient objects using those same sessions. `admin_api` is the authorized platform administrator NativeClient.
-- `build_id`: actual assembled build identifier, verified using the real host evidence endpoint for every API client.
+- `build_id`: actual assembled build identifier, verified once through the authorized administrator using the real host evidence endpoint. Viewer clients must use the same browser origin and genuine session token, and separately prove their shell permission and exact synthetic user/tenant through real `/fcp/ui/session` and `/fcp/ui/catalog` responses. Teacher clients never read the management-only host-evidence endpoint.
 - `output_dir`: sanitized acceptance evidence folder.
 - `capability_id`: actual exported ID of `ci.python` echo (use existing fixture `exported('ci.python')`, never a guessed URL).
 

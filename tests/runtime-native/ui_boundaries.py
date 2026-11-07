@@ -16,7 +16,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from native_client import require_loopback
-from native_login import authenticated_storage_state, require_encrypted_login, verify_native_identity
+from native_login import authenticated_storage_state, require_encrypted_login, verify_native_identity, native_token
 
 
 def require_fixture(base, database, fixture_plugins, plugin_id):
@@ -107,6 +107,30 @@ def make_tenant_relogin(login_fixture, base):
     return relogin
 
 
+def verify_host_provenance(base, build_id, admin_api, viewer_apis, storage_states):
+    """One authorized host-build proof; viewer proof uses only viewer-accessible APIs."""
+    require_loopback(base)
+    if set(viewer_apis) != {'admin','teacher'} or set(storage_states) != {'admin','teacher'}:
+        raise ValueError('Both actual shell sessions are required')
+    # Validate every destination before any credential-bearing request.
+    if any(client.base != base.rstrip('/') for client in [admin_api,*viewer_apis.values()]):
+        raise RuntimeError('Native API clients must share the tested browser origin')
+    if admin_api.evidence().get('buildId') != build_id:
+        raise RuntimeError('Native build identity differs from tested browser artifacts')
+    for shell, client in viewer_apis.items():
+        if native_token(storage_states[shell],base) != client.token:
+            raise RuntimeError('Native API and browser must use the same authenticated session')
+        session = client.data('/fcp/ui/session')
+        context = client.data('/fcp/ui/catalog')['context']
+        expected_user = {'admin':'1','teacher':'950001'}[shell]
+        if (shell not in session.get('allowedShells', [])
+                or str(session.get('subject')) != expected_user
+                or session.get('scope') != 'tenant-000000'
+                or str(context.get('userId')) != expected_user
+                or context.get('tenantId') != '000000'):
+            raise RuntimeError('Native viewer shell or authenticated identity mismatch')
+
+
 def verify_ui_boundaries(*, browser, base, database, storage_states, viewer_apis,
                          admin_api, build_id, output_dir, capability_id,
                          fixture_plugins=('ci.python', 'ci.node'), plugin_id='ci.python',
@@ -123,10 +147,7 @@ def verify_ui_boundaries(*, browser, base, database, storage_states, viewer_apis
     require_fixture(base, database, fixture_plugins, plugin_id)
     if set(storage_states) != {'admin', 'teacher'} or set(viewer_apis) != {'admin', 'teacher'}:
         raise ValueError('Both actual authenticated shells and matching API clients are required')
-    for client in [admin_api, *viewer_apis.values()]:
-        evidence = client.evidence()
-        if evidence.get('buildId') != build_id:
-            raise RuntimeError('Native build identity differs from tested browser artifacts')
+    verify_host_provenance(base, build_id, admin_api, viewer_apis, storage_states)
     from playwright.sync_api import expect
     output = Path(output_dir); output.mkdir(parents=True, exist_ok=True)
     report = dict(status='RUNNING', buildId=build_id, checks=[], shells={},

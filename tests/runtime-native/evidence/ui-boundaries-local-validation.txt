@@ -1,9 +1,11 @@
 test_disposable_database_and_loopback_required (test_ui_boundaries.UiBoundaryGuards.test_disposable_database_and_loopback_required) ... ok
 test_exact_explicit_closure (test_ui_boundaries.UiBoundaryGuards.test_exact_explicit_closure) ... ok
 test_logout_never_reads_discarded_response_body (test_ui_boundaries.UiBoundaryGuards.test_logout_never_reads_discarded_response_body) ... ok
+test_only_authorized_admin_reads_build_evidence (test_ui_boundaries.UiBoundaryGuards.test_only_authorized_admin_reads_build_evidence) ... ok
+test_provenance_rejects_wrong_origin_build_shell_and_identity (test_ui_boundaries.UiBoundaryGuards.test_provenance_rejects_wrong_origin_build_shell_and_identity) ... ok
 test_server_errors_are_not_denial_evidence (test_ui_boundaries.UiBoundaryGuards.test_server_errors_are_not_denial_evidence) ... ok
 
 ----------------------------------------------------------------------
-Ran 4 tests in 0.002s
+Ran 6 tests in 0.002s
 
 OK

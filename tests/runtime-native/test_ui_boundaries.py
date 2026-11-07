@@ -2,9 +2,42 @@
 import os
 import unittest
 from unittest.mock import patch
-from ui_boundaries import require_fixture, exact_closure, is_rejected, native_logout
+from ui_boundaries import require_fixture, exact_closure, is_rejected, native_logout, verify_host_provenance
 
 class UiBoundaryGuards(unittest.TestCase):
+    def provenance_fixture(self):
+        base='http://127.0.0.1:8080'
+        class AdminProof:
+            def __init__(self):self.base=base;self.build='actual-build';self.calls=0
+            def evidence(self):self.calls+=1;return {'buildId':self.build}
+        class Viewer:
+            def __init__(self,shell):
+                self.base=base;self.token='unit-'+shell;self.shell=shell
+                self.user={'admin':'1','teacher':'950001'}[shell];self.allowed=[shell]
+            def evidence(self):raise AssertionError('Viewer must never read management provenance')
+            def data(self,path):
+                if path=='/fcp/ui/session':return {'subject':self.user,'scope':'tenant-000000','allowedShells':self.allowed}
+                if path=='/fcp/ui/catalog':return {'context':{'userId':self.user,'tenantId':'000000'}}
+                raise AssertionError('Unexpected endpoint')
+        viewers={s:Viewer(s) for s in ('admin','teacher')}
+        states={s:{'origins':[{'origin':base,'localStorage':[{'name':'FCP-Host-Token','value':v.token}]}]} for s,v in viewers.items()}
+        return base,AdminProof(),viewers,states
+    def test_only_authorized_admin_reads_build_evidence(self):
+        base,admin,viewers,states=self.provenance_fixture()
+        verify_host_provenance(base,'actual-build',admin,viewers,states)
+        self.assertEqual(admin.calls,1)
+    def test_provenance_rejects_wrong_origin_build_shell_and_identity(self):
+        for fault in ('base','build','shell','identity','token'):
+            base,admin,viewers,states=self.provenance_fixture()
+            if fault=='base':viewers['teacher'].base='http://127.0.0.1:9090'
+            if fault=='build':admin.build='wrong-build'
+            if fault=='shell':viewers['teacher'].allowed=['admin']
+            if fault=='identity':viewers['teacher'].user='1'
+            if fault=='token':viewers['teacher'].token='mismatched-session'
+            with self.subTest(fault=fault), self.assertRaises(RuntimeError):
+                verify_host_provenance(base,'actual-build',admin,viewers,states)
+            if fault=='base':self.assertEqual(admin.calls,0)
+
     def test_logout_never_reads_discarded_response_body(self):
         class Response:
             status=200

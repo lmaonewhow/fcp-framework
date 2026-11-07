@@ -11,6 +11,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools'))
 from native import doctor
 from ci_cleanup import OwnedDisposableDirectory,record_private_cleanup
+from ci_native_modules import NativeModule,run_native_modules
 
 class PrerequisiteError(RuntimeError):
  """The isolated CI environment is missing an explicitly required prerequisite."""
@@ -184,18 +185,23 @@ def run()->int:
    os.environ['FCP_ACCEPTANCE_DATABASE']=database
    result=fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],restart)
    report.update(scope=result['scope'],browser=result['status'],ingestion=result['status'],nativeChecks=result['totalChecks'])
+   def native_pid():return process.pid if process and process.poll() is None else None
+   modules=[]
    if runtime_fixture:
-    runtime_result=runtime_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],lambda: process.pid if process and process.poll() is None else None)
-    report['runtimePlugins']={'status':runtime_result['status'],'totalChecks':runtime_result['totalChecks'],'browser':runtime_result['browser'],'backendPidUnchanged':runtime_result['backendPidUnchanged']}
+    modules.append(NativeModule('runtimePlugins',lambda:runtime_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'browser':value['browser'],'backendPidUnchanged':value['backendPidUnchanged']}))
    if storage_lifecycle_fixture:
-    storage_result=storage_lifecycle_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],lambda: process.pid if process and process.poll() is None else None)
-    report['runtimeStorageLifecycle']={'status':storage_result['status'],'acceptance':'A11','totalChecks':storage_result['totalChecks'],'snapshots':len(storage_result['snapshots'])}
+    modules.append(NativeModule('runtimeStorageLifecycle',lambda:storage_lifecycle_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
+     lambda value:{'status':value['status'],'acceptance':'A11','totalChecks':value['totalChecks'],'snapshots':len(value['snapshots'])}))
    if failure_fixture:
-    failure_result=failure_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],lambda: process.pid if process and process.poll() is None else None)
-    report['runtimeFailureBoundaries']={'status':failure_result['status'],'totalChecks':failure_result['totalChecks']}
+    modules.append(NativeModule('runtimeFailureBoundaries',lambda:failure_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks']}))
    if exchange_fixture:
-    exchange_result=exchange_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],lambda: process.pid if process and process.poll() is None else None)
-    report['runtimeExchange']={'status':exchange_result['status'],'totalChecks':exchange_result['totalChecks'],'authorizationManagement':exchange_result['authorizationManagement']}
+    modules.append(NativeModule('runtimeExchange',lambda:exchange_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'authorizationManagement':value['authorizationManagement']}))
+   run_native_modules(report,modules,prerequisites_passed=result.get('status')=='PASS' and bool(report.get('build',{}).get('buildId')),
+    host_alive=lambda:process is not None and process.poll() is None,
+    secrets_provider=lambda:[*fixture.diagnostic_secrets,fixture.password])
 
  except Exception as error:report.update(status=failure_status(error),error=type(error).__name__+': '+str(error))
  finally:
