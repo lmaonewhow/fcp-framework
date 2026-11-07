@@ -26,3 +26,25 @@ Output: `ui-boundaries.json` includes buildId, individually observed checks, per
 Local validation: `python -m unittest discover -s tests/runtime-native -p test_ui_boundaries.py -v` and `python -m py_compile tests/runtime-native/ui_boundaries.py`. Actual native browser execution is NOT_RUN until CI calls the function.
 
 Accessibility regression: synthetic Message fields are selected by `get_by_role('textbox', name='Message', exact=True)`, not by a component wrapper's aria-label. Shared renderer delegates actual-input attributes to the trusted host: Naive uses inputProps aria-label and Element uses ariaLabel. The explicit accessible name is placed on the actual input, never a component wrapper. `tests/frontend-runtime/verify-field-label.mjs` executes the actual renderNode with installed Element Plus/Naive UI and Vue SSR; the old renderer fails and the new one passes. This structural test is not a browser accessibility-tree PASS.
+
+### T2 login preparation diagnostics
+
+T2 re-login observes `/auth/code` and `/auth/tenant/list` from the same new native
+login-page navigation before selecting a tenant. It requires the real successful
+tenant envelope, enabled tenant mode, and the seeded `960001` / `Synthetic CI tenant`
+entry. Missing responses, malformed envelopes, permission errors, missing tenants,
+and unselectable native options fail explicitly; no generic option-timeout retry
+is permitted. Responses to requests started before this navigation are not reused.
+
+Only an actually observed HTTP 429 or the exact pinned native throttle envelope
+permits one full 60-second wait and one new page load, refreshing both responses
+and the CAPTCHA together. A simultaneous non-throttle failure wins immediately.
+The server limits, Redis, IP, browser context, authorization and encrypted login
+remain unchanged. `loginFailure` / `loginPreparation` record bounded endpoint,
+stage, HTTP status, three-digit business code and rate-window timing only, never
+response messages, bodies, tokens, passwords or CAPTCHA data.
+
+Parser/control-flow regression: `python -m unittest discover -s tests/runtime-native -v`.
+These doubles do not prove native browser acceptance. The earlier missing-option
+failure's cause remains unconfirmed until a new real native run provides endpoint
+response evidence; a passing older release run is not equivalent evidence.

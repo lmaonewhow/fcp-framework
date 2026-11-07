@@ -82,6 +82,114 @@ def open_native_login(page, base, workspace, *, wait_events=None, clock=None, sl
     raise AssertionError('Unreachable native CAPTCHA control flow')
 
 
+
+class NativeLoginPreparationError(RuntimeError):
+    """Safe, bounded diagnostics only; never retain server messages or challenge data."""
+    def __init__(self, endpoint, stage, status=None, business_code=None, limited=False):
+        self.diagnostic = dict(endpoint=endpoint, stage=stage, status=status,
+                               businessCode=business_code)
+        self.limited = limited
+        super().__init__('Native login preparation failed: '+endpoint+' '+stage)
+
+
+def _login_envelope(response, endpoint):
+    status = response.status if type(response.status) is int else None
+    if status == 429:
+        raise NativeLoginPreparationError(endpoint, 'rate-limited', status, limited=True)
+    try:
+        payload = response.json()
+    except Exception:
+        raise NativeLoginPreparationError(endpoint, 'invalid-json', status) from None
+    if not isinstance(payload, dict):
+        raise NativeLoginPreparationError(endpoint, 'invalid-envelope', status)
+    raw_code = payload.get('code')
+    code = str(raw_code) if type(raw_code) in (int, str) and re.fullmatch(r'[0-9]{3}', str(raw_code)) else None
+    limited = status == 429 or (status in (200, 500) and code in ('429', '500')
+                                and isinstance(payload.get('msg'), str)
+                                and payload['msg'] in _RATE_LIMIT_MESSAGES)
+    if limited or status != 200 or code != '200':
+        raise NativeLoginPreparationError(endpoint, 'rate-limited' if limited else 'rejected', status, code, limited)
+    return payload.get('data')
+
+
+def parse_native_tenant_list(response):
+    """Require the genuine seeded T2 before operating the native selector."""
+    endpoint = '/auth/tenant/list'
+    data = _login_envelope(response, endpoint)
+    if not isinstance(data, dict) or data.get('tenantEnabled') is not True:
+        raise NativeLoginPreparationError(endpoint, 'tenant-disabled-or-invalid', 200, '200')
+    tenants = data.get('voList')
+    if not isinstance(tenants, list) or not any(isinstance(t, dict) and
+            t.get('tenantId') == '960001' and t.get('companyName') == 'Synthetic CI tenant' for t in tenants):
+        raise NativeLoginPreparationError(endpoint, 'target-tenant-missing', 200, '200')
+
+
+def open_native_tenant_login(page, base, *, events=None, clock=None, sleep=None):
+    """Observe both real responses from each navigation, retry only explicit throttle.
+
+    A single full-window reload refreshes BOTH responses. Never retry missing options,
+    missing responses, authorization failures or invalid data. No state/limit changes.
+    """
+    require_loopback(base)
+    origin = base.rstrip('/')
+    clock, sleep = clock or time.monotonic, sleep or time.sleep
+    endpoints = ('/auth/code', '/auth/tenant/list')
+    for attempt in range(2):
+        requests, responses = [], {}
+        def requested(request):
+            if request.method == 'GET' and request.url.split('?', 1)[0] in [origin+e for e in endpoints]:
+                requests.append(request)
+        def matches(response, endpoint):
+            return response.request in requests and response.url.split('?', 1)[0] == origin+endpoint
+        def observed(response):
+            for endpoint in endpoints:
+                if matches(response, endpoint):
+                    responses[endpoint] = response
+        page.on('request', requested)
+        page.on('response', observed)
+        try:
+            with page.expect_response(lambda r: matches(r, endpoints[0]), timeout=30000) as challenge, \
+                 page.expect_response(lambda r: matches(r, endpoints[1]), timeout=30000) as tenants:
+                page.goto(origin+'/admin/login?redirect=/fcp/plugins', wait_until='domcontentloaded')
+            responses = {endpoints[0]: challenge.value, endpoints[1]: tenants.value}
+        except Exception:
+            missing = next((e for e in endpoints if e not in responses), '/auth/tenant/list')
+            raise NativeLoginPreparationError(missing, 'response-not-observed') from None
+        finally:
+            page.remove_listener('request', requested)
+            page.remove_listener('response', observed)
+        failures = []
+        captcha = None
+        for endpoint in endpoints:
+            try:
+                if endpoint == '/auth/tenant/list':
+                    parse_native_tenant_list(responses[endpoint])
+                else:
+                    _login_envelope(responses[endpoint], endpoint)
+                    try:
+                        captcha = parse_native_captcha(responses[endpoint])
+                    except Exception:
+                        raise NativeLoginPreparationError(endpoint, 'invalid-challenge', 200, '200') from None
+            except NativeLoginPreparationError as error:
+                failures.append(error)
+        if not failures:
+            return captcha
+        if events is not None:
+            events.extend(dict(error.diagnostic, attempt=attempt+1) for error in failures)
+        # A concurrent non-throttle failure must never be hidden by another throttle.
+        fatal = next((error for error in failures if not error.limited), None)
+        if fatal is not None or attempt:
+            raise fatal or failures[0]
+        started = clock()
+        sleep(CAPTCHA_RATE_WINDOW_SECONDS)
+        waited = clock()-started
+        if waited < CAPTCHA_RATE_WINDOW_SECONDS:
+            raise NativeLoginPreparationError(failures[0].diagnostic['endpoint'], 'incomplete-rate-window')
+        if events is not None:
+            events.append(dict(endpoint=failures[0].diagnostic['endpoint'], stage='rate-window-wait',
+                               waitedSeconds=round(waited, 3), nativeWindowSeconds=60, nextAttempt=2))
+    raise AssertionError('Unreachable native tenant login control flow')
+
 def native_token(state, base):
     require_loopback(base)
     origin = base.rstrip('/')

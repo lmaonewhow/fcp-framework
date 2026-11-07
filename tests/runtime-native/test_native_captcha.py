@@ -158,7 +158,8 @@ class NativeCaptchaTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         for file in ('tools/ci_ingestion.py', 'tests/runtime-native/failure_boundaries.py', 'tests/runtime-native/ui_boundaries.py'):
             text = (root/file).read_text()
-            self.assertIn('captcha = open_native_login(', text)
+            helper = 'open_native_tenant_login' if file.endswith('/ui_boundaries.py') else 'open_native_login'
+            self.assertIn('captcha = '+helper+'(', text)
             self.assertNotIn("captcha = code_response.value.json()['data']", text)
             self.assertNotIn("captcha = response.value.json()['data']", text)
         source = (root/'tools/native_login.py').read_text()
