@@ -29,7 +29,7 @@ public final class NativeExportRetentionProbe {
     if(args.length!=2||!export.containsKey("rows")||export.containsKey("cleanupAudit"))throw new IllegalArgumentException("Only generated snapshot content may be aged");
     Instant created=Instant.parse(Schema.str(export.get("createdAt"))),expires=Instant.parse(Schema.str(export.get("expires")));
     if(!expires.equals(created.plusSeconds(86400))||created.isBefore(Instant.now().minusSeconds(3600)))throw new IllegalArgumentException("Original production 24h policy not observed");
-    for(Object row:Schema.list(export.get("rows"))){var r=Schema.map(row);if(!r.keySet().equals(Set.of("student_code"))||!Set.of("s1","api1","task1","task2").contains(r.get("student_code")))throw new IllegalArgumentException("Synthetic field projection required");}
+    for(Object row:Schema.list(export.get("rows"))){var r=Schema.map(row);if(!r.keySet().equals(Set.of("student_code"))||!Set.of("s1","api1","task1","task2","portable1").contains(r.get("student_code")))throw new IllegalArgumentException("Synthetic field projection required");}
     String retained=preserved(state);Instant aged=Instant.now().minusSeconds(86401);export.put("createdAt",aged.toString());export.put("expires",aged.plusSeconds(86400).toString());state.put(key,export);journal.compareAndSet(snapshot.revision(),Json.write(state));
     System.out.println(Json.write(Map.of("status","AGED_FIXTURE","preservedDigest",retained,"originalRetentionHours",24)));
    }else{

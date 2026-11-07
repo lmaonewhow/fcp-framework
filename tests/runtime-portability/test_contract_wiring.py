@@ -37,6 +37,15 @@ class ContractWiringTest(unittest.TestCase):
             self.assertIn('run_business_contract(', source)
         self.assertIn("NativeModule('developmentBusiness'", (ROOT/'tools/ci_native.py').read_text())
 
+    def test_retention_probe_accepts_only_explicit_business_fixture_identifier(self):
+        from business_contract import CSV
+        import csv
+        rows = list(csv.DictReader(io.StringIO(CSV)))
+        self.assertEqual(len(rows), 1)
+        probe = (ROOT/'tests/runtime-exchange/NativeExportRetentionProbe.java').read_text()
+        self.assertIn('"'+rows[0]['student_code']+'"', probe)
+        self.assertIn('r.keySet().equals(Set.of("student_code"))', probe)
+
     def test_build_and_install_use_same_policy(self):
         self.assertIn('PluginDependencyPolicy.verify(contents)', (ROOT/'core/src/main/java/fcp/plugin/PackageInstaller.java').read_text())
         self.assertIn('fcp.plugin.PluginDependencyPolicy', (ROOT/'tools/check_plugin_dependencies.py').read_text())
