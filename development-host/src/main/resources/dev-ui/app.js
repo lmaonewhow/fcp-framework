@@ -26,7 +26,7 @@ const runtime = new UiRuntime({
 });
 function clearIdentity() {
   epoch++; for (const controller of requests) controller.abort(); requests.clear();
-  token = ''; identity = emptyIdentity(); plan = null; preview = null; revision = -1;
+  token = ''; identity = emptyIdentity(); plan = null; preview = null; revision = -1; $('approve').checked = false;
   runtime.resetIdentity(); $('token').value = ''; $('workspace').hidden = true; $('logout').hidden = true;
   $('login').hidden = false; $('identity').textContent = ''; $('plan').hidden = true;
   for (const id of ['plugins', 'pages', 'page', 'slots', 'operation', 'exchange-preview', 'exchange-result']) $(id).replaceChildren();
@@ -58,6 +58,7 @@ async function run(action) {
 function updateControls() {
   for (const b of $('workspace').querySelectorAll('button, input')) b.disabled = busy || Boolean(pending);
   $('retry').disabled = busy; $('abandon').disabled = busy;
+  $('confirm-plan').disabled = busy || Boolean(pending) || !plan || !$('approve').checked;
 }
 function updatePending() { $('pending').hidden = !pending; updateControls(); }
 async function mutate(send, accept) {
@@ -79,7 +80,7 @@ async function refresh() {
   const c = response.context;
   if (!c || typeof c.userId !== 'string' || typeof c.tenantId !== 'string' || !Array.isArray(c.permissions) || c.permissions.some(p => typeof p !== 'string')) throw new Error('无效的身份响应');
   if (JSON.stringify(identity) !== JSON.stringify(c)) {
-    runtime.resetIdentity(); identity = c; plan = null; preview = null; $('plan').hidden = true;
+    runtime.resetIdentity(); identity = c; plan = null; preview = null; $('approve').checked = false; $('plan').hidden = true;
     $('exchange-preview').textContent = ''; $('exchange-approve').checked = false;
   }
   // Grant changes can alter a projected catalog without changing composition generation.
@@ -94,7 +95,7 @@ async function refresh() {
   for (const plugin of state.plugins) {
     const row = text('div', `${plugin.pluginId} · ${plugin.version} · ${plugin.effective}`);
     for (const action of identity.permissions.includes('manage') ? ['enable', 'disable'] : []) row.append(button(action === 'enable' ? '预览启用' : '预览停用', () => run(async () => {
-      plan = null; $('plan').hidden = true;
+      plan = null; $('approve').checked = false; $('plan').hidden = true;
       const value = await api(`/fcp/plugins/${encodeURIComponent(plugin.pluginId)}/plans`, { action, expectedRevision: revision });
       if (!value.planId || !value.digest || !Array.isArray(value.affectedPlugins) || !value.affectedPlugins.length) throw new Error('不完整的计划，拒绝确认');
       plan = value; $('plan-details').textContent = JSON.stringify(value, null, 2); $('approve').checked = false; $('plan').hidden = false;
@@ -140,9 +141,10 @@ $('upload').addEventListener('submit', event => { event.preventDefault(); run(as
 $('confirm-plan').addEventListener('click', () => run(async () => {
   if (!plan || !$('approve').checked) throw new Error('请确认完整影响范围');
   const candidate = plan, body = { digest: candidate.digest, affectedPlugins: [...candidate.affectedPlugins], idempotencyKey: crypto.randomUUID() };
-  await mutate(() => api(`/fcp/plans/${encodeURIComponent(candidate.planId)}/confirm`, body), value => { $('operation').textContent = JSON.stringify(value, null, 2); plan = null; $('plan').hidden = true; });
+  await mutate(() => api(`/fcp/plans/${encodeURIComponent(candidate.planId)}/confirm`, body), value => { $('operation').textContent = JSON.stringify(value, null, 2); plan = null; $('approve').checked = false; $('plan').hidden = true; });
 }));
-$('cancel-plan').addEventListener('click', () => { plan = null; $('plan').hidden = true; });
+$('cancel-plan').addEventListener('click', () => { plan = null; $('approve').checked = false; $('plan').hidden = true; updateControls(); });
+$('approve').addEventListener('change', updateControls);
 $('retry').addEventListener('click', () => run(sendPending));
 $('abandon').addEventListener('click', () => { if (busy) return; pending = null; updatePending(); $('notice').textContent = '已放弃重试信息；这不会撤销服务端可能完成的操作，请刷新核对。'; });
 const config = () => { const value = $('exchange-config').value; if (!/^[a-zA-Z0-9._-]{1,128}$/.test(value)) throw new Error('请输入已配置的交换 ID'); return encodeURIComponent(value); };
