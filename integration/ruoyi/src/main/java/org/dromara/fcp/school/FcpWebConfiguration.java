@@ -1,5 +1,7 @@
 package org.dromara.fcp.school;
 
+import dev.fcp.host.UiRoutePolicy;
+
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
@@ -46,7 +48,7 @@ public class FcpWebConfiguration implements WebMvcConfigurer {
             Resource resource = super.getResource(path,location);
             if (resource != null && resource.isReadable() && !path.isEmpty() && !path.endsWith("/")) return resource;
             // A dot signals an asset request. Missing JS/CSS must return 404, not index.html.
-            if (!path.contains(".") && !path.startsWith("assets/")) return super.getResource("index.html",location);
+            if (UiRoutePolicy.isPluginPagePath(path) || (!path.contains(".") && !path.startsWith("assets/"))) return super.getResource("index.html",location);
             return null;
         }
     }

@@ -1,0 +1,4 @@
+{
+  "status": "NOT_RUN",
+  "reason": "Native JVM build, disposable CI MySQL/Redis, and genuine browser login are not running in this local workspace. Acceptance is wired to tools/ci_native.py --ingestion; fixture-only checks are separate evidence."
+}

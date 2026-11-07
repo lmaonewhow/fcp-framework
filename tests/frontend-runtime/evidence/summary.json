@@ -1,0 +1,135 @@
+{
+  "status": "PASS_COMPONENTS_AND_NATIVE_FRONTEND_BUILD",
+  "sourceBaseCommit": "7f94407d1c787906bb96a85faee809cf79bfa6ba",
+  "sourceNote": "Uncommitted module source is identified by per-file SHA256. The assembly buildId is retained across incremental UI builds; final source and dist manifests, not buildId alone, identify the final tested artifacts.",
+  "buildId": "27b10f3f1a9d4fcb817f36f374944ce8",
+  "node": "22.14.0",
+  "typescript": "5.8.3",
+  "tests": {
+    "frameworkNeutralNode": {
+      "tests": 15,
+      "status": "PASS",
+      "sharedBoundaryCasesWithinSuite": 27
+    },
+    "vueHooksUsingAdminDependencies": {
+      "tests": 4,
+      "status": "PASS",
+      "renderer": "custom test renderer; not browser"
+    },
+    "vueHooksUsingTeacherDependencies": {
+      "tests": 4,
+      "status": "PASS",
+      "renderer": "custom test renderer; not browser"
+    },
+    "javaRoutePolicy": {
+      "assertions": 14,
+      "status": "PASS"
+    },
+    "sessionUnit": {
+      "checks": 24,
+      "status": "PASS",
+      "HTTP": "explicit test double"
+    },
+    "managementVueUsingAdminDependencies": {
+      "tests": 17,
+      "status": "PASS",
+      "renderer": "Vue custom renderer; explicit service doubles, not native browser/authentication"
+    },
+    "managementVueUsingTeacherDependencies": {
+      "tests": 17,
+      "status": "PASS",
+      "renderer": "Vue custom renderer; explicit service doubles, not native browser/authentication"
+    }
+  },
+  "native": {
+    "admin": {
+      "shell": "admin",
+      "browser": "NOT_RUN",
+      "server": "NOT_RUN",
+      "started": 1794058169.5359604,
+      "lockPolicy": "existing-frozen-install",
+      "sources": {
+        "src/fcp/PluginManager.vue": "703fbee9f5cff7a020456a9ce596da28174ae64a286c4b7440d6f651727f4dd6",
+        "src/fcp/usePluginManager.ts": "ab9e07b636906d691228eb7906a05058323ab4f4ec01921ddbf9160c7be8369a",
+        "src/fcp/runtime/index.ts": "d36e8c64af2f0e07a4f7f37fe0e320c3b3b8ff04a6fea47d0ebbdd9c5eca56ec",
+        "src/fcp/usePlugins.ts": "5faf46bda641755523bf5a2bbc4b576376d9306582d672047b983276074777cc",
+        "src/fcp/PluginWorkspace.vue": "2c4e74439bb76d9bfacc5b31dc3a6d47860e519b53420a68f13b15e5a91df4b6",
+        "src/views/fcp/plugins/index.vue": "dbb8f881624f319fd478c176be113a37f96b35597f4d40bbd7f9558de43f6020",
+        "src/views/fcp/plugins/routes.ts": "8d6e49c0f52cb49de7bf40665d56c3e80993f7796087610680da476648d27c65",
+        "src/router/index.ts": "f68045a530b13cb6995fe10ae9698bfca1c5dda9445806e8c3e4d60556386c2b",
+        "src/fcp/session.ts": "2ff8de3b97f222f48c5a124ad09fc1db7602486cacb0b552b3a76a0859001c04"
+      },
+      "build": "PASS",
+      "typecheck": "PASS",
+      "files": 394,
+      "manifestSha256": "5b8b2714391260e2693592b7c42aaf74737ea476939d9a01de48d665acad4742",
+      "status": "PASS",
+      "elapsed": 58.993658781051636,
+      "buildId": "27b10f3f1a9d4fcb817f36f374944ce8",
+      "compilerDependency": "5.9.3",
+      "vueDependency": "3.5.30",
+      "finalLog": "native/admin-management-uninstall-final.log"
+    },
+    "teacher": {
+      "shell": "teacher",
+      "browser": "NOT_RUN",
+      "server": "NOT_RUN",
+      "started": 1794058170.7504447,
+      "lockPolicy": "existing-frozen-install",
+      "sources": {
+        "src/fcp/PluginManager.vue": "703fbee9f5cff7a020456a9ce596da28174ae64a286c4b7440d6f651727f4dd6",
+        "src/fcp/usePluginManager.ts": "ab9e07b636906d691228eb7906a05058323ab4f4ec01921ddbf9160c7be8369a",
+        "src/fcp/runtime/index.ts": "d36e8c64af2f0e07a4f7f37fe0e320c3b3b8ff04a6fea47d0ebbdd9c5eca56ec",
+        "src/fcp/usePlugins.ts": "5faf46bda641755523bf5a2bbc4b576376d9306582d672047b983276074777cc",
+        "src/fcp/PluginWorkspace.vue": "2c4e74439bb76d9bfacc5b31dc3a6d47860e519b53420a68f13b15e5a91df4b6",
+        "src/views/fcp/plugins/index.vue": "24a3771c1f3eafe8c8a7cf5e3bf4bf632d2bbc4cfbb761297c01e6c0c7cf680e",
+        "src/views/fcp/plugins/routes.ts": "565813cfd74f692315de30a489717af33b4989ef40b13f47da65c60d5bb38fbe",
+        "src/router/index.ts": "2d039df0732a94ff0afd489456bdfa089f58c30766b6bedc4484c95bd0c2812f",
+        "src/fcp/session.ts": "2ff8de3b97f222f48c5a124ad09fc1db7602486cacb0b552b3a76a0859001c04",
+        "src/locales/langs/en-us.ts": "21a5cb618f959d889ce9148c35b065aa74da57c0e07faa785025ecbcb46589ef",
+        "src/locales/langs/zh-cn.ts": "5f4e49596fe6321b8d6f1a2ca00b8ef240671ec50dd17962acc42b3245d8903b",
+        "src/router/elegant/imports.ts": "f15532a289efec1ec5ebb1379bfcd25fc707c018e4eb3eb593a041d2186cbf67",
+        "src/router/elegant/routes.ts": "1330ff81c21cc795c0d274bd006b474e6af579fe485f2d6127bedced3667d79d",
+        "src/router/elegant/transform.ts": "d22c2f38d59375f241d7a97aa80520dab30b31f4962aab93fbed9e433f863167"
+      },
+      "build": "PASS",
+      "typecheck": "PASS",
+      "files": 433,
+      "manifestSha256": "6c38b8a64c00a2d7a92994573f5114d47546a58bbf5affc6456020357bc5d094",
+      "status": "PASS",
+      "elapsed": 98.57109808921814,
+      "buildId": "27b10f3f1a9d4fcb817f36f374944ce8",
+      "compilerDependency": "5.8.3",
+      "vueDependency": "3.5.17",
+      "finalLog": "native/teacher-management-uninstall-final.log"
+    }
+  },
+  "sourceSha256": {
+    "integration/frontend-runtime/index.ts": "d36e8c64af2f0e07a4f7f37fe0e320c3b3b8ff04a6fea47d0ebbdd9c5eca56ec",
+    "integration/frontend-shared/PluginWorkspace.vue": "2c4e74439bb76d9bfacc5b31dc3a6d47860e519b53420a68f13b15e5a91df4b6",
+    "integration/frontend-shared/usePlugins.ts": "5faf46bda641755523bf5a2bbc4b576376d9306582d672047b983276074777cc",
+    "integration/frontend-shared/session.ts": "2ff8de3b97f222f48c5a124ad09fc1db7602486cacb0b552b3a76a0859001c04",
+    "integration/plus-ui/src/views/fcp/plugins/index.vue": "dbb8f881624f319fd478c176be113a37f96b35597f4d40bbd7f9558de43f6020",
+    "integration/plus-ui/src/views/fcp/plugins/routes.ts": "8d6e49c0f52cb49de7bf40665d56c3e80993f7796087610680da476648d27c65",
+    "integration/soybean/src/views/fcp/plugins/index.vue": "24a3771c1f3eafe8c8a7cf5e3bf4bf632d2bbc4cfbb761297c01e6c0c7cf680e",
+    "integration/soybean/src/views/fcp/plugins/routes.ts": "565813cfd74f692315de30a489717af33b4989ef40b13f47da65c60d5bb38fbe",
+    "host/src/main/java/dev/fcp/host/UiRoutePolicy.java": "e57f2a193aa7bf97cb71b1ec5f48215c5819a28c3453265a9c87d526aa1683c8",
+    "integration/ruoyi/src/main/java/org/dromara/fcp/school/FcpWebConfiguration.java": "0738a0ece78b57b608cca05f672315a83c85da4b9f65d3ff551235df9b428eed",
+    "tools/native.py": "b7484034970ef497831019788c8742af141a00175ddbb2ed453e06f6e1e76059",
+    "tests/frontend-runtime/runtime.test.mjs": "f279820d381fa898e1f03461bdd54ee917f5ab3d2e69696b9fd35ec3e444a912",
+    "tests/frontend-runtime/vue-host.test.mjs": "f74fe6252d6c77616a662f07dbd9365678a4b6aad52bd5dd998b4b0e8fceb85a",
+    "tests/frontend-runtime/UiRoutePolicyTest.java": "cd424107e052a063c2b1c6ca29dc3d18fc7bc605b88244f6dee39144d6878ac4",
+    "tests/js/session.test.mjs": "b1d3f10ad56cccca4278e5246f4d3a17d86c26c150446a2e69cb25dd603f93c2",
+    "integration/frontend-shared/PluginManager.vue": "703fbee9f5cff7a020456a9ce596da28174ae64a286c4b7440d6f651727f4dd6",
+    "integration/frontend-shared/usePluginManager.ts": "ab9e07b636906d691228eb7906a05058323ab4f4ec01921ddbf9160c7be8369a",
+    "tests/frontend-runtime/vue-manager.test.mjs": "17db99eacd08b0f2ce480c0547de496ddbd7131eca9d8f6fd82e3b6eaf056db5",
+    "tests/frontend-runtime/verify-vue-host.mjs": "28a8b6ee128aaf9c7553bb03c21fa0915326a68710ad450b86515cdd7314c0a8"
+  },
+  "notRun": [
+    "real browser",
+    "authenticated backend integration",
+    "MySQL/Redis integration",
+    "multi-browser convergence",
+    "measured catalog propagation latency"
+  ]
+}

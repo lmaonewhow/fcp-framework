@@ -59,6 +59,12 @@ class DevHostTest(unittest.TestCase):
      time.sleep(.05)
     else:self.fail('Persisted enabled catalog did not recover')
     self.assertEqual(len(recovered['pages']),1)
+    saved=request('/fcp/plans/'+plan['planId']+'/confirm',{'digest':plan['digest'],'affectedPlugins':plan['affectedPlugins'],'idempotencyKey':'enable-one'})
+    self.assertEqual(saved['operationId'],result['operationId'])
+    self.assertEqual(saved['outcome'],'APPLIED')
+    with self.assertRaises(urllib.error.HTTPError) as conflict:
+     request('/fcp/plans/'+plan['planId']+'/confirm',{'digest':'0'*64,'affectedPlugins':plan['affectedPlugins'],'idempotencyKey':'enable-one'})
+    self.assertEqual(conflict.exception.code,409)
     self.assertEqual(process.poll(),None)
     status=request('/fcp/plugins/test.echo');plan=request('/fcp/plugins/test.echo/plans',{'action':'disable','expectedRevision':status['revision']})
     request('/fcp/plans/'+plan['planId']+'/confirm',{'digest':plan['digest'],'affectedPlugins':plan['affectedPlugins'],'idempotencyKey':'disable-one'})

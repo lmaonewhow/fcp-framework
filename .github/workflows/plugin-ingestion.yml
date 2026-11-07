@@ -31,6 +31,8 @@ jobs:
         run: python3 tools/verify_runtime_contracts.py
       - name: Runtime lifecycle and real HTTP verification
         run: python3 tools/verify_runtime_lifecycle.py
+      - name: Runtime storage boundary verification
+        run: python3 tools/verify_runtime_storage.py
       - name: Existing component regressions
         run: python3 tools/verify_components.py
       - name: Existing legacy regressions
@@ -47,6 +49,7 @@ jobs:
             evidence/commit.txt
             reports/runtime-contracts/
             reports/runtime-lifecycle/
+            reports/runtime-storage/
             reports/components.json
             reports/legacy-regressions.json
             reports/ingestion.json
