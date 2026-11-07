@@ -5,6 +5,7 @@ import fcp.control.StateJournal;
 import fcp.host.TrustedContext;
 import fcp.release.control.*;
 import fcp.release.routing.*;
+import fcp.release.observation.*;
 import java.io.*;
 import java.net.*;
 import java.net.http.*;
@@ -35,12 +36,17 @@ public final class LocalProcessDeploymentProvider implements DeploymentProvider 
     private final Map<String,ProcessHandle> owned=new HashMap<>();
     private final Map<String,Path> stagedArtifacts=new HashMap<>();
     private final ReleaseHttpTransport transport;
+    private final WindowedObservation observations;
     public LocalProcessDeploymentProvider(StateJournal journal,DurableReleaseRouter router,Collection<ServiceSpec> specs,String environment,Clock clock,byte[] backendIdentityKey){
+        this(journal,router,specs,environment,clock,backendIdentityKey,null);
+    }
+    public LocalProcessDeploymentProvider(StateJournal journal,DurableReleaseRouter router,Collection<ServiceSpec> specs,String environment,Clock clock,byte[] backendIdentityKey,WindowedObservation observations){
+        this.observations=observations;
         this.journal=Objects.requireNonNull(journal);this.router=Objects.requireNonNull(router);this.clock=Objects.requireNonNull(clock);
         if(!environment.matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}"))throw new IllegalArgumentException("Invalid environment");this.environment=environment;
         Map<String,ServiceSpec> map=new HashMap<>();Set<URI> origins=new HashSet<>();for(var spec:specs)if(map.putIfAbsent(spec.releaseId(),spec)!=null||!origins.add(spec.origin()))throw new IllegalArgumentException("Duplicate local service registration");this.specs=Map.copyOf(map);
         http=HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).connectTimeout(Duration.ofSeconds(1)).build();
-        transport=new ReleaseHttpTransport(router,map.values().stream().map(s->new ReleaseHttpTransport.Endpoint(s.releaseId(),s.origin(),s.paths())).toList(),backendIdentityKey,clock);
+        transport=new ReleaseHttpTransport(router,map.values().stream().map(s->new ReleaseHttpTransport.Endpoint(s.releaseId(),s.origin(),s.paths())).toList(),backendIdentityKey,clock,observations==null?RequestObserver.NONE:observations);
     }
     /** Process retirement is deliberately unsupported: arbitrary services need an application drain protocol. */
     public Set<Action> capabilities(){return Set.of(Action.DEPLOY,Action.CANARY,Action.EXPAND,Action.PAUSE,Action.ABORT,Action.PROMOTE,Action.ROLLBACK);}
@@ -99,6 +105,9 @@ public final class LocalProcessDeploymentProvider implements DeploymentProvider 
         var next=new ReleasePolicy("local-"+environment,command.plan().stableRelease(),command.plan().candidateRelease(),command.basisPoints(),Set.of(),Set.of(),command.action()!=Action.ABORT,epoch);
         var intent=Schema.map(Schema.map(state.value().get("operations")).get(command.operationId()));
         intent.put("expectedRouterRevision",router.revision());intent.put("epoch",epoch);state=save(state);
+        if(observations!=null){long routeRevision=Schema.number(intent.get("expectedRouterRevision"))+1;
+            observations.bind(command.plan().stableRelease(),command.generation(),routeRevision);
+            observations.bind(command.plan().candidateRelease(),command.generation(),routeRevision);}
         router.put(next,Schema.number(intent.get("expectedRouterRevision")));
         var entry=Schema.map(Schema.map(state.value().get("operations")).get(command.operationId()));entry.put("state","COMPLETE");entry.put("routerRevision",router.revision());state.value().put("lastGeneration",command.generation());save(state);
     }
@@ -163,6 +172,9 @@ public final class LocalProcessDeploymentProvider implements DeploymentProvider 
         return Optional.of(new Observation(operationId,complete,healthy,plan.candidateRelease(),plan.candidateDigest(),policy==null?0:policy.basisPoints(),observedGeneration,inFlight.values().stream().mapToLong(AtomicLong::get).sum(),complete?(action==Action.ABORT?"LOCAL_INGRESS_STOPPED":"LOCAL_PROCESSES_AND_ROUTE_VERIFIED"):"LOCAL_OUTCOME_REQUIRES_RECONCILIATION",policy!=null&&!policy.enabled()?RoutingMode.STOPPED:RoutingMode.ACTIVE));
     }
     public ReleaseHttpTransport.Response invoke(TrustedContext context,String affinity,String method,String path,byte[] body)throws IOException,InterruptedException{
+        if(observations!=null)synchronized(this){State state=load();var policy=router.policy().orElseThrow(()->new IOException("LOCAL_ROUTE_NOT_READY"));long generation=Schema.number(state.value().getOrDefault("lastGeneration",0));
+            if(generation<1)throw new IOException("LOCAL_GENERATION_UNCONFIRMED");
+            observations.bind(policy.stableRelease(),generation,router.revision());observations.bind(policy.candidateRelease(),generation,router.revision());}
         AtomicLong count=inFlight.computeIfAbsent(context.tenantId(),x->new AtomicLong());count.incrementAndGet();try{return transport.invoke(context,affinity,method,path,body);}finally{count.decrementAndGet();}
     }
     /** Explicit test/development cleanup only; does not claim application drain or production retirement. */

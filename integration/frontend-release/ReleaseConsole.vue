@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import PluginReleaseManager from '@/fcp/PluginReleaseManager.vue';
+import ReleaseObservation from './ReleaseObservation.vue';
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { ReleasePermissionHost } from './permission-host';
 import { ReleaseConsole, type ReleaseHost, type ConsoleState, type ReleaseAction } from './controller';
@@ -37,6 +39,8 @@ onBeforeUnmount(() => {stop();stopPermissions();console.dispose();permissionHost
   <main class="fcp-release-console" aria-label="系统发布与版本管理">
     <h1>系统发布、版本与灰度</h1>
     <p>管理系统产物及发布组合，不管理源码分支。部署能力由当前执行适配器提供。</p>
+    <PluginReleaseManager :host="permissionHost" />
+    <ReleaseObservation :host="permissionHost" :blocked="state.busy || state.unknown || !state.state || state.state.pending != null" @changed="safely(() => console.load())" />
     <button type="button" :disabled="state.busy" @click="safely(load)">刷新状态</button>
     <p v-if="state.error || localError" role="alert">{{ localError || state.error }}</p>
     <p v-if="!console.canView" role="alert">当前账号没有发布查询权限。</p>

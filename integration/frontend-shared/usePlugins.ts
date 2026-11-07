@@ -3,6 +3,7 @@ import type { Component } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { UiRuntime, UiError, createPlusUiAdapter, createSoybeanAdapter } from './runtime';
 import type { Catalog, Identity, UiNode } from './runtime';
+import { getReleaseAffinity, rememberReleaseContext } from './release-session';
 
 /** Trusted shell bindings. Raw tokens never enter the declarative catalog/runtime. */
 export interface NativePluginHost {
@@ -15,8 +16,8 @@ export interface NativePluginHost {
   identityKey(): string;
   observeIdentity(changed: () => void): () => void;
 }
-interface PendingAction {ownerId: string; capabilityId: string; input: Record<string,string>; key: string; epoch: number}
-interface CatalogResponse { catalog: Catalog; context: Identity }
+interface PendingAction {ownerId: string; capabilityId: string; input: Record<string,string>; key: string; epoch: number; affinity: string | null}
+interface CatalogResponse { catalog: Catalog; context: Identity; releaseId?: string; affinity?: string; projectionFingerprint?: string }
 const blank = (): Catalog => ({contractVersion:'1.0',schemaVersion:1,revision:-1,pages:[],slots:[]});
 const components = ['text@1','field@1','button@1','table@1','stack@1'];
 
@@ -31,7 +32,7 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
   let fetchController: AbortController | undefined;
   const identityListeners = new Set<() => void>();
   const clear = () => {
-    if (pending.value) notice.value = '身份已变化，已清除本页待重试信息。上次操作可能已完成，请回到原身份核对，勿跨身份重试。';
+    if (pending.value) notice.value = '身份、权限或插件页面已变化，已清除本页待重试信息。上次操作可能已完成，请核对原操作结果，勿直接新建重复请求。';
     pending.value = null; fields.value = {}; results.value = {};
   };
   function identityChanged() {
@@ -58,7 +59,10 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
     },
     currentPath: () => route.path,
     restoreDeepLink: path => { if (path) document.title = catalog.value.pages.find(p => p.path === path)?.title ?? 'FCP'; },
-    request: (capabilityId,input,options) => host.request(`/fcp/capabilities/${encodeURIComponent(capabilityId)}/invoke`,'POST',{input,expectedRevision:options.revision,idempotencyKey:options.idempotencyKey},options.signal),
+    request: async (capabilityId,input,options) => {
+      const affinity = pending.value ? pending.value.affinity : await getReleaseAffinity();
+      return host.request(`/fcp/capabilities/${encodeURIComponent(capabilityId)}/invoke`,'POST',{input,expectedRevision:options.revision,idempotencyKey:options.idempotencyKey},options.signal,{headers: affinity ? {'X-FCP-Release-Affinity':affinity} : {}});
+    },
     render,
     notifyDirty: ids => { notice.value = `插件页面已停用或更新，未保存内容已清除：${ids.join('、')}。请勿继续提交旧表单。`; },
     clearCaches: clear
@@ -68,7 +72,8 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
     const body = raw as {code?:unknown;data?:unknown;error?:{code?:string;message?:string};msg?:string};
     const failed = host.shell === 'admin' ? body.code !== 200 : body.error != null;
     if (failed) {
-      const code = String(body.error?.code ?? body.code);
+      const code = String((body.error as {response?:{status?:number}} | undefined)?.response?.status ?? body.error?.code ?? body.code);
+      if (code === '403') throw new UiError('FORBIDDEN','权限或发布上下文已失效，已清空插件页面。请核对未确认操作后手动刷新；不会自动重放。');
       throw new UiError(code === '401' ? 'UNAUTHENTICATED' : code === '403' ? 'FORBIDDEN' : 'VALIDATION',body.error?.message ?? body.msg ?? '宿主请求失败');
     }
     return body.data;
@@ -77,8 +82,14 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
     if (!alive || loading) return;
     loading = true; const key = host.identityKey(); const controller = new AbortController(); fetchController = controller;
     try {
-      const response = unwrap(await host.request('/fcp/ui/catalog','GET',undefined,controller.signal)) as CatalogResponse;
+      const affinity = await getReleaseAffinity();
+      const response = unwrap(await host.request('/fcp/ui/catalog','GET',undefined,controller.signal,{headers: affinity ? {'X-FCP-Release-Affinity':affinity} : {}})) as CatalogResponse;
       if (!alive || controller.signal.aborted || key !== host.identityKey()) return;
+      if (response?.releaseId || response?.affinity) {
+        if (typeof response.releaseId !== 'string' || typeof response.affinity !== 'string') throw new UiError('VALIDATION','发布上下文无效');
+        if (!pending.value) await rememberReleaseContext({releaseId:response.releaseId,affinity:response.affinity});
+        if (!alive || controller.signal.aborted || key !== host.identityKey()) return;
+      }
       const context = response?.context;
       if (!context || typeof context.userId !== 'string' || typeof context.tenantId !== 'string' || typeof context.language !== 'string' || !Array.isArray(context.permissions) || context.permissions.some(p => typeof p !== 'string')) throw new UiError('VALIDATION','身份目录响应无效');
       const nextIdentity: Identity = {userId:context.userId,tenantId:context.tenantId,language:context.language,permissions:[...context.permissions].sort()};
@@ -86,7 +97,9 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
         for (const changed of identityListeners) changed();
         identity = nextIdentity; identityView.value = identity;
       }
-      runtime.applyRevision(response.catalog); error.value = '';
+      if (typeof response.projectionFingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(response.projectionFingerprint)) { runtime.resetIdentity(); throw new UiError('VALIDATION','权限投影缺失或失效，请刷新页面重新确认。'); }
+      runtime.applyProjection(response.catalog,response.projectionFingerprint);
+      error.value = '';
     } catch (failure) {
       if (!alive || controller.signal.aborted || key !== host.identityKey()) return;
       // Auth failures revoke immediately; invalid candidates never replace the valid snapshot.
@@ -120,7 +133,9 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
   async function invoke(id: string, capabilityId: string) {
     if (busy.value) return;
     if (pending.value) {error.value = '上次操作结果尚未确认，请明确重试同一请求或放弃后再开始新操作。'; return;}
-    const attempt: PendingAction = {ownerId:id,capabilityId,input:{...(fields.value[id] ?? {})},key:crypto.randomUUID(),epoch:runtime.identityEpoch};
+    const epoch = runtime.identityEpoch, affinity = await getReleaseAffinity();
+    if (!alive || epoch !== runtime.identityEpoch || pending.value) return;
+    const attempt: PendingAction = {ownerId:id,capabilityId,input:{...(fields.value[id] ?? {})},key:crypto.randomUUID(),epoch,affinity};
     pending.value = attempt; await send(attempt);
   }
   async function retry() { if (pending.value) await send(pending.value); }

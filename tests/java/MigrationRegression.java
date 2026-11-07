@@ -8,7 +8,7 @@ public final class MigrationRegression {
     static void check(boolean value,String name){if(!value)throw new AssertionError(name);count++;System.out.println("PASS "+name);}
     static void reject(String sql,String name){try{Migrations.statements(sql);throw new AssertionError(name);}catch(IllegalArgumentException expected){check(true,name);}}
     public static void main(String[] args)throws Exception{
-        var scripts=Migrations.load(Path.of(args[0]));check(scripts.size()==7,"all seven locked migration files verified");
+        var scripts=Migrations.load(Path.of(args[0]));check(scripts.size()==8,"all eight locked migration files verified");
         check(scripts.get(0).statements().isEmpty()&&scripts.get(1).statements().isEmpty(),"baseline native grants cannot execute through incremental runner");
         check(scripts.get(3).statements().isEmpty(),"ingestion native grants cannot execute through the DDL-only runner");
         check(scripts.get(4).statements().size()==12,"runtime storage has twelve reviewed DDL statements");

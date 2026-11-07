@@ -11,3 +11,9 @@ ReleaseHost 必须提供原生已认证请求、显式 `fcp:release:view/manage`
 控制台分别展示 desired 和 observed，登记和提交均不显示为部署成功。暂停扩量不是停流；代码回退不回退数据库数据。版本登记目前通过受授权 API 完成，控制台展示现有清单与执行计划，不提供任意脚本、命令或 URL 输入框。
 
 当状态同时包含 pending、supportsRecovery=true 和有效 revision 时，管理用户可显式确认安全恢复。POST `/recover` 仅提交 expectedRevision，不创建新 operationId，不重发原业务写入。执行器必须核实原操作的接收状态，并仅在权威确认未接收后原子认领原命令；未知仍保持锁定。普通 HTTP 404 不能作为未执行证据。对账与安全恢复分开显示，未知状态下仍不开放常规发布动作或 ABORT。
+
+## 服务器观察面板
+
+ReleaseObservation 是独立可折叠面板，仅手动读取 `/fcp/releases/automation/state`。显式 view 权限只允许查询，manage 权限才能确认 enable、disable、tick。enable 投影为服务端七个策略字段加 expectedRevision，disable 仅 expectedRevision，tick 仅空对象；浏览器不会提交 MetricsGate.Sample 或伪造监控值。后续阶段由百分比准确转为万分位，必须递增且以100%结束。启用策略不启动浏览器轮询或无人值守定时器。
+
+执行前再次读取实际发布状态。系统发布有 pending、父控制台有未知结果时禁止推进；观察本身 pending 时禁止 enable/disable，只在系统发布已对账且无 pending 后允许明确确认“对账当前观察步骤”，由服务器继续同一持久操作，不创建新操作。网络未知结果阻止重复动作，只读刷新不自动清除锁定，需要管理员核对服务端记录。HTTP404显示未启用/接口不可用，不自动重试；HTTP401清空身份相关显示。解除跨页/跨设备的未知状态仍依赖服务端持久操作及权限，不把前端按钮当作一致性边界。

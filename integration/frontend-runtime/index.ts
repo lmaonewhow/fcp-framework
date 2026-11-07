@@ -83,7 +83,7 @@ export function validateCatalog(value: unknown, adapter: Adapter): Catalog {
 function freeze<T>(value: T): T { if (value && typeof value === 'object') { Object.freeze(value); for (const child of Object.values(value)) freeze(child); } return value; }
 const empty = (revision = -1): Catalog => ({contractVersion: '1.0', schemaVersion: 1, revision, pages: [], slots: []});
 export class UiRuntime {
-  private adapter: Adapter; private catalog: Catalog = freeze(empty()); private epoch = 0; private disposed = false;
+  private adapter: Adapter; private catalog: Catalog = freeze(empty()); private epoch = 0; private disposed = false; private projectionFingerprint: string | null = null;
   private controllers = new Set<AbortController>(); private resources = new Map<string, Set<() => void>>(); private dirty = new Set<string>(); private unsubscribe: () => void;
   constructor(adapter: Adapter) { this.adapter = adapter; this.unsubscribe = adapter.context.subscribe(() => this.resetIdentity()); }
   get identityEpoch(): number { return this.epoch; }
@@ -93,9 +93,20 @@ export class UiRuntime {
   private cleanup(id: string): void { const callbacks = this.resources.get(id); this.resources.delete(id); for (const cb of callbacks ?? []) { try { cb(); } catch { /* cleanup all resources even if one fails */ } } }
   private notice(ids: string[]): void { const dirty = ids.filter(id => this.dirty.has(id)); ids.forEach(id => this.dirty.delete(id)); if (dirty.length) { try { this.adapter.notifyDirty(dirty); } catch { /* cannot veto revocation */ } } }
   resetIdentity(): void {
-    this.active(); this.epoch++; this.abort();
+    this.active(); this.epoch++; this.abort(); this.projectionFingerprint = null;
     const ids = [...this.resources.keys(), ...this.catalog.pages.map(p => p.id)]; this.notice(ids); ids.forEach(id => this.cleanup(id));
     this.catalog = freeze(empty()); this.adapter.clearCaches(); this.adapter.replaceCatalog(this.catalog); this.adapter.restoreDeepLink(null);
+  }
+  /** Authorization projection changes independently of Engine generation. Never invent an invoke revision. */
+  applyProjection(value: unknown, fingerprint: string, epoch = this.epoch): boolean {
+    this.active(); if (epoch !== this.epoch) return false;
+    if (!/^[a-f0-9]{64}$/.test(fingerprint)) throw new UiError('VALIDATION', 'Invalid projection fingerprint');
+    const next = validateCatalog(value, this.adapter);
+    if (next.revision < this.catalog.revision) return false;
+    if (this.projectionFingerprint !== null && this.projectionFingerprint !== fingerprint) this.resetIdentity();
+    const applied = this.applyRevision(next);
+    if (applied || next.revision === this.catalog.revision) this.projectionFingerprint = fingerprint;
+    return applied;
   }
   applyRevision(value: unknown, epoch = this.epoch): boolean {
     this.active(); if (epoch !== this.epoch) return false;

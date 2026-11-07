@@ -1,0 +1,19 @@
+# Plugin release native integration
+
+`PluginReleaseApplication` resolves exported capabilities only inside the router-selected immutable plugin composition. Registration cross-checks `VersionProvider`: each PLUGIN artifact component is the logical plugin ID, its version and SHA-256 must exactly equal the runtime package version. No client-supplied release ID controls invocation.
+
+Native opt-in requires `fcp.runtime.enabled=true`, `fcp.plugin.release.enabled=true`, the shared routing bean (`fcp.release.routing.enabled=true`) and a system VersionProvider. Use the same router/key/journal as the UI bootstrap. The shared header is `X-FCP-Release-Affinity`; catalog returns the signed affinity, invocation requires it. With multiversion disabled, the original controller delegates unchanged to PluginApplication.
+
+RuntimeFactory creates an isolated EngineRuntimePort/Registry and a dedicated JDBC call journal per release. Each runtime receives scoped HostCapabilities and constructs its own JdbcPluginStorage with that scoped authorization. Actual plugin records still share the established plugin-owned store; changing version does not bypass schema compatibility or change ownership. No DDL or hard delete is performed by these APIs.
+
+The platform administrator must explicitly approve every package digest through `/fcp/plugin-releases/grant-options` then `/grants`. The approval derives permission from the verified manifest. `confirmedDigest` must equal the exact request digest. USER approvals are tenant-scoped `principalId="*"`; TASK approvals need a concrete principal ID and expiry. A TASK also needs the base package approval. No HTTP endpoint accepts or constructs TASK identities.
+
+`/fcp/plugin-releases` lists state (GET) or registers a composition (POST). `/{release}/activate` and `/disable` require expectedRevision; `/stop` requires the release already disabled and drained. The management endpoints use explicit fcp:release:manage and fresh native platform authorization. Existing `/fcp/ui/catalog` and `/fcp/capabilities/{id}/invoke` opt into release dispatch, preserving native login and fcp:plugin:view requirements.
+
+Run `bash tests/plugin-release-host/run.sh` with JDK17+ and Python. The test uses actual verified archives and two actual Python processes, checks version-provider composition matching, signed catalog/invoke consistency, digest approval isolation, revoke, and emergency closure. Host authorization is a test fixture. It is NOT a RuoYi/MySQL/browser acceptance test; those stages remain NOT_RUN until the actual native workflow executes this integration.
+
+Current explicit boundary: enabling fcp.exchange.enabled together with fcp.plugin.release.enabled is rejected at startup. The existing Exchange execution port targets the legacy single-version runtime; programmatic pinned TASK APIs are not an implicit adapter for that scheduler. A release-aware Exchange port must be implemented and verified before both modes can run together. Startup recovery failures close partially created runtime instances before failing the host.
+
+Release mode disables legacy automatic recovery and rejects old lifecycle/install/grant mutations with MODE_CONFLICT; retained package staging and read-only inventory remain available. Legacy global upgrade mutations also return MODE_CONFLICT; its verified inventory and operation receipt reads remain available. Startup rejects legacy enabled tenant records, pending lifecycle/version operations, or a live legacy runner. This is not an automatic migration of live deployments; disable/drain/stop the old mode first.
+
+`/{release}/drain` takes expectedRevision and closes new admissions while retaining already pinned tasks. `/{release}/status` reads actual process health, in-flight count and pending pinned task count. A drained release can stop only once those counts permit it. The application process test covers drain/stop of one version while the other remains ready.

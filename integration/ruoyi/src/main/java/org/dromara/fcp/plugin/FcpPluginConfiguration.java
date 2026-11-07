@@ -45,7 +45,9 @@ public class FcpPluginConfiguration {
         lifecycle.setEnablementPolicy(new JdbcEnablementPolicy(source));
         return lifecycle;
     }
-    @Bean(destroyMethod="close") public PluginRecovery fcpPluginRecovery(LifecycleCoordinator lifecycle,NativePluginHost host) {
+    @Bean(destroyMethod="close")
+    @ConditionalOnProperty(name="fcp.plugin.release.enabled",havingValue="false",matchIfMissing=true)
+    public PluginRecovery fcpPluginRecovery(LifecycleCoordinator lifecycle,NativePluginHost host) {
         return new PluginRecovery(lifecycle,host::recoveryContext);
     }
     @Bean public PluginGrantAdmin fcpPluginGrantAdmin(DataSource source,NativePluginHost host,LifecycleCoordinator lifecycle,VerifiedPackageRepository packages) {
