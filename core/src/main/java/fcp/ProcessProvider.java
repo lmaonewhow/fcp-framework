@@ -37,11 +37,15 @@ public final class ProcessProvider implements Engine.Provider {
     private ScheduledFuture<?> reaper;
     private long idleEpoch;
     private final long idleTimeoutMs;
-    private Process process;
+    private volatile Process process;
     private InputStream output;
     private OutputStream input;
 
-    private boolean closed,slot;
+    private boolean closed,slot,started;
+    /** Identity of the actual owned Process object, never a PID-only lookup. */
+    public record Identity(long pid, java.time.Instant startedAt) {}
+    public Identity identity(){Process p=process;if(p==null||!p.isAlive())return null;return new Identity(p.pid(),p.info().startInstant().orElse(java.time.Instant.EPOCH));}
+    public boolean isRunning(){return identity()!=null;}
     private static Thread daemon(Runnable work,String name){Thread thread=new Thread(work,name);thread.setDaemon(true);return thread;}
     public ProcessProvider(Map<String,Object> document,Path root,Map<String,Object> launchers){
         this.root=root.toAbsolutePath().normalize();runtime=obj(document,"runtime");Object record=launchers.get(runtime.get("launcher"));if(record==null)throw new FcpException("LAUNCHER_MISSING",String.valueOf(runtime.get("launcher")));launcher=map(record);
@@ -67,7 +71,7 @@ public final class ProcessProvider implements Engine.Provider {
                 if(allowed.stream().anyMatch(key->windows?key.equalsIgnoreCase(entry.getKey()):key.equals(entry.getKey())))
                     keep.put(entry.getKey(),entry.getValue());
             environment.clear();environment.putAll(keep);environment.put("LANG","C.UTF-8");environment.put("PYTHONIOENCODING","utf-8");for(var e:obj(launcher,"env").entrySet())environment.put(e.getKey(),expand(str(e.getValue())));
-            process=builder.start();input=new BufferedOutputStream(process.getOutputStream());output=new BufferedInputStream(process.getInputStream());InputStream errors=process.getErrorStream();
+            process=builder.start();started=true;input=new BufferedOutputStream(process.getOutputStream());output=new BufferedInputStream(process.getInputStream());InputStream errors=process.getErrorStream();
             IO.submit(()->{try{byte[] buffer=new byte[2048];while(errors.read(buffer)!=-1){/* Drain bounded chunks; never retain credentials. */}}catch(IOException ignored){/* Expected at process cleanup. */}});
         }catch(IOException|RuntimeException error){stop();throw error;}
     }
@@ -92,7 +96,12 @@ public final class ProcessProvider implements Engine.Provider {
         await(()->{target.write(wire);target.flush();return null;},deadline);
     }
     @Override public Object invoke(Engine.Context context,String export,String operation,Map<String,Object> data){
-        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(number(runtime.getOrDefault("timeout",8)));
+        return invokeBounded(context,export,operation,data,TimeUnit.SECONDS.toMillis(number(runtime.getOrDefault("timeout",8))));
+    }
+    /** One monotonic budget covers queueing, callbacks and pipe IO. */
+    public Object invokeBounded(Engine.Context context,String export,String operation,Map<String,Object> data,long timeoutMillis){
+        if(timeoutMillis<1||timeoutMillis>300000)throw new FcpException("DEADLINE","Invalid remaining request budget");
+        long deadline=System.nanoTime()+TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
         try {
             if(!invocationLock.tryLock(Math.max(1,deadline-System.nanoTime()),TimeUnit.NANOSECONDS))throw new FcpException("BUSY","Plugin queue wait exhausted the request budget");
         } catch(InterruptedException error){Thread.currentThread().interrupt();throw new FcpException("CANCELLED","Queue wait interrupted",error);}
@@ -101,11 +110,12 @@ public final class ProcessProvider implements Engine.Provider {
         try{
             if(closed)throw new FcpException("CLOSED","Provider closed");
             cancelIdle();
-            if(process==null||!process.isAlive()){stop();start();}send(Json.obj("jsonrpc","2.0","id",id,"method",method,"params",data),deadline);
+            if(process==null||!process.isAlive()){stop();if(started&&Boolean.FALSE.equals(runtime.get("autoRestart")))throw new FcpException("RUNNER_EXITED","Explicit runner reconciliation required");start();}send(Json.obj("jsonrpc","2.0","id",id,"method",method,"params",data),deadline);
             InputStream source=output; int callbacks=0;
             for(;;){
                 String raw=StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(await(()->line(source),deadline))).toString();Map<String,Object> response=map(Json.parse(raw));
                 if("2.0".equals(response.get("jsonrpc"))&&"fcp.call".equals(response.get("method"))){
+                    if(context==null)throw new FcpException("PROTOCOL","Lifecycle controls cannot call capabilities");
                     if(!response.keySet().equals(Set.of("jsonrpc","id","method","params")))throw new FcpException("PROTOCOL","Invalid callback envelope");
                     if(++callbacks>32)throw new FcpException("PROTOCOL","Callback limit exceeded");
                     Map<String,Object> p=obj(response,"params");Object callbackId=response.get("id");if(!(callbackId instanceof String)||!p.keySet().equals(Set.of("dependency","operation","input")))throw new FcpException("PROTOCOL","Invalid dependency callback");
@@ -131,7 +141,7 @@ public final class ProcessProvider implements Engine.Provider {
             }
         }catch(IOException|IllegalArgumentException error){stop();throw new FcpException("TRANSPORT","Malformed or interrupted plugin transport",error);}
         catch(FcpException error){if(!remoteRejected)stop();throw error;}
-        finally{if(process!=null&&!closed)scheduleIdle();invocationLock.unlock();}
+        finally{if(process!=null&&!closed&&!Boolean.TRUE.equals(runtime.get("keepAlive")))scheduleIdle();invocationLock.unlock();}
     }
     private void cancelIdle(){idleEpoch++;if(reaper!=null){reaper.cancel(false);reaper=null;}}
     private void scheduleIdle(){
