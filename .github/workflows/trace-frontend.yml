@@ -1,0 +1,57 @@
+name: Response trace frontend regression
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, feat/request-trace-observability]
+    paths:
+      - '.github/workflows/trace-frontend.yml'
+      - 'integration/frontend-shared/**'
+      - 'integration/request-trace/**'
+      - 'integration/plus-ui/src/**'
+      - 'integration/soybean/src/**'
+      - 'development-host/src/main/resources/**'
+      - 'tests/observability/**'
+      - 'tests/frontend/package*.json'
+      - 'tools/native_trace_frontend.py'
+      - 'upstreams.lock.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: CrazyLionCat/plus-ui
+          ref: d0d451967676707021b9857df529c395b27e90a7
+          path: work/trace-admin
+      - uses: actions/checkout@v4
+        with:
+          repository: m-xlsea/ruoyi-plus-soybean
+          ref: 4e625111ce173e5c2f40dbfc47475f2849c58feb
+          path: work/trace-teacher
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install isolated pinned test dependencies
+        run: |
+          npm install --global typescript@5.8.3
+          npm ci --prefix tests/frontend --no-audit --no-fund
+      - name: Response diagnostics and exact upstream patch regression
+        env:
+          FCP_TRACE_ADMIN_SOURCE: ${{ github.workspace }}/work/trace-admin
+          FCP_TRACE_TEACHER_SOURCE: ${{ github.workspace }}/work/trace-teacher
+        run: |
+          mkdir -p reports/observability
+          git rev-parse HEAD > reports/observability/frontend-source-commit.txt
+          NODE_PATH="$(npm root -g)" node tests/observability/trace-frontend.test.cjs tests/frontend 2>&1 | tee reports/observability/frontend-trace.log
+          python3 tests/observability/test_frontend_trace_patch.py -v 2>&1 | tee reports/observability/frontend-patch.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-trace-unit-evidence
+          path: reports/observability/
+          retention-days: 7

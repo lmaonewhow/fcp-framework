@@ -27,5 +27,5 @@ public final class FcpExchangeAdvice {
     }
     @ExceptionHandler({IllegalArgumentException.class,ClassCastException.class}) public ResponseEntity<Map<String,Object>> invalid(Exception e){return response(400,"INVALID_ARGUMENT");}
     @ExceptionHandler(IOException.class) public ResponseEntity<Map<String,Object>> io(IOException e){return response(503,"EXCHANGE_UNAVAILABLE");}
-    private ResponseEntity<Map<String,Object>> response(int status,String code){return ResponseEntity.status(status).header("Cache-Control","no-store").body(Map.of("code",status,"msg","Exchange request rejected","data",Map.of("fcpCode",code,"traceId",UUID.randomUUID().toString())));}
+    private ResponseEntity<Map<String,Object>> response(int status,String code){return ResponseEntity.status(status).header("Cache-Control","no-store").body(Map.of("code",status,"msg","Exchange request rejected","data",Map.of("fcpCode",code,"traceId",fcp.observability.TraceContext.ensure().traceId())));}
 }

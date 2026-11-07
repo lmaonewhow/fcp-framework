@@ -42,7 +42,7 @@ jobs:
           apply_compatibility_patch(target,root/'integration/plus-ui/compat-5.6','d0d451967676707021b9857df529c395b27e90a7')
           copy_files(root/'integration/plus-ui/src',target/'src')
           (target/'src/fcp').mkdir(exist_ok=True)
-          for name in ['session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue']:
+          for name in ['trace.ts','session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue']:
               shutil.copy2(root/'integration/frontend-shared'/name,target/'src/fcp'/name)
           PY
       - name: Build genuine source and typecheck

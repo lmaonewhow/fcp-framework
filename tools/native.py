@@ -19,6 +19,7 @@ import time
 import uuid
 import urllib.parse
 import zipfile
+from native_trace_frontend import apply_frontend_trace
 
 ROOT = Path(__file__).resolve().parents[1]
 PINS = json.loads((ROOT / 'upstreams.lock.json').read_text())['upstreams']
@@ -100,6 +101,30 @@ def apply_compatibility_patch(project: Path, bundle: Path, expected_commit: str)
     if paths!=set(preimages):raise BuildError('Compatibility patch target set changed')
     run(['git','apply','--check','--whitespace=error',str(patch.resolve())],cwd=project)
     run(['git','apply','--whitespace=error',str(patch.resolve())],cwd=project)
+
+def apply_native_trace_patch(backend: Path) -> None:
+    bundle=ROOT/'integration/ruoyi/trace-patch'
+    manifest=json.loads((bundle/'manifest.json').read_text(encoding='utf-8'))
+    if manifest.get('format')!=1 or manifest.get('upstreamCommit')!=PINS['backend']['commit']:
+        raise BuildError('Native trace patch upstream mismatch')
+    if run(['git','rev-parse','HEAD'],cwd=backend,capture=True)!=PINS['backend']['commit']:
+        raise BuildError('Native trace target commit mismatch')
+    patch=bundle/'native.patch'
+    if patch.is_symlink() or sha(patch.read_bytes())!=manifest.get('sha256'):
+        raise BuildError('Native trace patch checksum mismatch')
+    before,after=manifest['preimages'],manifest['postimages']
+    if not before or set(before)!=set(after):raise BuildError('Native trace patch target mismatch')
+    for relative,digest in before.items():
+        if not re.fullmatch(r'ruoyi-[A-Za-z0-9_./-]+\.(?:java|xml)',relative) or '..' in Path(relative).parts:
+            raise BuildError('Unsafe native trace target')
+        target=backend/relative
+        if target.is_symlink() or sha(target.read_bytes())!=digest:raise BuildError('Native trace preimage drift: '+relative)
+    changed=run(['git','apply','--numstat',str(patch)],cwd=backend,capture=True)
+    if {line.split('\t',2)[2] for line in changed.splitlines()}!=set(before):raise BuildError('Native trace target set drift')
+    run(['git','apply','--check','--whitespace=error',str(patch)],cwd=backend)
+    run(['git','apply','--whitespace=error',str(patch)],cwd=backend)
+    for relative,digest in after.items():
+        if sha((backend/relative).read_bytes())!=digest:raise BuildError('Native trace postimage drift: '+relative)
 
 def replace_once(text: str, old: str, new: str) -> str:
     if text.count(old) != 1: raise BuildError(f'Expected one adaptation anchor; found {text.count(old)}: {old[:70]}')
@@ -216,7 +241,17 @@ def validate_test_runtime(path: Path|None, *, existing_redis_no_password: bool=F
     return path.resolve()
 
 def bundle_runtime(destination: Path) -> list[str]:
-    copy_files(ROOT/'runtime', destination)
+    # Do not ship interpreter caches produced by local verification; hash only distributable sources.
+    source=ROOT/'runtime'
+    for path in sorted(source.rglob('*')):
+        if path.is_symlink():raise BuildError(f'Refusing runtime symlink: {path}')
+        relative=path.relative_to(source)
+        if '__pycache__' in relative.parts or path.suffix in {'.pyc','.pyo'}:continue
+        if path.is_file():
+            target=destination/relative
+            if target.exists():raise BuildError(f'Refusing to overwrite runtime file: {target}')
+            target.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copy2(path,target)
     lines=[]
     for path in sorted(destination.rglob('*')):
         if path.is_file(): lines.append(sha(path.read_bytes())+'  '+path.relative_to(destination).as_posix())
@@ -250,6 +285,7 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
     # Each edit has a verified pinned-blob precondition, before *any* project edits.
     for name,project in projects.items():
         for path,blob in BLOBS[name].items(): check_blob(project/path,blob)
+    apply_native_trace_patch(backend)
     redact_auth_failure_log(backend)
     invalidate_deleted_auth_cache(backend)
     apply_compatibility_patch(admin,ROOT/'integration/plus-ui/compat-5.6',PINS['admin']['commit'])
@@ -273,12 +309,13 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
          'return "redirect:/admin/";')
     for name,project,overlay in [('admin',admin,'plus-ui'),('teacher',teacher,'soybean')]:
         copy_files(ROOT/f'integration/{overlay}/src', project/'src')
-        for file in ['session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue','usePlugins.ts','PluginWorkspace.vue','usePluginManager.ts','PluginManager.vue','useVersionManager.ts','VersionManager.vue']:
+        for file in ['trace.ts','session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue','usePlugins.ts','PluginWorkspace.vue','usePluginManager.ts','PluginManager.vue','useVersionManager.ts','VersionManager.vue']:
             target=project/'src/fcp'/file
             if target.exists(): raise BuildError('FCP session module already present')
             target.parent.mkdir(parents=True,exist_ok=True)
             shutil.copy2(ROOT/'integration/frontend-shared'/file,target)
         copy_files(ROOT/'integration/frontend-runtime', project/'src/fcp/runtime')
+        apply_frontend_trace(project,name)
         router=project/'src/router/index.ts'
         router_source=router.read_text(encoding='utf-8')
         router_source="import { fcpPluginRoutes } from '@/views/fcp/plugins/routes';\n"+router_source

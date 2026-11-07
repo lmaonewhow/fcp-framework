@@ -63,7 +63,8 @@ public final class FileRecordStore implements RecordStore {
         Map<String,Object> next=Json.obj("rows",new TreeMap<>(obj(state,"rows")),"requests",new TreeMap<>(obj(state,"requests")),"events",new ArrayList<>(arr(state,"events")));
         obj(next,"rows").put(key,result);
         obj(next,"requests").put(key(scope,subject,requestKey),Json.obj("fingerprint",fingerprint,"result",result));
-        Map<String,Object> event=new LinkedHashMap<>(map(cloneJson(audit)));event.putAll(Json.obj("scope",scope,"kind",kind,"id",id,"subject",subject,"requestKey",requestKey,"version",expectedVersion+1));
+        Map<String,Object> event=new LinkedHashMap<>(map(cloneJson(audit)));
+            var trace=fcp.observability.TraceContext.current();if(trace!=null){event.put("traceId",trace.traceId());event.put("requestId",trace.requestId());}event.putAll(Json.obj("scope",scope,"kind",kind,"id",id,"subject",subject,"requestKey",requestKey,"version",expectedVersion+1));
         arr(next,"events").add(event);
         Path temporary=null;
         try{

@@ -95,7 +95,7 @@ def fetch_json(config, path, deadline):
     No environment proxy, redirect, cookie jar, arbitrary caller URL or TLS bypass.
     Explicit allowLoopback is intended only for the isolated demo API.
     """
-    if not isinstance(config, dict) or not set(config) <= {'baseUrl', 'token', 'allowLoopback'}:
+    if not isinstance(config, dict) or not set(config) <= {'baseUrl', 'token', 'allowLoopback', 'propagateTrace'}:
         raise ValueError('Invalid host-owned connection configuration')
     parsed = urlsplit(config.get('baseUrl', ''))
     if (parsed.scheme not in ('https', 'http') or not parsed.hostname or parsed.username or parsed.password
@@ -132,6 +132,9 @@ def fetch_json(config, path, deadline):
             sock = ssl.create_default_context().wrap_socket(sock, server_hostname=parsed.hostname)
         connection.sock = sock
         headers = {'Accept': 'application/json', 'Accept-Encoding': 'identity'}
+        if config.get('propagateTrace') is True:
+            from fcp_trace import outbound_headers
+            headers.update(outbound_headers())
         if token:
             headers['Authorization'] = 'Bearer ' + token
         connection.request('GET', path, headers=headers)

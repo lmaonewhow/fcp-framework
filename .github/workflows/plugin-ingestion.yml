@@ -27,6 +27,8 @@ jobs:
         run: npm install --global typescript@5.8.3
       - name: Archive exact source before tests
         run: mkdir -p evidence && git archive --format=zip --output=evidence/source.zip HEAD && git rev-parse HEAD > evidence/commit.txt
+      - name: Trace context, bounded logging and actual cross-language verification
+        run: python3 tools/verify_observability.py
       - name: Runtime contract and package verification
         run: python3 tools/verify_runtime_contracts.py
       - name: Runtime lifecycle and real HTTP verification
@@ -53,6 +55,7 @@ jobs:
           path: |
             evidence/source.zip
             evidence/commit.txt
+            reports/observability/
             reports/runtime-contracts/
             reports/runtime-lifecycle/
             reports/runtime-storage/

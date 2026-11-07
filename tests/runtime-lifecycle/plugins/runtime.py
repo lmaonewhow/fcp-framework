@@ -13,7 +13,7 @@ for line in sys.stdin:
             print(json.dumps({'jsonrpc':'2.0','id':'callback','method':'fcp.call','params':{'dependency':data['dependency'] if isinstance(data['dependency'],str) else 'echo','operation':'invoke','input':data.get('payload',{'message':'from callback'})}}),flush=True)
             reply=json.loads(sys.stdin.readline())
             result=reply.get('result',{'callbackError':reply.get('error')})
-        else: result={'input':data,'tenant':p['context']['tenantId'],'principal':p['context']['principal'],'count':count,'secretPresent':'FCP_TEST_SECRET' in os.environ,'pid':os.getpid()}
+        else: result={'input':data,'tenant':p['context']['tenantId'],'principal':p['context']['principal'],'count':count,'traceId':p['context']['traceId'],'traceparent':p['context'].get('traceparent'),'secretPresent':'FCP_TEST_SECRET' in os.environ,'pid':os.getpid()}
     else: raise RuntimeError('unsupported method')
     print(json.dumps({'jsonrpc':'2.0','id':r['id'],'result':result}),flush=True)
     if m=='shutdown':break

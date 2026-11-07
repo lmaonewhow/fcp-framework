@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "upstreams": {
+    "admin": {
+      "commit": "d0d451967676707021b9857df529c395b27e90a7",
+      "path": "src/utils/request.ts",
+      "preimageSha256": "a9a56c3d2fcc10f95ef964519c526d0640337911e75a021f42f7ea99440777fb",
+      "postimageSha256": "94f1ff9c218dea781965fce84e48c9479d9a68458f515a27dd83444c34b3bf7d",
+      "patchSha256": "9a22c5807255f067a4de022e0c2da53e9970c81b9c94a8212e6e205daade7fc7"
+    },
+    "teacher": {
+      "commit": "4e625111ce173e5c2f40dbfc47475f2849c58feb",
+      "path": "src/service/request/index.ts",
+      "preimageSha256": "6274af4f9e9664f84bbfd65f2c968ca0abe3689637fbffb1d9eed93ffdc33229",
+      "postimageSha256": "d8580c6bcb5ddf1a1bfa0d8c8c0a1b48a3db8db8250b628f3e7115ce9b47c52b",
+      "patchSha256": "58985a344a5e081dfb7aa81ee5ec30c81d7ce9cc009f973074c814fb86ab7be8"
+    }
+  }
+}

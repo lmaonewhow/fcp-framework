@@ -1,3 +1,4 @@
+import { responseError } from '@/fcp/trace';
 import request from '@/utils/request';
 import type {Transport} from './bridge';
 // plus-ui's interceptor returns the host envelope {code, msg, data}.
@@ -10,7 +11,7 @@ export const transport:Transport=async <T>(url:string,method:'GET'|'POST',data?:
     // Axios rejects non-2xx responses before the host-envelope interceptor runs.
     // Preserve the native FCP reason for the page while keeping the rejection.
     const response=(failure as {response?:{data?:{msg?:unknown}}}|null)?.response?.data;
-    if(typeof response?.msg==='string' && response.msg)throw new Error(response.msg);
+    if(typeof response?.msg==='string' && response.msg)throw responseError(response.msg,(failure as {response?:{headers?:unknown;data?:unknown}}).response);
     throw failure;
   }
 };

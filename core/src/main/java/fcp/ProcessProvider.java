@@ -1,5 +1,7 @@
 package fcp;
 import java.nio.file.*;
+import fcp.observability.TraceContext;
+import fcp.observability.TraceEvents;
 import java.nio.charset.*;
 import java.nio.ByteBuffer;
 import java.io.*;
@@ -29,7 +31,7 @@ public final class ProcessProvider implements Engine.Provider {
     /** Aggregate metrics contain no plugin credentials or payloads. */
     public static Map<String,Object> metrics() {
         return Json.obj("processLimit",MAX_PROCESSES,"activeProcesses",MAX_PROCESSES-SLOTS.availablePermits(),
-                "ioThreads",IO.getPoolSize(),"activeIoTasks",IO.getActiveCount(),"idleTimers",REAPER.getQueue().size(),"pendingDescendantScans",TREE_SCANS.get());
+                "ioThreads",IO.getPoolSize(),"activeIoTasks",IO.getActiveCount(),"idleTimers",REAPER.getQueue().size(),"pendingDescendantScans",TREE_SCANS.get(),"traceTelemetry",TraceEvents.metrics());
     }
     private final ReentrantLock invocationLock=new ReentrantLock(true);
     private final Map<String,Object> runtime,launcher;
@@ -82,7 +84,7 @@ public final class ProcessProvider implements Engine.Provider {
     }
     private <T>T await(Callable<T> action,long deadline){
         final Future<T> result;
-        try { result=IO.submit(action); }
+        try { result=IO.submit(TraceContext.wrap(action)); }
         catch(RejectedExecutionException error){stop();throw new FcpException("BUSY","Bounded pipe executor is saturated",error);}
         try{return result.get(Math.max(1,deadline-System.nanoTime()),TimeUnit.NANOSECONDS);}
         catch(TimeoutException error){stop();result.cancel(true);throw new FcpException("DEADLINE","Plugin timed out",error);}
@@ -101,6 +103,9 @@ public final class ProcessProvider implements Engine.Provider {
     /** One monotonic budget covers queueing, callbacks and pipe IO. */
     public Object invokeBounded(Engine.Context context,String export,String operation,Map<String,Object> data,long timeoutMillis){
         if(timeoutMillis<1||timeoutMillis>300000)throw new FcpException("DEADLINE","Invalid remaining request budget");
+        try(var traceScope=TraceContext.open(TraceContext.child())) {
+        long traceStart=System.nanoTime();String traceOutcome="ERROR";
+        try {
         long deadline=System.nanoTime()+TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
         try {
             if(!invocationLock.tryLock(Math.max(1,deadline-System.nanoTime()),TimeUnit.NANOSECONDS))throw new FcpException("BUSY","Plugin queue wait exhausted the request budget");
@@ -110,17 +115,26 @@ public final class ProcessProvider implements Engine.Provider {
         try{
             if(closed)throw new FcpException("CLOSED","Provider closed");
             cancelIdle();
-            if(process==null||!process.isAlive()){stop();if(started&&Boolean.FALSE.equals(runtime.get("autoRestart")))throw new FcpException("RUNNER_EXITED","Explicit runner reconciliation required");start();}send(Json.obj("jsonrpc","2.0","id",id,"method",method,"params",data),deadline);
+            if(process==null||!process.isAlive()){stop();if(started&&Boolean.FALSE.equals(runtime.get("autoRestart")))throw new FcpException("RUNNER_EXITED","Explicit runner reconciliation required");start();}
+            Map<String,Object> parameters=data;
+            if(Boolean.TRUE.equals(runtime.get("runtimeContext"))&&data.containsKey("context")) {
+                parameters=new LinkedHashMap<>(data);Map<String,Object> identity=new LinkedHashMap<>(obj(data,"context"));
+                identity.put("traceparent",TraceContext.current().traceparent());parameters.put("context",identity);
+            }
+            Map<String,Object> envelope=Json.obj("jsonrpc","2.0","id",id,"method",method,"params",parameters);
+            // Optional envelope extension for explicitly opted-in legacy stdio workers.
+            if("w3c".equals(runtime.get("traceContext")))envelope.put("traceparent",TraceContext.current().traceparent());
+            send(envelope,deadline);
             InputStream source=output; int callbacks=0;
             for(;;){
                 String raw=StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(await(()->line(source),deadline))).toString();Map<String,Object> response=map(Json.parse(raw));
                 if("2.0".equals(response.get("jsonrpc"))&&"fcp.call".equals(response.get("method"))){
                     if(context==null)throw new FcpException("PROTOCOL","Lifecycle controls cannot call capabilities");
-                    if(!response.keySet().equals(Set.of("jsonrpc","id","method","params")))throw new FcpException("PROTOCOL","Invalid callback envelope");
+                    if(!response.keySet().equals(Set.of("jsonrpc","id","method","params"))&&!response.keySet().equals(Set.of("jsonrpc","id","method","params","traceparent")))throw new FcpException("PROTOCOL","Invalid callback envelope");
                     if(++callbacks>32)throw new FcpException("PROTOCOL","Callback limit exceeded");
                     Map<String,Object> p=obj(response,"params");Object callbackId=response.get("id");if(!(callbackId instanceof String)||!p.keySet().equals(Set.of("dependency","operation","input")))throw new FcpException("PROTOCOL","Invalid dependency callback");
                     Map<String,Object> reply;
-                    try{Object result=context.call(str(p.get("dependency")),str(p.get("operation")),map(p.get("input")));reply=Json.obj("jsonrpc","2.0","id",callbackId,"result",result);}
+                    try(var callbackTrace=TraceContext.open(TraceContext.remoteChild(response.get("traceparent") instanceof String header?header:null))){Object result=context.call(str(p.get("dependency")),str(p.get("operation")),map(p.get("input")));reply=Json.obj("jsonrpc","2.0","id",callbackId,"result",result);}
                     catch(FcpException error){reply=Json.obj("jsonrpc","2.0","id",callbackId,"error",Json.obj("code",-32000,"message",error.getMessage()));}
                     if(System.nanoTime()>=deadline)throw new FcpException("DEADLINE","Dependency exceeded parent budget");send(reply,deadline);continue;
                 }
@@ -137,11 +151,13 @@ public final class ProcessProvider implements Engine.Provider {
                     remoteRejected=true;
                     throw new FcpException(code,"Plugin rejected operation: "+error.getOrDefault("message","unknown"));
                 }
-                return response.get("result");
+                traceOutcome="OK";return response.get("result");
             }
         }catch(IOException|IllegalArgumentException error){stop();throw new FcpException("TRANSPORT","Malformed or interrupted plugin transport",error);}
         catch(FcpException error){if(!remoteRejected)stop();throw error;}
         finally{if(process!=null&&!closed&&!Boolean.TRUE.equals(runtime.get("keepAlive")))scheduleIdle();invocationLock.unlock();}
+        } finally {TraceEvents.record("plugin.rpc",operation,traceOutcome,traceStart);}
+        }
     }
     private void cancelIdle(){idleEpoch++;if(reaper!=null){reaper.cancel(false);reaper=null;}}
     private void scheduleIdle(){

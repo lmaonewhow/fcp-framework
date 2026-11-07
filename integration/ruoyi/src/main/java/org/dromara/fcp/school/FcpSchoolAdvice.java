@@ -19,7 +19,7 @@ public class FcpSchoolAdvice {
             case "RESOURCE_LIMIT"->429;
             case "INVALID_INPUT","BUSINESS_RULE","RESULT_LIMIT"->400;case "DEADLINE"->504;
             case "BUSY","COMMIT_UNKNOWN","STATE_UNAVAILABLE"->503;default->500;};
-        String trace=UUID.randomUUID().toString();if(status>=500)LOG.error("FCP school trace={} code={}",trace,e.code,e);
+        String trace=fcp.observability.TraceContext.ensure().traceId();if(status>=500)LOG.error("FCP school trace={} code={} exception={}",trace,e.code,e.getClass().getSimpleName());
         return ResponseEntity.status(status).body(Map.of("code",status,"msg",status>=500?"FCP execution failed; inspect the server trace":e.getMessage(),
                 "data",Map.of("fcpCode",e.code,"traceId",trace)));
     }

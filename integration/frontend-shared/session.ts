@@ -1,11 +1,13 @@
+import { clearTraceNotice, readResponseJson, responseError } from './trace.js';
 /** Both shells are trusted same-origin applications. No token is sent in URLs or window messages. */
 export const TOKEN_KEY = 'FCP-Host-Token';
 export const readToken = (): string => localStorage.getItem(TOKEN_KEY) || '';
 export const writeToken = (value: string): void => {
+  if (value !== readToken()) clearTraceNotice();
   if (!value) { localStorage.removeItem(TOKEN_KEY); return; }
   localStorage.setItem(TOKEN_KEY, value);
 };
-export const clearToken = (): void => localStorage.removeItem(TOKEN_KEY);
+export const clearToken = (): void => { clearTraceNotice(); localStorage.removeItem(TOKEN_KEY); };
 
 /** Preserve Soybean's storage API/types; intercept only token, including every native caller. */
 export function bridgeStorage<T extends object>(storage: T): T {
@@ -36,8 +38,8 @@ export async function ensureShell(shell: Shell, clientId: string): Promise<boole
     method: 'GET', cache: 'no-store', credentials: 'same-origin',
     headers: { Authorization: `Bearer ${readToken()}`, clientid: clientId }
   });
-  const body = await response.json();
-  if (!response.ok || body.code !== 200) throw new Error('无法取得服务器界面授权');
+  const body = await readResponseJson(response);
+  if (!response.ok || body?.code !== 200) throw responseError('无法取得服务器界面授权', {headers: response.headers, data: body});
   const allowed: unknown = body.data?.allowedShells;
   if (!Array.isArray(allowed)) throw new Error('界面授权响应无效');
   if (allowed.includes(shell)) return false;

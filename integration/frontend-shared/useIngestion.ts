@@ -1,3 +1,4 @@
+import { readResponseJson, responseError } from './trace.js';
 import {computed,onBeforeUnmount,onMounted,ref} from 'vue';
 import {readToken} from './session';
 
@@ -23,7 +24,7 @@ export function useIngestion(){
     const response=await fetch('/fcp/ingestion'+path,{method:input===undefined?'GET':'POST',cache:'no-store',credentials:'same-origin',redirect:'error',signal:controller.signal,
       headers:{Authorization:`Bearer ${token}`,clientid:clientId,'Content-Type':'application/json'},body:input===undefined?undefined:JSON.stringify(input)});
     if(token!==readToken())throw new Error('登录身份已经变化，请重新打开页面');
-    const body=await response.json();if(!response.ok||body.code!==200)throw new Error(typeof body.msg==='string'?body.msg:'宿主请求失败');
+    const body=await readResponseJson(response);if(!response.ok||body?.code!==200)throw responseError(typeof body?.msg==='string'?body.msg:'宿主请求失败',{headers:response.headers,data:body});
     return body.data as T;
   }
   function envelope(input:unknown){if(!state.value)throw new Error('请先加载插件状态');return {input,instance:state.value.instance,generation:state.value.generation,expectedCaller:state.value.caller};}

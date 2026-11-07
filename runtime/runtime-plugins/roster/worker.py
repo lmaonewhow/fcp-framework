@@ -2,12 +2,16 @@
 Atomic class snapshot import; existing identities are conflicts, never overwritten.
 """
 import csv, io, json, sys, re
+from pathlib import Path
+if (Path(__file__).resolve().parents[2] / "observability").is_dir():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "observability"))
+from fcp_trace import scope, outbound_headers
 FIELDS = ('student_code', 'full_name', 'class_code')
 IDENTITY = 'student_code'
 COLLECTION = 'roster'
 
 def call(operation, data):
-    print(json.dumps({'jsonrpc':'2.0','id':'storage','method':'fcp.call','params':{'dependency':'host.storage.'+operation,'operation':'invoke','input':data}}), flush=True)
+    print(json.dumps({'jsonrpc':'2.0','id':'storage','method':'fcp.call','params':{'dependency':'host.storage.'+operation,'operation':'invoke','input':data},**outbound_headers()}), flush=True)
     response=json.loads(sys.stdin.readline())
     if 'error' in response: raise RuntimeError('STORAGE_DENIED')
     return response['result']
@@ -53,7 +57,9 @@ for line in sys.stdin:
         method=request['method'];p=request['params']
         if method=='handshake': result=p
         elif method in ('ready','health','drain','cancel','shutdown'): result={'ok':True}
-        elif method=='invoke': result=invoke(p['capability'],p['input'])
+        elif method=='invoke':
+            with scope(p.get('context', {}).get('traceparent')):
+                result=invoke(p['capability'],p['input'])
         else: raise ValueError('METHOD_DENIED')
         response={'jsonrpc':'2.0','id':request['id'],'result':result}
     except Exception as error: response={'jsonrpc':'2.0','id':request['id'],'error':{'code':-32000,'message':str(error)}}

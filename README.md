@@ -76,6 +76,10 @@ java -jar ruoyi-admin.jar --spring.profiles.active=prod,fcp
 
 演示平台位于 `tests/ingestion/platform.py`，CSV 样例位于 `fixtures/ingestion/`。完整场景从三人名册 API 同步开始，经 CSV 更新为四人名册，再导入和校正考勤，检查停用、权限与重启持久化。详细操作和业务口径见 [数据接入说明](docs/INGESTION.md)。
 
+## 请求问题追踪
+
+新增统一 Trace ID 的入口、原生若依日志/审计关联、跨语言传播、错误页面复制与有界诊断记录。具体已实现范围、查询方法、真实性能证据及未覆盖项见 [请求追踪说明](docs/observability/TRACE.md)。本模块不是已部署的 OpenTelemetry/Collector 平台，不承诺完整链路零丢失或零性能影响。
+
 ## 数据库迁移和生产边界
 
 本分支包含 V004 输入插件权限、V005 运行时状态/存储及 V006 插件管理权限迁移；它们不自动给已有角色授权。既有安装按 [docs/MIGRATIONS.md](docs/MIGRATIONS.md) 生成并审查迁移计划后执行。空库初始化工具不用于覆盖已有数据库。MySQL DDL 失败不承诺自动回滚，运行账号没有 DDL 权限。不得对用户已有库执行清库、强制恢复或 Redis FLUSH 操作。

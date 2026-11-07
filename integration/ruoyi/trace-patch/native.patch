@@ -1,0 +1,64 @@
+--- a/ruoyi-admin/src/main/resources/logback-plus.xml
++++ b/ruoyi-admin/src/main/resources/logback-plus.xml
+@@ -2,8 +2,8 @@
+ <configuration>
+     <property name="log.path" value="./logs"/>
+     <property name="console.log.pattern"
+-              value="%cyan(%d{yyyy-MM-dd HH:mm:ss}) %green([%thread]) %highlight(%-5level) %boldMagenta(%logger{36}%n) - %msg%n"/>
+-    <property name="log.pattern" value="%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"/>
++              value="%cyan(%d{yyyy-MM-dd HH:mm:ss}) %green([%thread]) %highlight(%-5level) %boldMagenta(%logger{36}%n) [traceId=%X{traceId} spanId=%X{spanId} requestId=%X{requestId}] - %msg%n"/>
++    <property name="log.pattern" value="%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} [traceId=%X{traceId} spanId=%X{spanId} requestId=%X{requestId}] - %msg%n"/>
+ 
+     <!-- 控制台输出 -->
+     <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
+@@ -117,6 +117,21 @@
+ <!--        </encoder>-->
+ <!--    </appender>-->
+ 
++    <appender name="fcp_trace_file" class="ch.qos.logback.core.rolling.RollingFileAppender">
++        <file>${log.path}/fcp-request.log</file>
++        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
++            <fileNamePattern>${log.path}/fcp-request.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
++            <maxFileSize>32MB</maxFileSize><maxHistory>7</maxHistory><totalSizeCap>512MB</totalSizeCap>
++        </rollingPolicy>
++        <encoder><pattern>${log.pattern}</pattern><charset>utf-8</charset></encoder>
++    </appender>
++    <appender name="fcp_trace_async" class="org.dromara.fcp.observability.TraceAsyncAppender">
++        <queueSize>2048</queueSize><discardingThreshold>0</discardingThreshold><neverBlock>true</neverBlock>
++        <appender-ref ref="fcp_trace_file"/>
++    </appender>
++    <logger name="fcp.request" level="INFO" additivity="false"><appender-ref ref="fcp_trace_async"/></logger>
++    <logger name="fcp.audit" level="INFO" additivity="false"><appender-ref ref="fcp_trace_async"/></logger>
++
+     <!--系统操作日志-->
+     <root level="info">
+         <appender-ref ref="console" />
+--- a/ruoyi-modules/ruoyi-system/src/main/java/org/dromara/system/service/impl/SysLogininforServiceImpl.java
++++ b/ruoyi-modules/ruoyi-system/src/main/java/org/dromara/system/service/impl/SysLogininforServiceImpl.java
+@@ -73,7 +73,7 @@
+         s.append(getBlock(logininforEvent.getStatus()));
+         s.append(getBlock(logininforEvent.getMessage()));
+         // 打印信息到日志
+-        log.info(s.toString(), logininforEvent.getArgs());
++        log.info("Native login audit recorded");
+         // 获取客户端操作系统
+         String os = userAgent.getOs().getName();
+         // 获取客户端浏览器
+@@ -141,6 +141,7 @@
+         SysLogininfor logininfor = MapstructUtils.convert(bo, SysLogininfor.class);
+         logininfor.setLoginTime(new Date());
+         baseMapper.insert(logininfor);
++        org.slf4j.LoggerFactory.getLogger("fcp.audit").info("native_audit kind=login auditId={}", logininfor.getInfoId());
+     }
+ 
+     /**
+--- a/ruoyi-modules/ruoyi-system/src/main/java/org/dromara/system/service/impl/SysOperLogServiceImpl.java
++++ b/ruoyi-modules/ruoyi-system/src/main/java/org/dromara/system/service/impl/SysOperLogServiceImpl.java
+@@ -95,6 +95,7 @@
+         SysOperLog operLog = MapstructUtils.convert(bo, SysOperLog.class);
+         operLog.setOperTime(new Date());
+         baseMapper.insert(operLog);
++        org.slf4j.LoggerFactory.getLogger("fcp.audit").info("native_audit kind=operation auditId={}", operLog.getOperId());
+     }
+ 
+     /**

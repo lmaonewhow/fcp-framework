@@ -100,6 +100,7 @@ public final class JdbcRecordStore implements RecordStore {
             }
             Map<String,Object> result=Json.obj("scope",scope,"kind",kind,"id",id,"version",expectedVersion+1,"body",body);
             Map<String,Object> event=new LinkedHashMap<>(audit);
+            var trace=fcp.observability.TraceContext.current();if(trace!=null){event.put("traceId",trace.traceId());event.put("requestId",trace.requestId());}
             event.putAll(Json.obj("scope",scope,"kind",kind,"id",id,"subject",subject,"requestKey",requestKey,"version",expectedVersion+1));
             try(PreparedStatement p=c.prepareStatement("INSERT INTO fcp_dual_audit(scope_id,kind,record_id,event_json) VALUES(?,?,?,?)")){
                 args(p,scope,kind,id,Json.write(event));p.executeUpdate();

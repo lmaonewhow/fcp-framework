@@ -1,3 +1,4 @@
+import { clearTraceNotice, readResponseJson, responseError } from './trace.js';
 import { UiRuntime } from './runtime.js';
 const $ = id => document.getElementById(id);
 const text = (tag, value) => { const n = document.createElement(tag); n.textContent = value; return n; };
@@ -25,6 +26,7 @@ const runtime = new UiRuntime({
   }, {}, options.signal)
 });
 function clearIdentity() {
+  clearTraceNotice();
   epoch++; for (const controller of requests) controller.abort(); requests.clear();
   token = ''; identity = emptyIdentity(); plan = null; preview = null; revision = -1; $('approve').checked = false;
   runtime.resetIdentity(); $('token').value = ''; $('workspace').hidden = true; $('logout').hidden = true;
@@ -42,10 +44,10 @@ async function api(path, body, extra = {}, externalSignal) {
       headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': binary ? 'application/octet-stream' : 'application/json' }), ...extra },
       body: body === undefined ? undefined : binary ? body : JSON.stringify(body), signal: controller.signal });
     if (mine !== epoch) throw new Error('身份已变更，丢弃旧响应');
-    if (response.status === 401) { clearIdentity(); throw new Error('开发身份无效或已撤销'); }
-    const envelope = await response.json();
+    if (response.status === 401) { clearIdentity(); throw responseError('开发身份无效或已撤销', {headers: response.headers}); }
+    const envelope = await readResponseJson(response);
     if (mine !== epoch) throw new Error('身份已变更，丢弃旧响应');
-    if (!response.ok || envelope.code !== 200) throw new Error(`${envelope.data?.fcpCode || response.status}: ${envelope.msg || '请求被拒绝'}`);
+    if (!response.ok || envelope?.code !== 200) throw responseError(`${envelope?.data?.fcpCode || response.status}: ${envelope?.msg || '请求被拒绝'}`, {headers: response.headers, data: envelope});
     return envelope.data;
   } finally { requests.delete(controller); externalSignal?.removeEventListener('abort', abort); }
 }
@@ -172,7 +174,8 @@ $('export').addEventListener('click', () => run(async () => {
   const mine = epoch, controller = new AbortController(); requests.add(controller);
   try {
     const response = await fetch(`/fcp/exchange/downloads/${encodeURIComponent(value.handle)}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'omit', cache: 'no-store', signal: controller.signal });
-    if (!response.ok) throw new Error('下载被拒绝，请检查当前授权');
+    if (mine !== epoch) throw new Error('身份已变化，已丢弃下载');
+    if (!response.ok) throw responseError('下载被拒绝，请检查当前授权', {headers: response.headers});
     const blob = await response.blob(); if (mine !== epoch) throw new Error('身份已变化，已丢弃下载');
     const url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = 'fcp-fixture-export.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     $('notice').textContent = '已下载当前身份授权的导出。';

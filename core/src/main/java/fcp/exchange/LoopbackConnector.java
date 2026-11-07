@@ -19,7 +19,7 @@ public final class LoopbackConnector implements ExchangeService.Connector {
     public ExchangeService.Page fetch(String cursor)throws IOException {
         if(cursor.length()>256)throw ExchangeService.fail("CURSOR_LIMIT");
         URI uri=URI.create(endpoint+"?cursor="+URLEncoder.encode(cursor,java.nio.charset.StandardCharsets.UTF_8));
-        try{var response=client.send(HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(10)).GET().build(),HttpResponse.BodyHandlers.ofInputStream());
+        try{var response=client.send(HttpRequest.newBuilder(uri).header("traceparent",fcp.observability.TraceContext.ensure().traceparent()).timeout(Duration.ofSeconds(10)).GET().build(),HttpResponse.BodyHandlers.ofInputStream());
             try(InputStream in=response.body()){if(response.statusCode()!=200)throw ExchangeService.fail("CONNECTOR_FAILED");var m=Schema.map(Json.parse(ExchangeService.read(in)));if(!m.keySet().equals(Set.of("content","nextCursor")))throw ExchangeService.fail("CONNECTOR_SCHEMA");return new ExchangeService.Page(Schema.str(m.get("content")),m.get("nextCursor")==null?null:Schema.str(m.get("nextCursor")));}
         }catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("Connector interrupted",e);}
     }
