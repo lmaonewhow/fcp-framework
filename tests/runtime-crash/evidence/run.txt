@@ -1,0 +1,28 @@
+UTC: 2026-11-07T13:35:32Z
+Command: bash tests/runtime-crash/run.sh /workspace/shared/fcp-runtime/reports/runtime-crash/20261107T133532Z-2
+Baseline: b711ed7d7760223c5636b869ada4089582700bbf
+Branch: feat/runtime-native-storage
+openjdk version "21.0.2" 2024-01-16
+OpenJDK Runtime Environment (build 21.0.2+13-58)
+OpenJDK 64-Bit Server VM (build 21.0.2+13-58, mixed mode, sharing)
+javac 21.0.2
+Python 3.12.14
+v22.14.0
+OS: Linux 681d6ab357e9 6.18.57 #1 SMP Tue Oct 20 21:56:04 UTC 2026 x86_64 GNU/Linux
+Compile command: javac -g --release 17 --add-modules jdk.jdi -d BUILD core/src/main/java/**/*.java tests/runtime-crash/*.java
+Execution: java --add-modules jdk.jdi -cp BUILD CrashRecoveryTest run OUTPUT PYTHON NODE
+PASS python STAGED: abrupt exit, denied recovery, allowed recovery, second JVM restart
+PASS python VERIFIED: abrupt exit, denied recovery, allowed recovery, second JVM restart
+PASS python INTENT: abrupt exit, denied recovery, allowed recovery, second JVM restart
+PASS python READY: abrupt exit, denied recovery, allowed recovery, second JVM restart
+PASS python PUBLISHED: abrupt exit, denied recovery, allowed recovery, second JVM restart
+PASS python RECEIPT: abrupt exit, denied recovery, allowed recovery, second JVM restart
+PASS node STAGED: abrupt exit, denied recovery, allowed recovery, second JVM restart
+PASS node VERIFIED: abrupt exit, denied recovery, allowed recovery, second JVM restart
+PASS node INTENT: abrupt exit, denied recovery, allowed recovery, second JVM restart
+PASS node READY: abrupt exit, denied recovery, allowed recovery, second JVM restart
+PASS node PUBLISHED: abrupt exit, denied recovery, allowed recovery, second JVM restart
+PASS node RECEIPT: abrupt exit, denied recovery, allowed recovery, second JVM restart
+{"result":"PASS","completedAt":"2026-11-07T13:36:00.081945137Z","crashCases":12,"failedCases":0,"journal":"FileStateJournal (real fsync/atomic rename, not MySQL)","productionClassesModifiedForInjection":false,"boundaries":["STAGED","VERIFIED","INTENT","READY","PUBLISHED","RECEIPT"],"languages":["python","node"],"nativeMySqlAcceptance":"NOT_RUN","powerFailureDurability":"NOT_RUN","multiNodeRecovery":"NOT_RUN","cases":[{"language":"python","point":"STAGED","evidence":"python-staged","crashExitCode":86,"denyExitCode":0,"recoverExitCode":0,"verifyExitCode":0,"revokedRecoveryUsesIndependentCrashStateCopy":true,"orphanStagingRetained":true,"result":"PASS"},{"language":"python","point":"VERIFIED","evidence":"python-verified","crashExitCode":86,"denyExitCode":0,"recoverExitCode":0,"verifyExitCode":0,"revokedRecoveryUsesIndependentCrashStateCopy":true,"result":"PASS"},{"language":"python","point":"INTENT","evidence":"python-intent","crashExitCode":86,"denyExitCode":0,"recoverExitCode":0,"verifyExitCode":0,"revokedRecoveryUsesIndependentCrashStateCopy":true,"result":"PASS"},{"language":"python","point":"READY","evidence":"python-ready","crashExitCode":86,"denyExitCode":0,"recoverExitCode":0,"verifyExitCode":0,"revokedRecoveryUsesIndependentCrashStateCopy":true,"result":"PASS"},{"language":"python","point":"PUBLISHED","evidence":"python-published","crashExitCode":86,"denyExitCode":0,"recoverExitCode":0,"verifyExitCode":0,"revokedRecoveryUsesIndependentCrashStateCopy":true,"result":"PASS"},{"language":"python","point":"RECEIPT","evidence":"python-receipt","crashExitCode":86,"denyExitCode":0,"recoverExitCode":0,"verifyExitCode":0,"revokedRecoveryUsesIndependentCrashStateCopy":true,"result":"PASS"},{"language":"node","point":"STAGED","evidence":"node-staged","crashExitCode":86,"denyExitCode":0,"recoverExitCode":0,"verifyExitCode":0,"revokedRecoveryUsesIndependentCrashStateCopy":true,"orphanStagingRetained":true,"result":"PASS"},{"language":"node","point":"VERIFIED","evidence":"node-verified","crashExitCode":86,"denyExitCode":0,"recoverExitCode":0,"verifyExitCode":0,"revokedRecoveryUsesIndependentCrashStateCopy":true,"result":"PASS"},{"language":"node","point":"INTENT","evidence":"node-intent","crashExitCode":86,"denyExitCode":0,"recoverExitCode":0,"verifyExitCode":0,"revokedRecoveryUsesIndependentCrashStateCopy":true,"result":"PASS"},{"language":"node","point":"READY","evidence":"node-ready","crashExitCode":86,"denyExitCode":0,"recoverExitCode":0,"verifyExitCode":0,"revokedRecoveryUsesIndependentCrashStateCopy":true,"result":"PASS"},{"language":"node","point":"PUBLISHED","evidence":"node-published","crashExitCode":86,"denyExitCode":0,"recoverExitCode":0,"verifyExitCode":0,"revokedRecoveryUsesIndependentCrashStateCopy":true,"result":"PASS"},{"language":"node","point":"RECEIPT","evidence":"node-receipt","crashExitCode":86,"denyExitCode":0,"recoverExitCode":0,"verifyExitCode":0,"revokedRecoveryUsesIndependentCrashStateCopy":true,"result":"PASS"}]}
+Exit code: 0
+Evidence: /workspace/shared/fcp-runtime/reports/runtime-crash/20261107T133532Z-2

@@ -39,3 +39,5 @@ Drain is nonblocking at the coordinator. Admission closes first; outstanding cal
 ## Remaining validation and limitations
 
 A real native RuoYi HTTP/UI/MySQL acceptance run, independent process-kill fault matrix across all six publication phases, production recovery authority/scheduling, hostile-process isolation, multi-node fencing, long-duration stability and schema migration/upgrade/rollback acceptance are not covered here. Nonempty storage schema declarations fail with STORAGE_ADAPTER_REQUIRED by default. A host can inject a startup-only read-only StorageCompatibilityVerifier; approved schema deployment/migrations remain a separate deployment port. Plugins using approved JSON record host capabilities can leave storage declarations empty. Uninstall never deletes business data. A04–A17 are not claimed wholly complete.
+
+The independent `tests/runtime-crash/run.sh` now covers six actual JVM crash points with Python and Node, direct and revoked recovery. This is FileStateJournal evidence, not a MySQL crash matrix; see its README for exact limits.

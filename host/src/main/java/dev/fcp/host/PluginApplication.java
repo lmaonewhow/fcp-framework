@@ -104,7 +104,7 @@ public final class PluginApplication {
         if(snapshot.generation()!=expected)throw new FcpException("VERSION_CONFLICT","Plugin catalog changed");
         for(var entry:snapshot.enabledManifests().entrySet())for(var capability:entry.getValue().provides())
             if(EngineRuntimePort.export(entry.getKey(),capability.id()).equals(exported)) {
-                if(capability.id().equals("exchange.commit"))throw new FcpException("CONFIRMATION_REQUIRED","Use the exchange preview and confirmation endpoint");
+                if(capability.id().startsWith("exchange."))throw new FcpException("CONFIRMATION_REQUIRED","Use the scoped exchange endpoints");
                 return runtime.invoke(context,entry.getKey(),capability.id(),input,key,expected);
             }
         throw new FcpException("PLUGIN_DISABLED","Capability unavailable");
