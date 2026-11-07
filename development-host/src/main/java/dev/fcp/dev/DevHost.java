@@ -240,6 +240,6 @@ public final class DevHost implements AutoCloseable {
             for(Object value:arr(id,"grants")){var grant=map(value);if(g.pluginId().equals(grant.get("plugin"))&&g.capability().equals(grant.get("capability"))&&g.operation().equals(grant.get("operation"))&&g.dataScope().equals(grant.get("dataScope"))&&permissions.contains(grant.get("permission")))return new Decision(true,revision());}
             return new Decision(false,revision());
         }
-        public synchronized void audit(Audit e){try{Files.writeString(audit,Json.write(Json.obj("requestId",e.requestId(),"tenantId",e.tenantId(),"principal",e.principalId(),"pluginId",e.pluginId(),"action",e.action(),"outcome",e.outcome(),"at",e.occurredAt().toString()))+"\n",StandardOpenOption.CREATE,StandardOpenOption.APPEND);}catch(IOException error){throw new FcpException("AUDIT_UNAVAILABLE","Development audit failed",error);}}
+        public synchronized void audit(Audit e){try{Files.writeString(audit,Json.write(Json.obj("requestId",e.requestId(),"traceId",e.traceId(),"tenantId",e.tenantId(),"principal",e.principalId(),"pluginId",e.pluginId(),"action",e.action(),"outcome",e.outcome(),"at",e.occurredAt().toString()))+"\n",StandardOpenOption.CREATE,StandardOpenOption.APPEND);}catch(IOException error){throw new FcpException("AUDIT_UNAVAILABLE","Development audit failed",error);}}
     }
 }

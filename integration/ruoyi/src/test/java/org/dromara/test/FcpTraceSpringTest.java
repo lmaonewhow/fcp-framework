@@ -39,12 +39,11 @@ class FcpTraceSpringTest {
     @Autowired DataSource source;
     @Autowired ApplicationEventPublisher events;
     @Autowired @Qualifier("applicationTaskExecutor") AsyncTaskExecutor executor;
+    private final HttpClient client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private HttpResponse<String> get(String path) throws Exception {
-        try(var client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build()) {
             return client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path))
                 .timeout(Duration.ofSeconds(15)).header("traceparent","00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
                 .GET().build(),HttpResponse.BodyHandlers.ofString());
-        }
     }
     private String trace(HttpResponse<String> response) {
         String trace=response.headers().firstValue("X-Trace-Id").orElseThrow();

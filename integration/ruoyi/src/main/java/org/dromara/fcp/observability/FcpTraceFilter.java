@@ -16,6 +16,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class FcpTraceFilter implements Filter {
     public static final String ATTRIBUTE = FcpTraceFilter.class.getName()+".state";
     private static final Logger LOG = LoggerFactory.getLogger("fcp.request");
+    private static final Set<String> METHODS=Set.of("GET","POST","PUT","PATCH","DELETE","HEAD","OPTIONS","TRACE");
+    private static final java.util.regex.Pattern ROUTE=java.util.regex.Pattern.compile("[A-Za-z0-9_/{\\}.*:-]+");
     private final Set<String> peers;
     public FcpTraceFilter(Set<String> peers) { this.peers=Set.copyOf(peers); }
     private static final class State {
@@ -58,8 +60,8 @@ public final class FcpTraceFilter implements Filter {
         if(!state.completed.compareAndSet(false,true))return;
         // Matched templates only, never raw URI/query (which may contain user identifiers/secrets).
         Object pattern=request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
-        String route=pattern instanceof String value && value.length()<=256 && value.matches("[A-Za-z0-9_/{\\}.*:-]+")?value:"unmatched";
-        String method=Set.of("GET","POST","PUT","PATCH","DELETE","HEAD","OPTIONS","TRACE").contains(request.getMethod())?request.getMethod():"OTHER";
+        String route=pattern instanceof String value && value.length()<=256 && ROUTE.matcher(value).matches()?value:"unmatched";
+        String method=METHODS.contains(request.getMethod())?request.getMethod():"OTHER";
         try(var ignored=NativeTrace.open(state.trace)) {
             LOG.info("request_complete method={} route={} status={} durationMs={} failed={} droppedTotal={}",method,route,
                 state.failed?Math.max(500,response.getStatus()):response.getStatus(),(System.nanoTime()-state.started)/1_000_000,state.failed,TraceAsyncAppender.droppedCount());

@@ -32,6 +32,8 @@ Python ContextVar 和 Node AsyncLocalStorage 的标准库示例在 runtime/obser
 
 运行 python3 tools/verify_observability.py，产生带实际源码哈希、Git 提交、命令、退出码和原始日志的 reports/observability。包含 W3C 信任边界、复用线程清理、真实 Python/Node RPC、Python HTTP opt-in、阻塞日志 sink 的有界丢弃测试与微基准。TraceBenchmark 是上下文创建/绑定/序列化/清理的微基准，不是 HTTP、数据库或生产 P95；报告只能用于对应机器和源码。
 
+可运行 python3 tools/measure_trace_overhead.py --baseline-ref <已验证基线提交>，在同机独立临时目录交替启动基线/候选开发宿主，用合成身份对回环 /fcp/session 做真实 HTTP A/B。默认每轮4并发、1000预热、8000请求，保留每轮P50/P95/P99、吞吐、错误与诊断事件计数；不接数据库、不冒充若依或生产性能，也不平均分位数。
+
 双前端的严格补丁及 DOM/HTTP doubles 回归在 trace-frontend 工作流；native-ingestion 工作流构建精确锁定 RuoYi 与双 UI，并运行 prod-tagged Trace 边界、周期任务、真实 loopback HTTP/Spring 测试。DOM doubles、组件编译、Spring 测试及真实浏览器验收是不同层次。结果必须以对应 head 的实际 CI 产物为准，存在测试代码不算已经 PASS。本地 Maven 下载被 DNS 阻断时明确 BLOCKED，不以 mock 代替原生。
 
 ## 未完成的覆盖

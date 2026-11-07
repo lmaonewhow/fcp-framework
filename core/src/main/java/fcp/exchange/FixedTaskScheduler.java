@@ -2,6 +2,7 @@ package fcp.exchange;
 
 import fcp.host.TrustedContext;
 import fcp.observability.TraceContext;
+import fcp.observability.TraceEvents;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -20,7 +21,7 @@ public final class FixedTaskScheduler implements AutoCloseable {
     public FixedTaskScheduler(ExchangeService service,TaskContexts contexts,List<Schedule> schedules,BiConsumer<Schedule,Throwable> failure){
         Objects.requireNonNull(failure);Set<String> seen=new HashSet<>();
         for(Schedule s:schedules){if(!seen.add(s.tenant()+"/"+s.taskPrincipal()+"/"+s.config())){executor.shutdownNow();throw new IllegalArgumentException("Duplicate schedule");}
-            executor.scheduleWithFixedDelay(()->{try(var traceScope=TraceContext.open(TraceContext.start(null,false))){try{TrustedContext c=contexts.authenticate(s.tenant(),s.taskPrincipal());if(c.principal().kind()!=TrustedContext.Kind.TASK||!c.principal().id().equals(s.taskPrincipal())||!c.tenantId().equals(s.tenant()))throw new SecurityException("Task context mismatch");service.runTask(c,s.config());}catch(Exception e){failure.accept(s,e);}}},s.interval().toMillis(),s.interval().toMillis(),TimeUnit.MILLISECONDS);
+            executor.scheduleWithFixedDelay(()->{try(var traceScope=TraceContext.open(TraceContext.start(null,false))){long started=System.nanoTime();String outcome="ERROR";try{TrustedContext c=contexts.authenticate(s.tenant(),s.taskPrincipal());if(c.principal().kind()!=TrustedContext.Kind.TASK||!c.principal().id().equals(s.taskPrincipal())||!c.tenantId().equals(s.tenant()))throw new SecurityException("Task context mismatch");service.runTask(c,s.config());outcome="OK";}catch(Exception e){failure.accept(s,e);}finally{TraceEvents.record("task.exchange","run",outcome,started);}}},s.interval().toMillis(),s.interval().toMillis(),TimeUnit.MILLISECONDS);
         }
     }
     public void close(){executor.shutdown();try{if(!executor.awaitTermination(15,TimeUnit.SECONDS))throw new IllegalStateException("Task still in flight; retain exchange service until drained");}catch(InterruptedException e){Thread.currentThread().interrupt();throw new IllegalStateException("Task drain interrupted",e);}}

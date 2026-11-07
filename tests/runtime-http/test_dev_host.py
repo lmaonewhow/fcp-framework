@@ -43,6 +43,8 @@ class DevHostTest(unittest.TestCase):
      self.assertRegex(r.headers['X-Trace-Id'],r'^[0-9a-f]{32}$');self.assertNotEqual(r.headers['X-Trace-Id'],'1'*32)
     data=package.read_bytes();headers={'Content-Type':'application/octet-stream','X-Fcp-Digest':hashlib.sha256(data).hexdigest(),'Idempotency-Key':'install-one','X-Fcp-Revision':'0'}
     installed=request('/fcp/packages',data,headers);self.assertEqual(installed['state'],'INSTALLED')
+    audit_rows=[json.loads(line) for line in (work/'state/audit.jsonl').read_text().splitlines()]
+    self.assertTrue(any(row.get('traceId')==last_trace[0] for row in audit_rows),'installation audit must use HTTP trace')
     replay=request('/fcp/packages',data,headers);self.assertTrue(replay['replayed'])
     self.assertEqual(request('/fcp/ui/catalog')['catalog']['pages'],[])
     status=request('/fcp/plugins/test.echo')

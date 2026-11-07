@@ -38,6 +38,10 @@ public final class TraceEvents {
         Holder.INSTANCE.record(new Event(label(kind),label(operation),label(outcome),Math.max(0,System.nanoTime()-startedNanos),trace.traceId(),trace.spanId(),trace.parentSpanId(),trace.requestId()));
     }
     /** Labels are implementation-controlled, never request input/error messages. */
-    private static String label(String value){return value!=null&&value.length()<=96&&value.matches("[A-Za-z0-9_.:-]{1,96}")?value:"other";}
+    private static String label(String value){
+        if(value==null||value.isEmpty()||value.length()>96)return "other";
+        for(int i=0;i<value.length();i++){char c=value.charAt(i);if(!(c>='A'&&c<='Z'||c>='a'&&c<='z'||c>='0'&&c<='9'||c=='_'||c=='.'||c==':'||c=='-'))return "other";}
+        return value;
+    }
     public static Map<String,Long> metrics(){return Holder.INSTANCE.metrics();}
 }
