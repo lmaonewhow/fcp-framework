@@ -24,9 +24,17 @@ final class InvocationJournal implements AutoCloseable {
     synchronized void complete(String key,Object result){live();Map<String,Object> r=Schema.map(records.get(key));r.put("outcome","COMPLETE");r.put("result",Json.copy(result));persist();}
     synchronized void reserveRestart(String plugin,Instant now,int budget){
         live();String key="runner:"+plugin;List<String> attempts=new ArrayList<>();Object raw=records.get(key);if(raw!=null)for(Object t:Schema.list(raw)){Instant time=Instant.parse(Schema.str(t));if(!time.isBefore(now.minusSeconds(60)))attempts.add(time.toString());}
-        if(attempts.size()>=budget)throw new FcpException("RESTART_BUDGET","Runner restart budget exhausted");
+        Set<String> clean=new HashSet<>();Object savedClean=records.get("runner-clean:"+plugin);if(savedClean!=null)for(Object t:Schema.list(savedClean))clean.add(Schema.str(t));clean.retainAll(attempts);
+        if(attempts.stream().filter(t->!clean.contains(t)).count()>=budget)throw new FcpException("RESTART_BUDGET","Runner restart budget exhausted");
         if(!attempts.isEmpty()&&now.isBefore(Instant.parse(attempts.get(attempts.size()-1)).plusMillis(250)))throw new FcpException("RESTART_BACKOFF","Runner restart backoff active",Math.max(1,(java.time.Duration.between(now,Instant.parse(attempts.get(attempts.size()-1)).plusMillis(250)).toNanos()+999999)/1000000));
-        attempts.add(now.toString());records.put(key,attempts);persist();
+        attempts.add(now.toString());records.put(key,attempts);records.put("runner-clean:"+plugin,new ArrayList<>(clean));persist();
+    }
+    /** Refund only this acknowledged clean session, never previous crash/unknown attempts.
+     * All attempt timestamps remain available to enforce the minimum restart interval. */
+    synchronized void completeCleanSession(String plugin,Instant attempt){
+        live();Object raw=records.get("runner:"+plugin);if(raw==null||!Schema.list(raw).contains(attempt.toString()))return;
+        Set<String> clean=new TreeSet<>();Object saved=records.get("runner-clean:"+plugin);if(saved!=null)for(Object t:Schema.list(saved))clean.add(Schema.str(t));
+        clean.add(attempt.toString());records.put("runner-clean:"+plugin,new ArrayList<>(clean));persist();
     }
     private void live(){if(poisoned)throw new FcpException("JOURNAL_UNAVAILABLE","Invocation journal failed");}
     private void persist(){try{revision=storage.compareAndSet(revision,Json.write(records)).revision();}catch(IOException e){poisoned=true;throw new FcpException("JOURNAL_UNAVAILABLE","Outcome persistence failed",e);}}

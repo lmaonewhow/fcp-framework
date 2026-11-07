@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Build deterministic trusted development fixture archives; does not install or grant them."""
 import argparse, hashlib, json, pathlib, zipfile
+from check_plugin_dependencies import check_plugin_directory
 parser=argparse.ArgumentParser();parser.add_argument('--output',type=pathlib.Path,required=True);args=parser.parse_args()
 root=pathlib.Path(__file__).resolve().parents[1];args.output.mkdir(parents=True,exist_ok=True)
 for name in ('roster','mock-exam'):
+    check_plugin_directory(root/'runtime/runtime-plugins'/name)
     output=args.output/(name+'-1.0.0.zip')
     with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as archive:
         for file in ('plugin.json','worker.py'):

@@ -12,8 +12,12 @@ javac --release 17 -d "$BUILD" $(find core/src/main/java -name '*.java') tests/r
 java -cp "$BUILD" LifecycleTest
 java -cp "$BUILD" EnablementPolicyTest
 FCP_TEST_SECRET=must_not_leak java -cp "$BUILD" RealRuntimeTest "$(command -v python3)" "$(command -v node)"
+java -cp "$BUILD" fcp.runtime.RestartJournalTest
+java -cp "$BUILD" CleanStopTerminationTest "$(command -v python3)"
+java -cp "$BUILD" RestartSessionBudgetTest "$(command -v python3)"
 java -cp "$BUILD" HostPortsRuntimeTest "$(command -v python3)"
 java -cp "$BUILD" ProcessRuntimeExtensionsTest "$(command -v python3)"
+java -cp "$BUILD" ProcessIdentityReuseTest "$(command -v python3)"
 java -cp "$BUILD" CatalogPublicationTest
 java -cp "$BUILD" ProcessTerminationRegression
 java -cp "$BUILD" ProcessTreeRegression

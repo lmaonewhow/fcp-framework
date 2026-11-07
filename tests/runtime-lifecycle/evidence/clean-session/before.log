@@ -1,0 +1,5 @@
+Exception in thread "main" fcp.FcpException: Runner restart budget exhausted
+	at fcp.runtime.InvocationJournal.reserveRestart(InvocationJournal.java:27)
+	at fcp.runtime.EngineRuntimePort.prepare(EngineRuntimePort.java:127)
+	at RestartSessionBudgetTest.main(RestartSessionBudgetTest.java:8)
+Baseline exit=1 (expected failure at fourth clean start)

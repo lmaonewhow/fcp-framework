@@ -31,6 +31,8 @@ jobs:
         run: python3 tools/verify_runtime_contracts.py
       - name: Runtime lifecycle and real HTTP verification
         run: python3 tools/verify_runtime_lifecycle.py
+      - name: Shared host semantics and plugin dependency boundary
+        run: python3 tools/verify_runtime_portability.py
       - name: Runtime storage boundary verification
         run: python3 tools/verify_runtime_storage.py
       - name: Runtime exchange process verification
@@ -55,6 +57,8 @@ jobs:
             reports/runtime-lifecycle/
             reports/runtime-storage/
             reports/runtime-crash/
+            reports/runtime-portability/
+            reports/runtime-versions/
             reports/components.json
             reports/legacy-regressions.json
             reports/ingestion.json

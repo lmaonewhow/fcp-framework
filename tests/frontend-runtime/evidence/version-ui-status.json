@@ -1,0 +1,22 @@
+{
+  "status": "LOCAL_UNIT_PASS_NATIVE_NOT_RUN",
+  "versionVueTestsPerDependencySet": 14,
+  "dependencySets": [
+    "admin",
+    "teacher"
+  ],
+  "sharedStrictVueTypecheck": "PASS",
+  "uiBoundaryGuardUnitTests": 3,
+  "nativeVersionBuild": "NOT_RUN_PENDING_FINAL_CI",
+  "nativeUiBoundaryBrowser": "NOT_RUN_PENDING_CI",
+  "localBootstrap": "BLOCKED_CHROMIUM_SANDBOX_SOCKET",
+  "sourceSha256": {
+    "integration/frontend-shared/useVersionManager.ts": "7b553a13f950387b44d9d080ee4221c04a4f61c1da20a7e6a54929115b745107",
+    "integration/frontend-shared/VersionManager.vue": "7b92198236451cb1ebfd97f47c07fcbcde3204fa1eaad2f90dcd2ac0421554dc",
+    "integration/frontend-shared/PluginManager.vue": "9a231b1b92ce269434b680addef91046a43cc3849262c2a48e28708e78344d29",
+    "tests/frontend-runtime/vue-version.test.mjs": "572d9975f0b9d84666790aedae5af813aada18dd3660d948d25e9ed5be444812",
+    "tests/frontend-runtime/verify-vue-host.mjs": "1340f2479ef10a3589ef353171b418771caf1c61c4145f90ae4760f55c16b76b",
+    "tests/runtime-native/ui_boundaries.py": "28054a0b1f0a3e03009bc1fa9fae8a105d138df19a76f2b3270f91a2fc5b6da6",
+    "tests/runtime-native/test_ui_boundaries.py": "da13f3b6d7b3f5619a2826cdb1166bef1e323fd6f328fedba26f3f97af788b9e"
+  }
+}

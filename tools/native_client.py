@@ -40,7 +40,11 @@ class NativeClient:
   return status,result
  def data(self,path:str,body:dict|None=None):
   status,result=self.request(path,body)
-  if status>=400 or str(result.get('code'))!='200': raise RuntimeError(f'{path} rejected: HTTP={status}, code={result.get("code")}')
+  if not isinstance(result,dict): raise RuntimeError(f'{path} returned a non-object native envelope')
+  if status>=400 or str(result.get('code'))!='200':
+   metadata=result.get('data');raw=metadata.get('fcpCode') if isinstance(metadata,dict) else None
+   fcp_code=raw if isinstance(raw,str) and re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}',raw) else 'UNAVAILABLE'
+   raise RuntimeError(f'{path} rejected: HTTP={status}, code={result.get("code")}, fcpCode={fcp_code}')
   return result['data']
  def snapshot(self): return self.data('/fcp/school/bootstrap')
  def invoke(self,snapshot,operation,params):

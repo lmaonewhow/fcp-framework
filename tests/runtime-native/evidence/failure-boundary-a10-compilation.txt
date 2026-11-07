@@ -1,0 +1,3 @@
+Independent source snapshot: /tmp/fcp-failure-a10-yjztlp5a
+Command: javac --release 17 -encoding UTF-8 -sourcepath /tmp/fcp-failure-a10-yjztlp5a/core -d /tmp/fcp-failure-a10-yjztlp5a/classes /tmp/fcp-failure-a10-yjztlp5a/fixtures/FailureFixturePackageTest.java /tmp/fcp-failure-a10-yjztlp5a/fixtures/MysqlFailureBoundariesTest.java
+Exit code: 0

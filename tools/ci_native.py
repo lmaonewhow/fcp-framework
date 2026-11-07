@@ -11,6 +11,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools'))
 from native import doctor
 from ci_cleanup import OwnedDisposableDirectory,record_private_cleanup
+from ci_native_modules import NativeModule,run_native_modules
 
 class PrerequisiteError(RuntimeError):
  """The isolated CI environment is missing an explicitly required prerequisite."""
@@ -34,8 +35,8 @@ def run()->int:
  parser=argparse.ArgumentParser(description=__doc__)
  parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');a=parser.parse_args()
  if a.exchange and not a.ingestion:parser.error('--exchange requires genuine --ingestion login fixture')
- report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'production':'BLOCKED'}
- process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None
+ report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeStorageLifecycle':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'production':'BLOCKED'}
+ process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None;failure_fixture=None;storage_lifecycle_fixture=None;deployment_user=None;deployment_password=None
  try:
   if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')
   requirements=doctor()
@@ -81,6 +82,15 @@ def run()->int:
     sys.path.insert(0,str(ROOT/'tests/runtime-native'))
     from native_runtime_acceptance import RuntimeFixture
     runtime_fixture=RuntimeFixture(database,sql,private_dir,fixture)
+    from failure_boundaries import FailureBoundaryFixture, run_mysql_failure_boundaries
+    failure_fixture=FailureBoundaryFixture(database,sql,private_dir,fixture)
+    from storage_lifecycle_acceptance import StorageLifecycleFixture
+    storage_lifecycle_fixture=StorageLifecycleFixture(database,sql,private_dir,fixture)
+    if not a.exchange:
+     deployment_user='fcpm_'+secrets.token_hex(6);deployment_password=secrets.token_hex(24)
+     sql(f"CREATE USER '{deployment_user}'@'%' IDENTIFIED BY '{deployment_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX ON `{database}`.* TO '{deployment_user}'@'%';")
+     props+='\nfcp.runtime.storage-deployment.enabled=true\nFCP_STORAGE_DEPLOYMENT_JDBC_URL='+url+'\nFCP_STORAGE_DEPLOYMENT_USER='+deployment_user+'\nFCP_STORAGE_DEPLOYMENT_PASSWORD='+deployment_password+'\n'
+
    props+='\nFCP_INGESTION_CONNECTIONS='+str(fixture.connection_file)+'\n'
    if a.exchange:
     sys.path.insert(0,str(ROOT/'tests/runtime-exchange'))
@@ -103,19 +113,29 @@ def run()->int:
    matches=[n for n in archive.namelist() if re.fullmatch(r'BOOT-INF/lib/mysql-connector-j-[^/]+\.jar',n)]
    if len(matches)!=1:raise RuntimeError('One native MySQL Connector/J dependency is required')
    driver.write_bytes(archive.read(matches[0]))
+  if exchange_fixture:
+   retention_classes=ROOT/'build/export-retention-native';retention_classes.mkdir(parents=True,exist_ok=True)
+   retention_sources=sorted((ROOT/'core/src/main/java').rglob('*.java'))+[ROOT/'tests/runtime-exchange/NativeExportRetentionProbe.java']
+   command(['javac','--release','17','-encoding','UTF-8','-d',retention_classes,*retention_sources],timeout=120)
+   retention_env=os.environ.copy();retention_env.update(FCP_EXCHANGE_RETENTION_TEST_URL=url,FCP_EXCHANGE_RETENTION_TEST_USER=runtime_user,FCP_EXCHANGE_RETENTION_TEST_PASSWORD=runtime_password)
+   exchange_fixture.configure_retention_probe(['java','-cp',str(retention_classes)+os.pathsep+str(driver),'NativeExportRetentionProbe'],retention_env)
   # Classes were built by the preceding component job step. This invocation uses a REAL database driver.
   command(['java','-cp',str(ROOT/'build/component-classes')+os.pathsep+str(driver),'RealMySqlRegression',jdbc],timeout=120)
   report['mysqlAdapter']='PASS'
   # New storage checks execute against this freshly-created database, not a JDBC proxy.
   if (ROOT/'tests/runtime-storage/MysqlStorageTest.java').is_file():
-   deployment_user='fcpm_'+secrets.token_hex(6);deployment_password=secrets.token_hex(24)
-   sql(f"CREATE USER '{deployment_user}'@'%' IDENTIFIED BY '{deployment_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX ON `{database}`.* TO '{deployment_user}'@'%';")
+   if deployment_user is None:
+    deployment_user='fcpm_'+secrets.token_hex(6);deployment_password=secrets.token_hex(24)
+    sql(f"CREATE USER '{deployment_user}'@'%' IDENTIFIED BY '{deployment_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX ON `{database}`.* TO '{deployment_user}'@'%';")
    storage_classes=ROOT/'build/runtime-storage-native';storage_classes.mkdir(parents=True,exist_ok=True)
    storage_sources=sorted((ROOT/'core/src/main/java').rglob('*.java'))+sorted((ROOT/'tests/runtime-storage').glob('*.java'))
    command(['javac','--release','17','-encoding','UTF-8','-d',storage_classes,*storage_sources],timeout=120)
    storage_env=os.environ.copy();storage_env.update(FCP_STORAGE_TEST_URL=url,FCP_STORAGE_TEST_USER=runtime_user,FCP_STORAGE_TEST_PASSWORD=runtime_password,FCP_STORAGE_TEST_DEPLOY_USER=deployment_user,FCP_STORAGE_TEST_DEPLOY_PASSWORD=deployment_password)
    command(['java','-cp',str(storage_classes)+os.pathsep+str(driver),'MysqlStorageTest'],env=storage_env,timeout=180)
    report['runtimePluginStorage']='PASS'
+   if failure_fixture:
+    failure_mysql=run_mysql_failure_boundaries(driver,storage_env)
+    report['runtimeMysqlFailureBoundaries']={'status':failure_mysql['status'],'totalChecks':failure_mysql['totalChecks']}
   # Grant-binding probes own a second fresh database: never modify the native lifecycle journal.
   grant_test=ROOT/'tests/runtime-storage/native/MysqlGrantBindingTest.java'
   if grant_test.is_file():
@@ -165,12 +185,23 @@ def run()->int:
    os.environ['FCP_ACCEPTANCE_DATABASE']=database
    result=fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],restart)
    report.update(scope=result['scope'],browser=result['status'],ingestion=result['status'],nativeChecks=result['totalChecks'])
+   def native_pid():return process.pid if process and process.poll() is None else None
+   modules=[]
    if runtime_fixture:
-    runtime_result=runtime_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],lambda: process.pid if process and process.poll() is None else None)
-    report['runtimePlugins']={'status':runtime_result['status'],'totalChecks':runtime_result['totalChecks'],'browser':runtime_result['browser'],'backendPidUnchanged':runtime_result['backendPidUnchanged']}
+    modules.append(NativeModule('runtimePlugins',lambda:runtime_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'browser':value['browser'],'backendPidUnchanged':value['backendPidUnchanged']}))
+   if storage_lifecycle_fixture:
+    modules.append(NativeModule('runtimeStorageLifecycle',lambda:storage_lifecycle_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
+     lambda value:{'status':value['status'],'acceptance':'A11','totalChecks':value['totalChecks'],'snapshots':len(value['snapshots'])}))
+   if failure_fixture:
+    modules.append(NativeModule('runtimeFailureBoundaries',lambda:failure_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks']}))
    if exchange_fixture:
-    exchange_result=exchange_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],lambda: process.pid if process and process.poll() is None else None)
-    report['runtimeExchange']={'status':exchange_result['status'],'totalChecks':exchange_result['totalChecks'],'authorizationManagement':exchange_result['authorizationManagement']}
+    modules.append(NativeModule('runtimeExchange',lambda:exchange_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'authorizationManagement':value['authorizationManagement']}))
+   run_native_modules(report,modules,prerequisites_passed=result.get('status')=='PASS' and bool(report.get('build',{}).get('buildId')),
+    host_alive=lambda:process is not None and process.poll() is None,
+    secrets_provider=lambda:[*fixture.diagnostic_secrets,fixture.password])
 
  except Exception as error:report.update(status=failure_status(error),error=type(error).__name__+': '+str(error))
  finally:

@@ -12,7 +12,7 @@ import java.util.*;
 public final class FcpPluginAdvice {
     @ExceptionHandler(FcpException.class)
     public ResponseEntity<Map<String,Object>> handle(FcpException e) {
-        int status=switch(e.code){case "UNAUTHENTICATED"->401;case "PERMISSION_DENIED","FORBIDDEN"->403;case "INVALID_ARGUMENT","MANIFEST","SCHEMA","TYPE"->400;
+        int status=switch(e.code){case "UNAUTHENTICATED"->401;case "PERMISSION_DENIED","FORBIDDEN"->403;case "INVALID_ARGUMENT","MANIFEST","SCHEMA","TYPE","HOST_IMPLEMENTATION_DEPENDENCY","PLUGIN_DEPENDENCY_METADATA"->400;
             case "VERSION_CONFLICT","STALE_COMPOSITION","IDEMPOTENCY_CONFLICT","PLAN_EXPIRED","CONFIRMATION_REQUIRED","PLUGIN_DISABLED"->409;
             case "DEADLINE_EXCEEDED","DEADLINE"->504;case "BUSY","PACKAGE_LIMIT"->429;default->503;};
         String trace=UUID.randomUUID().toString();

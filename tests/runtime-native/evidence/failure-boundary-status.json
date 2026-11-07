@@ -1,0 +1,21 @@
+{
+  "status": "BLOCKED",
+  "nativeHttp": "NOT_RUN",
+  "mysqlFailureInjection": "NOT_RUN",
+  "localJavaCompilation": "PASS",
+  "localFixtureUnitChecks": 6,
+  "localVerifiedPackage": "PASS",
+  "reason": "Dedicated MySQL 8.4 initialized but failed to start: UNIX Socket : Operation not permitted. No database fault scenario was executed. Real CI required.",
+  "command": "source /workspace/shared/fcp-toolchain/env.sh; python /workspace/shared/run_failure_mysql_local.py",
+  "production": "NOT_ACCEPTED",
+  "gitHead": "5dfec383d939fc0f93c850645046019fe943dd2a",
+  "sourceHashes": {
+    "tests/runtime-native/failure_boundaries.py": "0c1fe4d2fcc789c791d4870c98388fb06fc5cfdd5b9d873fd87f16105de0267b",
+    "tests/runtime-native/test_failure_boundaries.py": "cf6573d484f9edbcf7ada0bea3b76c13bcddcd971ec924ee110d682cf2a03b15",
+    "tests/runtime-native/failure-fixtures/FailureFixturePackageTest.java": "06b16efeb1b3ad8de80b4e9587a8e161fe9e19194e749e398f3621e4fd5eb8b3",
+    "tests/runtime-native/failure-fixtures/MysqlFailureBoundariesTest.java": "e9341809e05a8c444ebea8bd4fa4d939faad89d992a5325c66655fae38f3eda4"
+  },
+  "storageInFlightRevocation": "NOT_RUN",
+  "nativeDrainingRevocation": "NOT_RUN",
+  "a10IndependentSnapshotCompilation": "PASS"
+}

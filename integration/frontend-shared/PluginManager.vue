@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { ref } from 'vue';
+import VersionManager from './VersionManager.vue';
 import type { Identity } from './runtime';
 import type { NativePluginHost } from './usePlugins';
 import { usePluginManager } from './usePluginManager';
 const props=defineProps<{host:NativePluginHost;identity:Identity}>();
 const emit=defineEmits<{changed:[]}>();
+const versionOpen=ref(false);
 const manager=usePluginManager(props.host,()=>props.identity,()=>emit('changed'));
 const {canManage,canInstall,plugins,revision,busy,error,notice,upload,trustAcknowledged,plan,approvedIds,operation,cancelAcknowledged,pending,uninstallCandidate,uninstallAcknowledged,previewUninstall,uninstall,cancelUninstall,checkUninstall,grantPlugin,grantCapability,grantScope,grantAllow,targetTenant,grants,grantOptions,grantAcknowledged,loadGrantOptions,setGrantTarget,addGrant,removeGrant,previewGrants,refresh,selectFile,preview,install,confirm,checkOperation,decide,retry,abandon,cancelPlan}=manager;
 function fileChanged(event:Event){const input=event.target as HTMLInputElement;void selectFile(input.files?.[0]??null);input.value='';}
@@ -11,6 +14,8 @@ function fileChanged(event:Event){const input=event.target as HTMLInputElement;v
 <template>
  <section class="fcp-plugin-manager" data-testid="plugin-manager">
   <header><h2>插件管理</h2><component :is="host.button" :disabled="busy" @click="refresh">刷新管理状态</component><span>控制版本 {{ revision }}</span></header>
+  <component :is="host.button" v-if="canInstall" @click="versionOpen=!versionOpen">{{ versionOpen ? '收起版本管理' : '显式升级与版本回退' }}</component>
+  <VersionManager v-if="canInstall" v-show="versionOpen" :host="host" :identity="identity" :plugins="plugins" :blocked="busy || Boolean(pending)" @changed="refresh();emit('changed')" />
   <p>安装、平台授权、租户启用是独立操作。管理接口会按当前真实身份重新鉴权，不会因页面可见而授权。</p>
   <p v-if="error" role="alert">{{ error }}</p><p v-if="notice" role="status">{{ notice }}</p>
   <section v-if="pending && !busy" role="alert"><p>管理操作结果尚未确认。仅显式重试原请求；放弃重试信息不会撤销已完成的操作。</p><p v-if="pending.kind==='decision'">决策接口没有幂等回执，请先查询实际状态，不要直接重复发送。</p><component :is="host.button" :disabled="['decision','uninstall'].includes(pending.kind)" @click="retry">重试同一管理请求</component><template v-if="pending.kind==='uninstall'"><p>卸载结果不明时先查询实际安装状态，不直接重试。</p><component :is="host.button" @click="checkUninstall">核对实际卸载状态</component></template><component :is="host.button" @click="abandon">明确放弃重试信息</component></section>

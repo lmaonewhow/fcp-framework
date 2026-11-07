@@ -1,0 +1,15 @@
+{
+  "localFixtureTests": "PASS",
+  "nativeVersionHttp": "NOT_RUN",
+  "nativeVersionBrowser": "NOT_RUN",
+  "nativeJvmPid": "NOT_RUN",
+  "production": "NOT_ACCEPTED",
+  "reason": "Only local fixture tests executed; genuine native CI database, Redis, authenticated JVM and browsers were not started.",
+  "baseCommit": "02f1946f1d4eec92ef91238fa682032067edae03",
+  "sourceSnapshot": {
+    "tests/runtime-native/native_runtime_acceptance.py": "c41ad666a55b5fdbed9d0aed08cc8f2dbc310cac8114a636f5f76796df7e8142",
+    "tests/runtime-native/test_fixture_packages.py": "362ec3b189c5bd9350f86e763e6471e2a0da4aa6523bca4e06dc5a6ddb28f107",
+    "tests/runtime-native/NativeFixturePackageTest.java": "1026f9775f5c8e809bbc0245c7bd2f504f465b085064f1c831ea9b9eb308b523"
+  },
+  "javaVerifiedPackageInputs": "PASS"
+}

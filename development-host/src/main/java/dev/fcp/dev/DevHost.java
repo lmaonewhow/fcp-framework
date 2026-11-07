@@ -64,7 +64,7 @@ public final class DevHost implements AutoCloseable {
             }
             send(x,200,Json.obj("code",200,"msg","success","data",result));
         } catch(FcpException e) {
-            int status=switch(e.code){case "UNAUTHENTICATED"->401;case "PERMISSION_DENIED"->403;case "NOT_FOUND"->404;case "INVALID_ARGUMENT","MANIFEST","SCHEMA","TYPE"->400;case "VERSION_CONFLICT","PLUGIN_DISABLED","STALE_COMPOSITION","PLAN_EXPIRED","IDEMPOTENCY_CONFLICT"->409;default->503;};
+            int status=switch(e.code){case "UNAUTHENTICATED"->401;case "PERMISSION_DENIED"->403;case "NOT_FOUND"->404;case "INVALID_ARGUMENT","MANIFEST","SCHEMA","TYPE","HOST_IMPLEMENTATION_DEPENDENCY","PLUGIN_DEPENDENCY_METADATA"->400;case "VERSION_CONFLICT","PLUGIN_DISABLED","STALE_COMPOSITION","PLAN_EXPIRED","IDEMPOTENCY_CONFLICT"->409;default->503;};
             send(x,status,Json.obj("code",status,"msg",status>=500?"Plugin operation unavailable; inspect operation receipt":e.getMessage(),"data",Json.obj("fcpCode",e.code)));
         } catch(IllegalArgumentException|ClassCastException e){send(x,400,Json.obj("code",400,"msg","Invalid request"));}
         catch(Exception e){send(x,503,Json.obj("code",503,"msg","Plugin host unavailable"));}

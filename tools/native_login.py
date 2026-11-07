@@ -5,7 +5,81 @@ which can be destroyed by the real admin-to-teacher post-login redirect.
 """
 from __future__ import annotations
 import re
+import time
 from native_client import require_loopback, NativeClient
+
+
+CAPTCHA_RATE_WINDOW_SECONDS = 60.0
+_RATE_LIMIT_MESSAGES = frozenset({
+    '访问过于频繁，请稍候再试',
+    'Visit too frequently, please try again later',
+})
+
+
+class NativeCaptchaRateLimited(RuntimeError):
+    """An explicit native throttle response, never a generic missing captcha."""
+
+
+def parse_native_captcha(response):
+    """Validate the real /auth/code response without logging its challenge or image."""
+    if response.status == 429:
+        raise NativeCaptchaRateLimited('Native CAPTCHA endpoint returned HTTP 429')
+    try:
+        payload = response.json()
+    except Exception:
+        raise RuntimeError('Native CAPTCHA endpoint did not return a JSON envelope') from None
+    if not isinstance(payload, dict):
+        raise RuntimeError('Native CAPTCHA endpoint returned a non-object envelope')
+    code = str(payload.get('code'))
+    # Pinned RuoYi's ServiceException handler uses R.fail(message), commonly HTTP 200
+    # with code=500 and data=null. Only the exact pinned translations identify throttle.
+    message = payload.get('msg')
+    if response.status in (200, 500) and code in ('429', '500') and isinstance(message, str) and message in _RATE_LIMIT_MESSAGES:
+        raise NativeCaptchaRateLimited('Native CAPTCHA IP rate limit reached')
+    captcha = payload.get('data')
+    if response.status != 200 or code != '200' or not isinstance(captcha, dict):
+        raise RuntimeError('Native CAPTCHA endpoint rejected or omitted the challenge')
+    if captcha.get('captchaEnabled', True) is not True:
+        raise AssertionError('Genuine native CAPTCHA must remain enabled')
+    if not isinstance(captcha.get('uuid'), str) or not re.fullmatch(r'[a-f0-9]{32}', captcha['uuid']):
+        raise RuntimeError('Native CAPTCHA response has no valid challenge identifier')
+    return captcha
+
+
+def open_native_login(page, base, workspace, *, wait_events=None, clock=None, sleep=None):
+    """Load the genuine form, respecting the unchanged 10/IP/60s CAPTCHA limit.
+
+    Only an explicit throttle response permits one new challenge request after a full
+    60-second window. No password submission, token, session, IP, or Redis state is
+    retried/modified here. Other errors fail immediately. There is no global session
+    cache or host throttle state, so every login performs its own observed requests.
+    """
+    require_loopback(base)
+    if workspace not in ('ingestion', 'plugins'):
+        raise ValueError('Only explicit native acceptance workspaces are allowed')
+    clock = clock or time.monotonic
+    sleep = sleep or time.sleep
+    origin = base.rstrip('/')
+    for attempt in range(2):
+        with page.expect_response(lambda r: r.url.split('?', 1)[0] == origin+'/auth/code', timeout=30000) as challenge:
+            page.goto(origin+'/admin/login?redirect=/fcp/'+workspace, wait_until='domcontentloaded')
+        try:
+            return parse_native_captcha(challenge.value)
+        except NativeCaptchaRateLimited:
+            if attempt:
+                raise NativeCaptchaRateLimited('Native CAPTCHA still limited after one complete 60-second window') from None
+            # This delay comes from the exact pinned server policy, not an arbitrary
+            # UI stabilization sleep. No retry occurs before the full window elapses.
+            print('Native CAPTCHA rate limit: waiting the unchanged 60-second window before one new challenge request', flush=True)
+            started = clock()
+            sleep(CAPTCHA_RATE_WINDOW_SECONDS)
+            waited = clock()-started
+            if waited < CAPTCHA_RATE_WINDOW_SECONDS:
+                raise RuntimeError('Native CAPTCHA rate-limit window did not fully elapse')
+            if wait_events is not None:
+                wait_events.append(dict(endpoint='/auth/code', nativeWindowSeconds=60,
+                                        waitedSeconds=round(waited, 3), nextChallengeAttempt=2))
+    raise AssertionError('Unreachable native CAPTCHA control flow')
 
 
 def native_token(state, base):

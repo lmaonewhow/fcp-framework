@@ -68,8 +68,12 @@ public final class ExchangeService implements AutoCloseable {
         if(!host.clock().instant().isBefore(java.time.Instant.parse(Schema.str(plan.get("expires")))))throw fail("PREVIEW_EXPIRED");
         var preview=Schema.map(plan.get("preview"));if(!Boolean.TRUE.equals(preview.get("valid")))throw fail("VALIDATION_FAILED");
         var input=payload(cfg,Schema.str(plan.get("content")));input.put("expectedRevision",preview.get("revision"));input.put("receiptKey",hash(receipt));
+        // Reserve bounded receipt/cursor headroom before invoking a side effect. Capacity
+        // refusal must not first occur after an otherwise successful import commit.
+        if(Json.write(state).getBytes(StandardCharsets.UTF_8).length>6*1024*1024-128*1024)throw fail("RESOURCE_LIMIT");
         Object result=execution.call(c,cfg.plugin(),"exchange.commit",input,hash(receipt));
         if(!Boolean.TRUE.equals(Schema.map(result).get("committed")))throw fail("CONFLICT");
+        if(Json.write(result).getBytes(StandardCharsets.UTF_8).length>64*1024)throw fail("OUTCOME_UNKNOWN");
         put(receipt,Map.of("digest",digest,"result",result));audit(c,cfg,"import","COMPLETE");return result;
     }
     /** Called by a host scheduler with freshly authenticated TASK context, never a creator's USER. */
@@ -95,20 +99,52 @@ public final class ExchangeService implements AutoCloseable {
         Config cfg=config(configId);authorize(c,cfg,"export");if(fields.isEmpty()||!cfg.fields().containsAll(fields))throw fail("FIELD_DENIED");
         Object raw=execution.call(c,cfg.plugin(),"exchange.read",Map.of("dataScope",cfg.scope()),null);
         List<Object> filtered=new ArrayList<>();for(Object row:Schema.list(Schema.map(raw).get("rows"))){Map<String,Object> out=new TreeMap<>();for(String f:fields)out.put(f,Schema.map(row).get(f));filtered.add(out);}
-        String id=UUID.randomUUID().toString();put("download:"+id,Map.of("owner",owner(c),"config",cfg.id(),"binding",binding(cfg),"fields",new ArrayList<>(new TreeSet<>(fields)),"rows",filtered,"expires",host.clock().instant().plusSeconds(300).toString()));audit(c,cfg,"export","READY");return Map.of("handle",id,"format","csv","rows",filtered.size());
+        String id=UUID.randomUUID().toString();java.time.Instant created=host.clock().instant();put("download:"+id,Map.of("owner",owner(c),"config",cfg.id(),"binding",binding(cfg),"fields",new ArrayList<>(new TreeSet<>(fields)),"rows",filtered,"createdAt",created.toString(),"retentionPolicy","24h-v1","expires",created.plusSeconds(86400).toString()));audit(c,cfg,"export","READY");return Map.of("handle",id,"format","csv","rows",filtered.size(),"expiresAt",created.plusSeconds(86400).toString());
     }
     public synchronized byte[] download(TrustedContext c,String handle){
         var d=entry("download:"+handle);Config cfg=config(Schema.str(d.get("config")));authorize(c,cfg,"export");
-        if(!owner(c).equals(d.get("owner"))||!binding(cfg).equals(d.get("binding"))||!host.clock().instant().isBefore(java.time.Instant.parse(Schema.str(d.get("expires")))))throw fail("DOWNLOAD_DENIED");
+        if(!owner(c).equals(d.get("owner"))||!binding(cfg).equals(d.get("binding"))||!d.containsKey("rows")||!host.clock().instant().isBefore(exportExpiration(d)))throw fail("DOWNLOAD_DENIED");
         List<String> fields=Schema.list(d.get("fields")).stream().map(Schema::str).toList();StringBuilder out=new StringBuilder(String.join(",",fields)).append("\r\n");
         for(Object row:Schema.list(d.get("rows"))){var m=Schema.map(row);out.append(fields.stream().map(f->csv(m.get(f))).collect(java.util.stream.Collectors.joining(","))).append("\r\n");}audit(c,cfg,"download","COMPLETE");return out.toString().getBytes(StandardCharsets.UTF_8);
     }
+    /** Host-only approved retention maintenance. No path, plugin selector, identity, time or
+     * expiry override can be supplied. Only temporary generated export rows are removed.
+     * Cleanup audit and metadata commit atomically with removal, never business data/receipts.
+     */
+    public synchronized int cleanupExpiredExports()throws IOException {
+        // Reconcile an uncertain previous CAS before retry: a completed tombstone is not repeated.
+        var loaded=journal.load();snapshot=loaded;
+        state=loaded.json()==null?new LinkedHashMap<>():new LinkedHashMap<>(Schema.map(Json.parse(loaded.json())));
+        Map<String,Object> next=new LinkedHashMap<>(state);java.time.Instant now=host.clock().instant();int cleaned=0;
+        for(var item:state.entrySet()) {
+            if(cleaned>=100)break;
+            if(!item.getKey().matches("download:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"))continue;
+            var download=Schema.map(item.getValue());if(!download.containsKey("rows")||now.isBefore(exportExpiration(download)))continue;
+            Map<String,Object> tombstone=new LinkedHashMap<>(download);Object rows=tombstone.remove("rows");
+            tombstone.put("createdAt",exportCreated(download).toString());tombstone.put("expires",exportExpiration(download).toString());tombstone.put("retentionPolicy","24h-v1");
+            tombstone.put("contentDigest",hash(Json.write(rows)));
+            tombstone.put("cleanupAudit",Map.of("action","export.cleanup","outcome","COMPLETE","principalKind","SYSTEM","principal","fcp-export-retention","occurredAt",now.toString(),"exportId",item.getKey().substring(9),"removedRows",Schema.list(rows).size()));
+            next.put(item.getKey(),tombstone);cleaned++;
+        }
+        if(cleaned>0){snapshot=journal.compareAndSet(snapshot.revision(),Json.write(next));state=next;}
+        return cleaned;
+    }
+    private static java.time.Instant exportCreated(Map<String,Object> d){
+        // Legacy snapshots were created with exactly five minutes of validity. Preserve their
+        // original creation instant but apply the newly approved 24-hour retention, not five minutes.
+        return d.containsKey("createdAt")?java.time.Instant.parse(Schema.str(d.get("createdAt"))):java.time.Instant.parse(Schema.str(d.get("expires"))).minusSeconds(300);
+    }
+    private static java.time.Instant exportExpiration(Map<String,Object> d){return exportCreated(d).plusSeconds(86400);}
     private static String csv(Object o){String s=o==null?"":o.toString();if(s.matches("^[=+@\\-\\t\\r].*"))s="'"+s;return "\""+s.replace("\"","\"\"")+"\"";}
     private Map<String,Object> payload(Config c,String content){return new LinkedHashMap<>(Map.of("format",c.format(),"dataScope",c.scope(),"content",content));}
     private static String binding(Config c){return hash(Json.write(List.of(c.id(),c.plugin(),c.scope(),c.format(),c.mappingVersion(),c.schemaVersion(),new TreeSet<>(c.fields()),c.connector(),c.taskPrincipal())));}
     private static String owner(TrustedContext c){return Json.write(List.of(c.tenantId(),c.principal().kind().name(),c.principal().id()));}
     private Map<String,Object> entry(String key){Object o=state.get(key);if(o==null)throw fail("NOT_FOUND");return Schema.map(o);}
-    private void put(String key,Object value)throws IOException{Map<String,Object> next=new LinkedHashMap<>(state);next.put(key,value);snapshot=journal.compareAndSet(snapshot.revision(),Json.write(next));state=next;}
+    private void put(String key,Object value)throws IOException{Map<String,Object> next=new LinkedHashMap<>(state);next.put(key,value);String encoded=Json.write(next);
+        // Leave headroom below the journal's 8 MiB hard ceiling. Capacity rejection is known
+        // before any CAS, never an ambiguous write. Retained previews/receipts are not purged.
+        if(encoded.getBytes(StandardCharsets.UTF_8).length>6*1024*1024)throw fail("RESOURCE_LIMIT");
+        snapshot=journal.compareAndSet(snapshot.revision(),encoded);state=next;}
     private void audit(TrustedContext c,Config cfg,String action,String outcome){host.audit(new HostCapabilities.Audit(c.requestId(),c.traceId(),c.tenantId(),c.principal().id(),cfg.plugin(),action,outcome,host.clock().instant()));}
     static String read(InputStream in)throws IOException{byte[] bytes=in.readNBytes(1024*1024+1);if(bytes.length>1024*1024)throw fail("SOURCE_LIMIT");try{return StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString();}catch(java.nio.charset.CharacterCodingException e){throw fail("INVALID_ENCODING");}}
     static String hash(String s){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8)));}catch(NoSuchAlgorithmException e){throw new AssertionError(e);}}

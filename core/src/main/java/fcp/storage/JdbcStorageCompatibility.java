@@ -21,6 +21,16 @@ public final class JdbcStorageCompatibility {
             for(var table:actual.tables().values())verifyTable(c,plugin,actual.version(),table);
         }catch(SQLException e){throw JdbcPluginStorage.failure(e);}
     }
+    /** Read-only reviewed schema token. This is not a cross-process transaction with package switching. */
+    public String fingerprint(String plugin,String packageVersion,String packageDigest,Map<String,Object> storage){
+        if(storage.isEmpty())return "no-declared-schema";verify(plugin,packageVersion,packageDigest,storage);List<Object> material=new ArrayList<>();
+        try(Connection c=runtime.getConnection()){
+            try(PreparedStatement q=c.prepareStatement("SELECT schema_version,declaration_digest FROM fcp_plugin_storage_release WHERE plugin_id=?")){q.setQueryTimeout(5);q.setString(1,plugin);try(ResultSet r=q.executeQuery()){if(!r.next())throw JdbcPluginStorage.error("STORAGE_NOT_DEPLOYED");material.add(List.of(r.getLong(1),r.getString(2)));}}
+            try(PreparedStatement q=c.prepareStatement("SELECT table_name,structure_id,schema_version,ddl_revision,schema_json FROM fcp_plugin_physical_schema WHERE plugin_id=? ORDER BY table_name")){q.setQueryTimeout(5);q.setString(1,plugin);try(ResultSet r=q.executeQuery()){while(r.next())material.add(List.of(r.getString(1),r.getString(2),r.getLong(3),r.getLong(4),StorageDeclaration.canonical(Json.parse(r.getString(5)))));}}
+            try(PreparedStatement q=c.prepareStatement("SELECT d.table_name,d.target_version,d.checksum,d.phase,d.before_digest,COALESCE(d.after_digest,'') FROM fcp_plugin_ddl_step d JOIN fcp_plugin_physical_schema p ON p.table_name=d.table_name WHERE p.plugin_id=? ORDER BY d.table_name,d.target_version")){q.setQueryTimeout(5);q.setString(1,plugin);try(ResultSet r=q.executeQuery()){while(r.next())material.add(List.of(r.getString(1),r.getLong(2),r.getString(3),r.getString(4),r.getString(5),r.getString(6)));}}
+        }catch(SQLException e){throw JdbcPluginStorage.failure(e);}
+        verify(plugin,packageVersion,packageDigest,storage);return JdbcPluginStorage.hash(Json.write(material));
+    }
     static String verifyTable(Connection c,String plugin,long version,StorageDeclaration.Table table)throws SQLException{
         String name=PhysicalSchemaMigrator.plan(plugin,table.name(),List.of(new PhysicalSchemaMigrator.Step(1,PhysicalSchemaMigrator.Kind.CREATE,null,null))).table();long revision;
         try(PreparedStatement p=StorageDeploymentService.statement(c,"SELECT table_name,schema_version,schema_json,ddl_revision FROM fcp_plugin_physical_schema WHERE plugin_id=? AND structure_id=?")){p.setString(1,plugin);p.setString(2,table.name());try(ResultSet r=p.executeQuery()){if(!r.next()||!name.equals(r.getString(1))||version!=r.getLong(2)||!StorageDeclaration.canonical(table.source()).equals(StorageDeclaration.canonical(Json.parse(r.getString(3)))))throw JdbcPluginStorage.error("SCHEMA_METADATA_DRIFT");revision=r.getLong(4);}}

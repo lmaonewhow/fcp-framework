@@ -12,6 +12,6 @@ javac --release 21 -cp "$CP" -d "$BUILD" \
  $(find core/src/main/java -name '*.java') \
  host/src/main/java/dev/fcp/host/PluginPolicy.java \
  integration/ruoyi/src/main/java/org/dromara/fcp/plugin/NativePluginHost.java \
- integration/ruoyi/src/main/java/org/dromara/fcp/plugin/FcpExchange{Configuration,Controller,Advice}.java
+ integration/ruoyi/src/main/java/org/dromara/fcp/plugin/FcpExchange{Configuration,Controller,Advice}.java integration/ruoyi/src/main/java/org/dromara/fcp/plugin/FcpExportRetentionConfiguration.java
 find "$BUILD/fcp/exchange" "$BUILD/org/dromara/fcp/plugin" -name '*.class' -print0 | sort -z | xargs -0 sha256sum
 printf 'PASS native exchange compilation against actual upstream classes and resolved dependencies; server/HTTP integration NOT_RUN\n'

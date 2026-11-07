@@ -19,6 +19,7 @@ public final class FcpExchangeAdvice {
             case "NOT_FOUND","CONFIG_NOT_FOUND" -> 404;
             case "STALE_PREVIEW","PREVIEW_EXPIRED","VALIDATION_FAILED","CONFLICT","IDEMPOTENCY_CONFLICT","VERSION_CONFLICT","ADMISSION_CLOSED" -> 409;
             case "SOURCE_LIMIT","CURSOR_LIMIT" -> 413;
+            case "RESOURCE_LIMIT" -> 429;
             case "INVALID_ARGUMENT","INVALID_INPUT","INVALID_ENCODING","INVALID_SOURCE","IDEMPOTENCY_REQUIRED" -> 400;
             case "DEADLINE_EXCEEDED","DEADLINE" -> 504;
             default -> 503;
