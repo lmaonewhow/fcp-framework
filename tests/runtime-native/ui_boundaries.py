@@ -16,7 +16,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from native_client import require_loopback
-from native_login import authenticated_storage_state
+from native_login import authenticated_storage_state, require_encrypted_login, verify_native_identity
 
 
 def require_fixture(base, database, fixture_plugins, plugin_id):
@@ -43,7 +43,12 @@ def is_rejected(status, body):
 
 
 def native_logout(page, shell):
-    """Locked upstream header/menu/dialog flow, with a real successful auth response."""
+    """Execute locked native logout UI and observe HTTP completion only.
+
+    This helper does not prove logout success: the caller must still check that
+    the workspace disappears and the old token is rejected by the actual API.
+    Do not read the response body, which Chromium may discard during redirect.
+    """
     label = re.compile(r'^(退出登录|退出|注销|Log out|Logout)$', re.I)
     if shell == 'admin':
         page.locator('.avatar-wrapper').click()
@@ -59,8 +64,8 @@ def native_logout(page, shell):
     with page.expect_response(lambda response: response.url.split('?',1)[0].endswith('/auth/logout'), timeout=20000) as logged_out:
         positive.click()
     response = logged_out.value
-    if response.status != 200 or str(response.json().get('code')) != '200':
-        raise AssertionError('Native logout did not return a successful actual response')
+    if response.status != 200:
+        raise AssertionError('Native logout HTTP request did not complete with status 200')
 
 
 def make_tenant_relogin(login_fixture, base):
@@ -91,13 +96,12 @@ def make_tenant_relogin(login_fixture, base):
         page.get_by_placeholder(re.compile(r'^(验证码|Verification Code)$')).fill(answer)
         with page.expect_response(lambda r: r.url.endswith('/auth/login'), timeout=30000) as authenticated:
             page.locator('.login-form button.el-button--primary').click()
-        result = authenticated.value
-        if result.status != 200 or not result.request.headers.get('encrypt-key') or str(result.json().get('code')) != '200':
-            raise AssertionError('Genuine encrypted T2 login did not succeed')
+        require_encrypted_login(authenticated.value)
         _state, token = authenticated_storage_state(page, page.context, base, 'plugins')
         login_fixture.diagnostic_secrets.append(token)
         client = NativeClient(base,token,'e5cd7e4891bf95d1d19206ce24a7b32e')
-        if shell not in client.data('/fcp/ui/session').get('allowedShells',[]):
+        session = verify_native_identity(client, '960601', '960001')
+        if shell not in session.get('allowedShells',[]):
             raise AssertionError('Synthetic T2 lacks required native shell permission; never bypass route guard')
         return client
     return relogin

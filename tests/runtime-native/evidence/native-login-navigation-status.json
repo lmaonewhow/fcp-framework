@@ -1,14 +1,14 @@
 {
   "status": "LOCAL_UNIT_PASS_NATIVE_NOT_RUN",
-  "unitTests": 4,
+  "unitTests": 6,
   "syntax": "PASS",
   "nativeLoginNavigation": "NOT_RUN_PENDING_CI",
-  "scope": "Wait for actual native workspace URL and visible marker, then one context storage snapshot; unit doubles do not establish browser success",
+  "scope": "Encrypted HTTP200 metadata + actual routed UI + context snapshot + fresh authenticated server identity; no auth response-body dependency",
   "sourceSha256": {
-    "tools/native_login.py": "afe79bf34a82209729a9b9c0a75f71487845896a92e2121c9adc9df27e88bf3e",
-    "tools/ci_ingestion.py": "200ad3b5918c86894d8f5ba0be400a2e47a68ca36dfac3fc787a51727c20b762",
-    "tests/runtime-native/failure_boundaries.py": "cd412bfa36315791edb4d7e14840462f32b58a16a7261063e5982a4c53f7b123",
-    "tests/runtime-native/ui_boundaries.py": "a734481d482646fc80e8043c5b68962e6166c11c7edc88a1ffeed42c84fe3e61",
-    "tests/runtime-native/test_native_login.py": "070efc059da78c03d9df2b306c4e6f74141ba26231596cd31e94f48b2fd2f295"
+    "tools/native_login.py": "e04b8640eefe155c71047f8b642cb75d484a2b86bfa88b264fe2f5a6c1aaaec8",
+    "tools/ci_ingestion.py": "09256ccf7bd18ebb591d72496f4b82e0e5b2cebed12378f13bac07f3cd05fe58",
+    "tests/runtime-native/failure_boundaries.py": "c5086db28efbf40cba0598ee92be9f962e686b807fb03d1e51abc831865e73eb",
+    "tests/runtime-native/ui_boundaries.py": "529a406e9ce6ae0260e319b67912887cba9655dca75c08b713ec32a9a5cebff6",
+    "tests/runtime-native/test_native_login.py": "3744fea1dfb37cb209d7e9fbe0630cc1ba8288afd08ff1625763b5b3fe72137c"
   }
 }

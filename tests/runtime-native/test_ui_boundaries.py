@@ -2,9 +2,33 @@
 import os
 import unittest
 from unittest.mock import patch
-from ui_boundaries import require_fixture, exact_closure, is_rejected
+from ui_boundaries import require_fixture, exact_closure, is_rejected, native_logout
 
 class UiBoundaryGuards(unittest.TestCase):
+    def test_logout_never_reads_discarded_response_body(self):
+        class Response:
+            status=200
+            url='http://127.0.0.1:8080/auth/logout'
+            def json(self):raise AssertionError('Navigation may discard logout body')
+            def body(self):raise AssertionError('Navigation may discard logout body')
+        class Wait:
+            def __init__(self,response):self.value=response
+            def __enter__(self):return self
+            def __exit__(self,*args):return False
+        class Page:
+            def __init__(self,response):self.response=response
+            def locator(self,*args,**kwargs):return self
+            def get_by_role(self,*args,**kwargs):return self
+            def filter(self,*args,**kwargs):return self
+            def click(self):pass
+            def expect_response(self,predicate,**kwargs):
+                if not predicate(self.response):raise AssertionError('Wrong endpoint')
+                return Wait(self.response)
+        for shell in ('admin','teacher'):
+            native_logout(Page(Response()),shell)
+            response=Response();response.status=500
+            with self.assertRaises(AssertionError):native_logout(Page(response),shell)
+
     def test_disposable_database_and_loopback_required(self):
         env={'GITHUB_ACTIONS':'true','FCP_ACCEPTANCE_DATABASE':'fcp_ci_0123456789ab'}
         with patch.dict(os.environ,env):

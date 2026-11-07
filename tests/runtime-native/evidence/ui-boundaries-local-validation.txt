@@ -1,8 +1,9 @@
 test_disposable_database_and_loopback_required (test_ui_boundaries.UiBoundaryGuards.test_disposable_database_and_loopback_required) ... ok
 test_exact_explicit_closure (test_ui_boundaries.UiBoundaryGuards.test_exact_explicit_closure) ... ok
+test_logout_never_reads_discarded_response_body (test_ui_boundaries.UiBoundaryGuards.test_logout_never_reads_discarded_response_body) ... ok
 test_server_errors_are_not_denial_evidence (test_ui_boundaries.UiBoundaryGuards.test_server_errors_are_not_denial_evidence) ... ok
 
 ----------------------------------------------------------------------
-Ran 3 tests in 0.001s
+Ran 4 tests in 0.002s
 
 OK

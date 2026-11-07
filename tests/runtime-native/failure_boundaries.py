@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT/'tools'))
 sys.path.insert(0, str(Path(__file__).parent))
 from ci_ingestion import redis_get, safe_diagnostic
 from native_client import require_loopback
-from native_login import authenticated_storage_state
+from native_login import authenticated_storage_state, require_encrypted_login, verify_native_identity
 from native_runtime_acceptance import Client, RuntimeFixture, exported
 
 PLUGIN = 'ci.boundary'
@@ -166,11 +166,13 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(960600,960610),(960601,960611)
             page.get_by_placeholder(re.compile(r'^(验证码|Verification Code)$')).fill(answer)
             with page.expect_response(lambda r: r.url.endswith('/auth/login'), timeout=30000) as response:
                 page.locator('.login-form button.el-button--primary').click()
-            self.check(username+' genuine encrypted login succeeded',
-                       bool(response.value.request.headers.get('encrypt-key')) and str(response.value.json().get('code')) == '200')
+            require_encrypted_login(response.value)
             _state, token = authenticated_storage_state(page, context, base, 'plugins')
             self.login_fixture.diagnostic_secrets.append(token)
-            return Client(base, token, CLIENT_ID)
+            client = Client(base, token, CLIENT_ID)
+            verify_native_identity(client, {'fcp_second_manager_ci':'960600','fcp_tenant_manager_ci':'960601'}[username], tenant)
+            self.check(username+' genuine encrypted login and server identity verified', True)
+            return client
         finally:
             context.close()
 
