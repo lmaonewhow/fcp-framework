@@ -36,6 +36,7 @@ public final class ProcessProvider implements Engine.Provider {
     private final ReentrantLock invocationLock=new ReentrantLock(true);
     private final Map<String,Object> runtime,launcher;
     private final Path root;
+    private final TraceEvents.PluginIdentity tracePlugin;
     private ScheduledFuture<?> reaper;
     private long idleEpoch;
     private final long idleTimeoutMs;
@@ -50,6 +51,7 @@ public final class ProcessProvider implements Engine.Provider {
     public boolean isRunning(){return identity()!=null;}
     private static Thread daemon(Runnable work,String name){Thread thread=new Thread(work,name);thread.setDaemon(true);return thread;}
     public ProcessProvider(Map<String,Object> document,Path root,Map<String,Object> launchers){
+        tracePlugin=new TraceEvents.PluginIdentity(document.get("id") instanceof String id?id:null,document.get("version") instanceof String version?version:null);
         this.root=root.toAbsolutePath().normalize();runtime=obj(document,"runtime");Object record=launchers.get(runtime.get("launcher"));if(record==null)throw new FcpException("LAUNCHER_MISSING",String.valueOf(runtime.get("launcher")));launcher=map(record);
         long timeout=number(runtime.getOrDefault("timeout",8));
         if(timeout<1||timeout>60)throw new FcpException("MANIFEST","Plugin timeout must be 1..60 seconds");
@@ -104,7 +106,7 @@ public final class ProcessProvider implements Engine.Provider {
     public Object invokeBounded(Engine.Context context,String export,String operation,Map<String,Object> data,long timeoutMillis){
         if(timeoutMillis<1||timeoutMillis>300000)throw new FcpException("DEADLINE","Invalid remaining request budget");
         try(var traceScope=TraceContext.open(TraceContext.child())) {
-        long traceStart=System.nanoTime();String traceOutcome="ERROR";
+        long traceStart=System.nanoTime();boolean traceReturned=false;String traceError="INTERNAL_ERROR";
         try {
         long deadline=System.nanoTime()+TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
         try {
@@ -151,12 +153,14 @@ public final class ProcessProvider implements Engine.Provider {
                     remoteRejected=true;
                     throw new FcpException(code,"Plugin rejected operation: "+error.getOrDefault("message","unknown"));
                 }
-                traceOutcome="OK";return response.get("result");
+                traceReturned=true;return response.get("result");
             }
         }catch(IOException|IllegalArgumentException error){stop();throw new FcpException("TRANSPORT","Malformed or interrupted plugin transport",error);}
         catch(FcpException error){if(!remoteRejected)stop();throw error;}
         finally{if(process!=null&&!closed&&!Boolean.TRUE.equals(runtime.get("keepAlive")))scheduleIdle();invocationLock.unlock();}
-        } finally {TraceEvents.record("plugin.rpc",operation,traceOutcome,traceStart);}
+        } catch(FcpException error){traceReturned=false;traceError=error.code;throw error;}
+        catch(RuntimeException error){traceReturned=false;throw error;}
+        finally {TraceEvents.recordRpc(tracePlugin,export,operation,traceReturned,traceError,traceStart);}
         }
     }
     private void cancelIdle(){idleEpoch++;if(reaper!=null){reaper.cancel(false);reaper=null;}}

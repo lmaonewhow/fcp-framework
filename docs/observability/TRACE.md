@@ -10,7 +10,9 @@
 
 Spring 原生执行器只增加上下文装饰，不替换其名称、容量、虚拟线程或拒绝策略；框架 @Async、原生 scheduledExecutorService、FCP pipe I/O 显式传播并恢复上下文。周期任务每次建立新根，一次性提交保留父请求。FCP Exchange 和恢复任务使用独立 TASK 身份，不保存管理员会话。标准线程本地上下文不会自动覆盖手工新建的 Thread、原生 Servlet AsyncContext.start 的裸 Runnable、第三方私有线程池或插件私有后台任务；这些调用方必须显式包装。
 
-ProcessProvider 为每次实际 RPC 建子 span 并输出有界、无载荷的调用摘要。托管运行时的 params.context.traceparent 由宿主补入；可信身份仍来自原来的服务端授权路径。旧 stdio 插件只在宿主清单 runtime.traceContext="w3c" 显式选择后增加顶层 traceparent，未选择的旧协议仍保持兼容。六个 ingestion 插件和 statistics 示例已接入。插件 callback 的可选 traceparent 只能续接当前 trace，不能覆盖身份或更换 trace 根。
+ProcessProvider 为每次实际 RPC 建子 span 并输出有界、无载荷的调用摘要。固定字段 pluginId、pluginVersion 来自宿主已装载清单，在 provider 初始化时校验并缓存；managed-stdio 明确使用已验证包的 manifest 身份和版本，不使用内部派生模块 ID。capability 是宿主解析出的导出能力名，operation 是引擎操作或 lifecycle 控制名。插件 ID/能力最多 128 字符，版本最多 100 字符，operation 最多 96 字符，只接受 ASCII 字母、数字、下划线、点、冒号和短横线，版本字段另外允许 + 以保留 build 标记（不放宽 managed 清单自身的版本校验）；缺失、非法或过长整体替换为 other，不截断或读取请求参数来补值。
+
+RPC 的 outcome=RETURNED 只表示收到合法 JSON-RPC result，errorCode=NONE；它不证明任意业务结果成功、schema 通过或副作用已提交。错误记录 ERROR，errorCode 仅允许 BUSY、DEADLINE、CANCELLED、TRANSPORT、FRAME_LIMIT、PROTOCOL、CLOSED、RUNNER_EXITED、BUSINESS_RULE、INVALID_INPUT、PLUGIN_REJECTED、INTERNAL_ERROR，其他错误归 OTHER。不会输出任意异常文本、原始插件错误码、payload、query、token、principal 或原始 stderr。RPC 返回值、异常、授权和对账语义保持原样；解析后的业务失败与 OUTCOME_UNKNOWN 仍按原业务回执和宿主审计判断。托管运行时的 params.context.traceparent 由宿主补入；可信身份仍来自原来的服务端授权路径。旧 stdio 插件只在宿主清单 runtime.traceContext="w3c" 显式选择后增加顶层 traceparent，未选择的旧协议仍保持兼容。六个 ingestion 插件和 statistics 示例已接入。插件 callback 的可选 traceparent 只能续接当前 trace，不能覆盖身份或更换 trace 根。
 
 Python ContextVar 和 Node AsyncLocalStorage 的标准库示例在 runtime/observability，逐消息清理；Python capture 支持同步线程及 async 函数的实际执行期，Node withTrace 跨 Promise 保留。roster/mock-exam 包包含 Python helper。其他语言仍需实现相同协议并验收，任意第三方插件内部日志、SQL及后台工作不因此自动可观测。
 
@@ -30,9 +32,11 @@ Python ContextVar 和 Node AsyncLocalStorage 的标准库示例在 runtime/obser
 
 每请求只保留小型上下文和一条完成摘要，不复制/序列化请求响应体，不同步联系 Collector。源头字段白名单在进入新队列前执行。原生业务/数据库审计仍使用上游执行器的原有容量和拒绝策略，不能把有界的新增诊断队列当作所有业务队列都有界。历史原生日志与数据库 I/O 行为没有全面改成异步，因此不能承诺“零性能影响”。
 
-运行 python3 tools/verify_observability.py，产生带实际源码哈希、Git 提交、命令、退出码和原始日志的 reports/observability。包含 W3C 信任边界、复用线程清理、真实 Python/Node RPC、Python HTTP opt-in、阻塞日志 sink 的有界丢弃测试与微基准。TraceBenchmark 是上下文创建/绑定/序列化/清理的微基准，不是 HTTP、数据库或生产 P95；报告只能用于对应机器和源码。
+运行 python3 tools/verify_observability.py，产生带实际源码哈希、Git 提交、命令、退出码和原始日志的 reports/observability。包含 W3C 信任边界、复用线程清理、真实 Python/Node RPC、已验证 managed package 的身份/版本/崩溃关联、元数据白名单与长度边界、Python HTTP opt-in、阻塞日志 sink 的有界丢弃测试与微基准。RPC 的固定小摘要只在 RPC 路径分配；HTTP/task 路径保持原字段和序列化，无新增载荷复制或序列化。TraceBenchmark 是上下文创建/绑定/序列化/清理的微基准，不是 HTTP、数据库或生产 P95；报告只能用于对应机器和源码。
 
 可运行 python3 tools/measure_trace_overhead.py --baseline-ref <已验证基线提交>，在同机独立临时目录交替启动基线/候选开发宿主，用合成身份对回环 /fcp/session 做真实 HTTP A/B。默认每轮4并发、1000预热、8000请求，以唯一run-id目录保留每轮P50/P95/P99、吞吐、错误、诊断事件计数及配套原始日志；不接数据库、不冒充若依或生产性能，也不平均分位数。pull_request 组件CI也以该PR基线运行此工具，并归档对应run-id日志。报告PASS仅表示测量完成且本次诊断计数一致，performanceAcceptance始终为NOT_EVALUATED，不能当性能门槛已通过。
+
+可运行 python3 tools/measure_rpc_trace_overhead.py --baseline-ref <已验证基线提交>，以真实 Python/Node 子进程各执行四轮 baseline/candidate/candidate/baseline，对比每轮 500 次预热、2000 次空载 RPC 的 P50/P95/P99 与吞吐；记录真实 stderr 诊断事件数及丢弃计数。报告保留命令、源码/基准哈希、环境和原始日志，PASS 只表示测量及计数核对完成。小样本包含 JIT、调度与文件 I/O 噪声，不能用它承诺生产性能或零开销。
 
 双前端的严格补丁及 DOM/HTTP doubles 回归在 trace-frontend 工作流；native-ingestion 工作流构建精确锁定 RuoYi 与双 UI，并运行 prod-tagged Trace 边界、周期任务、真实 loopback HTTP/Spring 测试。DOM doubles、组件编译、Spring 测试及真实浏览器验收是不同层次。结果必须以对应 head 的实际 CI 产物为准，存在测试代码不算已经 PASS。本地 Maven 下载被 DNS 阻断时明确 BLOCKED，不以 mock 代替原生。
 

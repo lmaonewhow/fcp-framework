@@ -26,16 +26,17 @@ public final class FcpTraceFilter implements Filter {
         final long started=System.nanoTime();
         final AtomicBoolean completed=new AtomicBoolean();
         volatile boolean failed;
+        volatile boolean asynchronous;
         volatile HttpServletResponse response;
         State(TraceContext.Trace trace) { this.trace=trace; }
     }
-    /** Container invokes this after synchronous/error dispatch or the complete async lifecycle.
-     * It also covers async completion racing the originating filter's return.
+    /** Only synchronous completion is authoritative here. Undertow can destroy an async
+     * dispatch before the later error response; AsyncListener.onComplete owns that lifecycle.
      */
     public static final class CompletionListener implements ServletRequestListener {
         @Override public void requestDestroyed(ServletRequestEvent event) {
             if(event.getServletRequest() instanceof HttpServletRequest request &&
-                    request.getAttribute(ATTRIBUTE) instanceof State state && state.response!=null)
+                    request.getAttribute(ATTRIBUTE) instanceof State state && !state.asynchronous && state.response!=null)
                 complete(request,state.response,state);
         }
     }
@@ -58,8 +59,10 @@ public final class FcpTraceFilter implements Filter {
         // Attach async failure callbacks at startAsync, not after chain return (which can race complete).
         HttpServletRequest wrapped=new HttpServletRequestWrapper(request) {
             private AsyncContext observe(AsyncContext context) {
+                // Called only after startAsync succeeds. A rejected start remains synchronous.
+                captured.asynchronous=true;
                 context.addListener(new AsyncListener() {
-                    public void onComplete(AsyncEvent event) { /* requestDestroyed records final response once. */ }
+                    public void onComplete(AsyncEvent event) { complete(request,captured.response,captured); }
                     public void onTimeout(AsyncEvent event) { captured.failed=true; }
                     public void onError(AsyncEvent event) { captured.failed=true; }
                     public void onStartAsync(AsyncEvent event) { event.getAsyncContext().addListener(this); }

@@ -86,6 +86,51 @@ class FcpTraceBoundaryTest {
             assertNull(TraceContext.current());assertNull(MDC.get("traceId"));
         } finally { logger.detachAppender(capture);capture.stop(); }
     }
+    @Test void earlyAsyncRequestDestructionWaitsForFinalErrorCompletionAndRestoresCallbackScope() throws Exception {
+        Logger logger=(Logger)LoggerFactory.getLogger("fcp.request");
+        var lines=new ArrayList<String>();var contexts=new ArrayList<Map<String,String>>();
+        var capture=new AppenderBase<ILoggingEvent>() {
+            @Override protected void append(ILoggingEvent event) {
+                event.prepareForDeferredProcessing();lines.add(event.getFormattedMessage());contexts.add(Map.copyOf(event.getMDCPropertyMap()));
+            }
+        };
+        capture.setContext(logger.getLoggerContext());capture.start();logger.addAppender(capture);
+        ExecutorService callback=Executors.newSingleThreadExecutor();
+        try {
+            var request=new MockHttpServletRequest("GET","/async-error");request.setAsyncSupported(true);
+            var response=new MockHttpServletResponse();var filter=new FcpTraceFilter(Set.of());
+            filter.doFilter(request,response,(req,res)->req.startAsync());
+            String trace=response.getHeader("X-Trace-Id");
+            MockAsyncContext async=(MockAsyncContext)request.getAsyncContext();
+            finish(request);assertEquals(200,response.getStatus());
+            assertTrue(lines.isEmpty(),"Undertow's early async requestDestroyed must not seal a 200 summary");
+            var previous=TraceContext.start(null,false);
+            callback.submit(()-> {
+                try(var ignored=NativeTrace.open(previous)) {
+                    try {
+                        for(AsyncListener listener:async.getListeners())
+                            listener.onError(new AsyncEvent(async,new IllegalStateException("private-async-canary")));
+                        response.setStatus(500);async.complete();
+                    } catch(java.io.IOException failure) { throw new java.io.UncheckedIOException(failure); }
+                    assertEquals(previous,TraceContext.current());assertEquals(previous.traceId(),MDC.get("traceId"));
+                }
+                assertNull(TraceContext.current());assertNull(MDC.get("traceId"));
+            }).get(5,TimeUnit.SECONDS);
+            finish(request);async.complete();
+            assertEquals(1,lines.size());assertTrue(lines.get(0).contains(" status=500 "));
+            assertTrue(lines.get(0).contains("failed=true"));assertFalse(lines.get(0).contains("private-async-canary"));
+            assertEquals(trace,contexts.get(0).get("traceId"));assertNull(TraceContext.current());assertNull(MDC.get("traceId"));
+
+            // A startAsync failure must not mark a request async and permanently suppress its summary.
+            lines.clear();contexts.clear();
+            var rejected=new MockHttpServletRequest("GET","/unsupported-async");rejected.setAsyncSupported(false);
+            var failureResponse=new MockHttpServletResponse();
+            assertThrows(IllegalStateException.class,()->filter.doFilter(rejected,failureResponse,(req,res)->req.startAsync()));
+            failureResponse.setStatus(500);finish(rejected);
+            assertEquals(1,lines.size());assertTrue(lines.get(0).contains(" status=500 "));
+            assertTrue(lines.get(0).contains("failed=true"));
+        } finally { callback.shutdownNow();logger.detachAppender(capture);capture.stop(); }
+    }
     @Test void pooledWorkCopiesAndRestoresContext() throws Exception {
         ExecutorService pool=Executors.newSingleThreadExecutor();
         try {

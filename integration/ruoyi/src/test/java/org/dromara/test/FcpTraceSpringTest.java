@@ -21,6 +21,7 @@ import javax.sql.DataSource;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.dromara.common.log.event.LogininforEvent;
+import org.dromara.common.log.event.OperLogEvent;
 import org.dromara.common.core.constant.Constants;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -92,8 +93,8 @@ class FcpTraceSpringTest {
             assertNull(TraceContext.current());
         } finally { logger.detachAppender(capture);capture.stop(); }
     }
-    @Test void nativeAsyncLoginAuditPersistsAndCorrelatesWithoutLoggingUsername() throws Exception {
-        // Never publish the synthetic write against a user's existing database.
+    private void assertIsolatedAuditDatabase() throws Exception {
+        // Never publish a synthetic write against a user's existing database.
         try(var connection=source.getConnection()) {
             String url=connection.getMetaData().getURL();
             assertTrue(url.startsWith("jdbc:mysql://"));
@@ -101,6 +102,9 @@ class FcpTraceSpringTest {
             assertTrue(java.util.Set.of("127.0.0.1","localhost","[::1]","::1").contains(endpoint.getHost()),"Audit test requires loopback MySQL");
             assertTrue(connection.getCatalog().matches("fcp_ci_[a-z0-9_]+"),"Audit write is restricted to disposable native CI databases");
         }
+    }
+    @Test void nativeAsyncLoginAuditPersistsAndCorrelatesWithoutLoggingUsername() throws Exception {
+        assertIsolatedAuditDatabase();
         String marker="trace_ci_"+UUID.randomUUID().toString().replace("-","");
         String message="synthetic trace audit verification";
         var trace=TraceContext.start(null,false);
@@ -154,6 +158,68 @@ class FcpTraceSpringTest {
             try(var connection=source.getConnection();var cleanup=connection.prepareStatement(
                     "DELETE FROM sys_logininfor WHERE tenant_id=? AND user_name=? AND msg=?")) {
                 cleanup.setString(1,"000000");cleanup.setString(2,marker);cleanup.setString(3,message);cleanup.executeUpdate();
+            }
+        }
+    }
+    @Test void nativeAsyncOperationAuditCorrelatesWithoutCopyingParametersOrResult() throws Exception {
+        assertIsolatedAuditDatabase();
+        String marker="trace_op_ci_"+UUID.randomUUID().toString().replace("-","");
+        String title="FCP synthetic trace operation";
+        String params="synthetic-private-params-"+marker;
+        String result="synthetic-private-result-"+marker;
+        var trace=TraceContext.start(null,false);
+        record Captured(String text,Map<String,String> mdc,String thread) { }
+        var captured=new LinkedBlockingQueue<Captured>();
+        var capture=new AppenderBase<ILoggingEvent>() {
+            @Override protected void append(ILoggingEvent event) {
+                event.prepareForDeferredProcessing();
+                captured.add(new Captured(event.getFormattedMessage(),Map.copyOf(event.getMDCPropertyMap()),event.getThreadName()));
+            }
+        };
+        Logger audit=(Logger)LoggerFactory.getLogger("fcp.audit");
+        capture.setContext(audit.getLoggerContext());capture.start();audit.addAppender(capture);
+        try {
+            var event=new OperLogEvent();event.setTenantId("000000");event.setTitle(title);
+            event.setBusinessType(0);event.setMethod("FcpTraceSpringTest.syntheticOperation");
+            event.setRequestMethod("POST");event.setOperatorType(0);event.setOperName(marker);
+            event.setOperUrl("/synthetic-trace-operation");event.setOperIp("127.0.0.1");
+            event.setOperParam(params);event.setJsonResult(result);event.setStatus(0);event.setCostTime(1L);
+            String publishingThread=Thread.currentThread().getName();
+            try(var scope=NativeTrace.open(trace)) { events.publishEvent(event); }
+            assertNull(TraceContext.current());assertNull(MDC.get("traceId"));
+            Captured linked=null;
+            long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(15);
+            while(System.nanoTime()<deadline) {
+                Captured line=captured.poll(200,TimeUnit.MILLISECONDS);
+                if(line==null)continue;
+                assertFalse(line.text().contains(marker),"Diagnostic audit correlation must not contain the operator");
+                assertFalse(line.text().contains(params),"Diagnostic audit correlation must not contain request parameters");
+                assertFalse(line.text().contains(result),"Diagnostic audit correlation must not contain response data");
+                if(trace.traceId().equals(line.mdc().get("traceId"))) { linked=line;break; }
+            }
+            assertNotNull(linked,"Real native operation @Async listener must emit its row correlation");
+            assertNotEquals(publishingThread,linked.thread());
+            assertEquals(trace.requestId(),linked.mdc().get("requestId"));assertEquals(trace.spanId(),linked.mdc().get("spanId"));
+            var match=java.util.regex.Pattern.compile("native_audit kind=operation auditId=([0-9]+)").matcher(linked.text());
+            assertTrue(match.matches());long loggedId=Long.parseLong(match.group(1));
+            try(var connection=source.getConnection();var query=connection.prepareStatement(
+                    "SELECT oper_id,status,oper_param,json_result FROM sys_oper_log WHERE tenant_id=? AND oper_name=? AND title=?")) {
+                query.setString(1,"000000");query.setString(2,marker);query.setString(3,title);
+                try(var rows=query.executeQuery()) {
+                    assertTrue(rows.next(),"Native Mapstruct/MyBatis listener must persist the synthetic operation event");
+                    assertEquals(loggedId,rows.getLong("oper_id"));assertEquals(0,rows.getInt("status"));
+                    // Original audit storage semantics remain intact; only new diagnostic logs omit these values.
+                    assertEquals(params,rows.getString("oper_param"));assertEquals(result,rows.getString("json_result"));
+                    assertFalse(rows.next(),"Exactly one operation audit row belongs to the random synthetic marker");
+                }
+            }
+            assertNull(executor.submit(TraceContext::current).get(5,TimeUnit.SECONDS));
+            assertNull(executor.submit(()->MDC.get("traceId")).get(5,TimeUnit.SECONDS));
+        } finally {
+            audit.detachAppender(capture);capture.stop();
+            try(var connection=source.getConnection();var cleanup=connection.prepareStatement(
+                    "DELETE FROM sys_oper_log WHERE tenant_id=? AND oper_name=? AND title=?")) {
+                cleanup.setString(1,"000000");cleanup.setString(2,marker);cleanup.setString(3,title);cleanup.executeUpdate();
             }
         }
     }

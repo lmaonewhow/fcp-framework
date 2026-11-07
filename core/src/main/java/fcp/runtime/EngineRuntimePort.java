@@ -124,7 +124,7 @@ public final class EngineRuntimePort implements RuntimePort,AutoCloseable {
         var pkg=resolve(plugin,version,digest);String entry=pkg.manifest().runtime().entry();String kind=entry.endsWith(".py")?"python":entry.endsWith(".js")||entry.endsWith(".mjs")?"node":"";String exe=executables.get(kind);if(exe==null)throw new FcpException("RUNTIME_MISSING","No approved interpreter for entry");
         List<Object> argv=new ArrayList<>();argv.add(exe);argv.add(pkg.directory().resolve(entry).toString());argv.addAll(pkg.manifest().runtime().argv());
         Map<String,Object> launcher=Json.obj("argv",argv,"cwd",".","env",Map.of(),"requires",List.of());
-        Map<String,Object> document=Json.obj("runtime",Json.obj("launcher","plugin","timeout",60,"keepAlive",true,"runtimeContext",true,"autoRestart",false,"methods",Map.of()));
+        Map<String,Object> document=Json.obj("id",pkg.manifest().pluginId(),"version",pkg.manifest().version(),"runtime",Json.obj("launcher","plugin","timeout",60,"keepAlive",true,"runtimeContext",true,"autoRestart",false,"methods",Map.of()));
         Runner runner=new Runner(pkg,new ProcessProvider(document,pkg.directory(),Map.of("plugin",launcher)));journal.reserveRestart(plugin,now,restartBudget);runner.restartAttempt=now;
         try{Object handshake=control(runner,"handshake",Json.obj("protocol","fcp.runtime/1","pluginId",plugin,"version",version,"nonce",runner.nonce));Map<String,Object> response=map(handshake);
             if(!response.equals(Json.obj("protocol","fcp.runtime/1","pluginId",plugin,"version",version,"nonce",runner.nonce)))throw new FcpException("HANDSHAKE","Runner identity handshake mismatch");
