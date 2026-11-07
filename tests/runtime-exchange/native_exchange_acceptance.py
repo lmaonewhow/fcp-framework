@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'tools'))
 sys.path.insert(0,str(ROOT/'tests/runtime-native'))
+sys.path.insert(0,str(ROOT/'tests/runtime-portability'))
 from native_client import require_loopback
 from native_runtime_acceptance import Client,RuntimeFixture,exported
 from ci_ingestion import safe_diagnostic
@@ -60,9 +61,10 @@ class ExchangeFixture:
                 if parsed.path!='/campus':self.send_error(404);return
                 owner.requests.append(cursor)
                 if cursor=='task-page2' and not owner.allow_second:self.send_error(503);return
-                if cursor not in ('','manual','task-page2','same-object'):self.send_error(400);return
-                code={'':'task1','manual':'api1','task-page2':'task2','same-object':'s1'}[cursor]
-                payload=json.dumps(dict(content=SAME_OBJECT_CSV if cursor=='same-object' else 'student_code,full_name,class_code\n'+code+',Synthetic '+code+',class-a\n',nextCursor='task-page2' if cursor=='' else None)).encode()
+                if cursor not in ('','manual','task-page2','same-object','business-contract'):self.send_error(400);return
+                code={'':'task1','manual':'api1','task-page2':'task2','same-object':'s1','business-contract':'portable1'}[cursor]
+                from business_contract import CSV as BUSINESS_CSV
+                payload=json.dumps(dict(content=BUSINESS_CSV if cursor=='business-contract' else SAME_OBJECT_CSV if cursor=='same-object' else 'student_code,full_name,class_code\n'+code+',Synthetic '+code+',class-a\n',nextCursor='task-page2' if cursor=='' else None)).encode()
                 self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(payload)));self.end_headers();self.wfile.write(payload)
         self.server=ThreadingHTTPServer(('127.0.0.1',0),Handler);self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start()
         self.endpoint='http://127.0.0.1:'+str(self.server.server_port)+'/campus'
@@ -153,6 +155,8 @@ class ExchangeFixture:
                         plan=client.data('/fcp/plugins/'+plugin+'/grants/plans',dict(targetTenant='000000',expectedRevision=options['revision'],grants=grants));self.check(plugin+' exact platform grants confirmed over HTTP',RuntimeFixture.confirm(client,plan,'exchange-grants-'+plugin)['phase']=='COMPLETE')
                         self.seed_exchange_authority(plugin,digest);self.lifecycle(client,plugin,'ENABLE','exchange-enable-'+plugin)
                         self.report['packages'].append(dict(plugin=plugin,sha256=digest,bytes=len(package)))
+                    from business_contract import run_business_contract
+                    self.report['sharedBusinessContract']=run_business_contract(client,self.import_authority)
                     status,body=client.request('/fcp/exchange/configs/roster-fixture/preview-api',dict(cursor='manual',url='http://127.0.0.1:1/forbidden'));self.check('client cannot supply connector URL',status==400)
                     catalog=client.data('/fcp/ui/catalog')['catalog']
                     for operation in ('exchange.read','exchange.preview','exchange.commit'):

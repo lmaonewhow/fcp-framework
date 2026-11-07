@@ -60,6 +60,7 @@ java -jar ruoyi-admin.jar --spring.profiles.active=prod,fcp
 运行时插件能力需要显式开启，不会随安装自动授权或执行。两套真实前端工作台为 `/admin/fcp/plugins` 与 `/teacher/fcp/plugins`，管理操作由服务端原生权限决定。共享组件通过各自 UI 适配器接入路由、输入控件和槽位，不把运行时包当作任意前端脚本执行。
 
 - [原生接入与授权配置](docs/runtime-plugin/NATIVE.md)：V005/V006、运行账号与独立部署账号、可信发布者、解释器及管理流程。
+- [独立开发前端与学生闭环](docs/runtime-plugin/DEVELOPMENT.md)：独立构建、私有开发身份、页面槽位与显式 JDBC 开发存储；不替代原生或生产验收。
 - [开发宿主与生命周期](docs/runtime-plugin/LIFECYCLE.md)：直接编译共享 Java 代码并启动开发宿主，不依赖预先构建的 ruoyi-admin.jar；开发认证文件不会进入生产 JAR。
 - [版本暂存、升级与回退](tests/runtime-versions/README.md)：明确确认、停用排空、结构兼容及重新授权，不承诺零停机升级或自动数据库回退。
 - [统一导入导出与任务](tests/runtime-exchange/README.md)：文件/API 同一管线、预览确认、独立 TASK、持久回执/游标及 24 小时临时导出内容清理。业务数据和审计不硬删除。

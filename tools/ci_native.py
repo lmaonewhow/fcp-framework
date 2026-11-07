@@ -199,6 +199,11 @@ def run()->int:
    if exchange_fixture:
     modules.append(NativeModule('runtimeExchange',lambda:exchange_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
      lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'authorizationManagement':value['authorizationManagement']}))
+   if exchange_fixture:
+    sys.path.insert(0,str(ROOT/'tests/runtime-portability'))
+    from development_business import verify_development_business
+    modules.append(NativeModule('developmentBusiness',lambda:verify_development_business(private_dir,url,runtime_user,runtime_password,driver,exchange_fixture.endpoint,exchange_fixture.report.get('sharedBusinessContract',{})),
+     lambda value:{'status':value['status'],'sameNativeRows':value['sameNativeRows'],'jvmRestartPersistence':value['jvmRestartPersistence']}))
    run_native_modules(report,modules,prerequisites_passed=result.get('status')=='PASS' and bool(report.get('build',{}).get('buildId')),
     host_alive=lambda:process is not None and process.poll() is None,
     secrets_provider=lambda:[*fixture.diagnostic_secrets,fixture.password])
