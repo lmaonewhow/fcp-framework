@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import { ReleasePermissionHost } from './permission-host';
 import { ReleaseConsole, type ReleaseHost, type ConsoleState, type ReleaseAction } from './controller';
 const props = defineProps<{host: ReleaseHost}>();
 const state = shallowRef<ConsoleState>({busy:false,error:'',notice:'',unknown:false,state:null,versions:null,review:null});
-const console = new ReleaseConsole(props.host, next => { state.value = next; });
+const permissionHost = new ReleasePermissionHost(props.host);
+const console = new ReleaseConsole(permissionHost, next => { state.value = next; });
 const draft = ref(''), confirmed = ref(false), actionConfirmed = ref(false), recoveryConfirmed = ref(false), localError = ref('');
 const action = ref<ReleaseAction>('DEPLOY'), percentage = ref(1);
 const actions: {value: ReleaseAction; label: string}[] = [
@@ -19,27 +21,28 @@ watch(() => state.value.state?.revision, () => { actionConfirmed.value = false; 
 watch(() => state.value.state?.pending, () => { recoveryConfirmed.value = false; });
 const stop = props.host.observeIdentity(() => {draft.value='';confirmed.value=false;actionConfirmed.value=false;recoveryConfirmed.value=false;localError.value='';});
 async function safely(work: () => unknown) { localError.value='';try {await work();} catch {localError.value='请先加载状态并检查输入、权限和确认项。';} }
+async function load() { await permissionHost.refresh(); await console.load(); }
 function review() { return safely(() => console.review(JSON.parse(draft.value))); }
 function execute() {
   const current = Number(state.value.state?.basisPoints ?? 0);
   const bp = action.value === 'PROMOTE' ? 10000 : ['ABORT','ROLLBACK','DEPLOY'].includes(action.value) ? 0 : ['PAUSE','RETIRE'].includes(action.value) ? current : Math.round(percentage.value * 100);
   return safely(() => console.execute(action.value,bp,actionConfirmed.value));
 }
-onMounted(() => { void safely(() => console.load()); });
-onBeforeUnmount(() => {stop();console.dispose();});
+onMounted(() => { void safely(load); });
+onBeforeUnmount(() => {stop();console.dispose();permissionHost.dispose();});
 </script>
 <template>
   <main class="fcp-release-console" aria-label="系统发布与版本管理">
     <h1>系统发布、版本与灰度</h1>
     <p>管理系统产物及发布组合，不管理源码分支。部署能力由当前执行适配器提供。</p>
+    <button type="button" :disabled="state.busy" @click="safely(load)">刷新状态</button>
+    <p v-if="state.error || localError" role="alert">{{ localError || state.error }}</p>
     <p v-if="!console.canView" role="alert">当前账号没有发布查询权限。</p>
     <template v-else>
       <div class="toolbar">
-        <button type="button" :disabled="state.busy" @click="safely(() => console.load())">刷新状态</button>
         <button v-if="console.canManage" type="button" :disabled="state.busy" @click="safely(() => console.reconcile())">对账执行结果</button>
         <span>修订：{{ state.state?.revision ?? '未加载' }}</span>
       </div>
-      <p v-if="state.error || localError" role="alert">{{ localError || state.error }}</p>
       <p v-if="state.notice" role="status">{{ state.notice }}</p>
       <p v-if="state.unknown" role="alert">存在未确认结果，已阻止再次变更。请对账，不能重复部署或重发写入。</p>
       <section v-if="console.canRecover" aria-label="安全恢复未决发布操作">

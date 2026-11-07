@@ -27,6 +27,10 @@ def verify_system_release(fixture,admin,viewer,browser,states,base):
         fixture.check('revoked native release view permission takes effect immediately',is_rejected(status,body))
     finally:
         fixture.sql(f"USE `{fixture.database}`; UPDATE sys_menu SET status='0' WHERE menu_id=942030;")
+    fixture.check('native admin session projects explicit release grants independently of wildcard',
+                  set(admin.data('/fcp/ui/session').get('releasePermissions',[]))=={'fcp:release:view','fcp:release:manage'})
+    fixture.check('native teacher session projects view without management',
+                  viewer.data('/fcp/ui/session').get('releasePermissions')==['fcp:release:view'])
     for role,shell in [('admin','admin'),('teacher','teacher')]:
         context=browser.new_context(storage_state=states[role],viewport={'width':1440,'height':960})
         try:
@@ -37,5 +41,12 @@ def verify_system_release(fixture,admin,viewer,browser,states,base):
             if role=='teacher':
                 fixture.check('teacher release console does not offer management controls',page.get_by_role('button',name='检查并预览',exact=True).count()==0)
             path=fixture.output/(shell+'-system-release.png');page.screenshot(path=str(path),full_page=True);fixture.report['screenshots'].append(str(path.relative_to(fixture.output.parents[1])))
+        except Exception:
+            if 'page' in locals():
+                try:
+                    path=fixture.output/(shell+'-system-release-failure.png');page.screenshot(path=str(path),full_page=True)
+                    fixture.report['screenshots'].append(str(path.relative_to(fixture.output.parents[1])))
+                except Exception:pass
+            raise
         finally:context.close()
     fixture.report['systemRelease']={'registry':'PASS','ui':'PASS','deployment':'NOT_RUN','grayRouting':'NOT_RUN','production':'NOT_ACCEPTED'}

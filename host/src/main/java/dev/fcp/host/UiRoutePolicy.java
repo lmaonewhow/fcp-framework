@@ -15,7 +15,10 @@ public final class UiRoutePolicy {
         return Map.of("subject",id.subject(),"scope",id.scope(),
             "defaultShell",admin?"admin":"teacher",
             "allowedShells",admin?List.of("admin","teacher"):List.of("teacher"),
-            "home",(admin?"/admin/fcp/":"/teacher/fcp/")+page);
+            "home",(admin?"/admin/fcp/":"/teacher/fcp/")+page,
+            "releasePermissions",id.scope().equals("tenant-000000")
+                ? List.of("fcp:release:view","fcp:release:manage").stream().filter(id.permissions()::contains).toList()
+                : List.of());
     }
     /** Soybean v1.1.3 parses RuoYi-style routes itself. */
     public static List<Map<String,Object>> soybeanRoutes(SchoolFacade.Identity id) {

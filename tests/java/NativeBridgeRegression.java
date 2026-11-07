@@ -54,6 +54,14 @@ public final class NativeBridgeRegression {
             ok(UiRoutePolicy.session(admin).get("defaultShell").equals("admin"),"admin default shell");
             ok(UiRoutePolicy.session(teacher).get("allowedShells").equals(List.of("teacher")),"teacher cannot select admin shell");
             ok(UiRoutePolicy.session(viewer).get("defaultShell").equals("teacher"),"viewer teacher shell");
+            var releaseAdmin=new SchoolFacade.Identity("tenant-000000","1",Set.of("fcp:release:view","fcp:release:manage"),Set.of());
+            var releaseViewer=new SchoolFacade.Identity("tenant-000000","101",Set.of("fcp:release:view"),Set.of());
+            var releaseForeign=new SchoolFacade.Identity("tenant-000001","201",Set.of("fcp:release:view","fcp:release:manage"),Set.of());
+            var wildcard=new SchoolFacade.Identity("tenant-000000","1",Set.of("fcp:eval:list","*:*:*"),Set.of());
+            ok(UiRoutePolicy.session(releaseAdmin).get("releasePermissions").equals(List.of("fcp:release:view","fcp:release:manage")),"explicit native release grants projected without wildcard");
+            ok(UiRoutePolicy.session(releaseViewer).get("releasePermissions").equals(List.of("fcp:release:view")),"release viewer projection cannot become manager");
+            ok(UiRoutePolicy.session(releaseForeign).get("releasePermissions").equals(List.of()),"non-platform release projection remains empty despite menu grants");
+            ok(UiRoutePolicy.session(wildcard).get("releasePermissions").equals(List.of()),"native wildcard does not create FCP release permission");
             var noGrant=new SchoolFacade.Identity("tenant-000000","103",Set.of(),Set.of());
             denied("FORBIDDEN",()->UiRoutePolicy.session(noGrant),"UI session requires host grant");
             var route=UiRoutePolicy.soybeanRoutes(teacher).get(0);

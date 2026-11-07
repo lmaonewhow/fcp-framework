@@ -82,3 +82,45 @@ test('unknown recovery result remains blocked and is not retried automatically',
 test('late safe recovery response cannot cross identity boundary',async()=>{
   const f=fixture();f.setHandler(async()=>({revision:3,pending:{operationId:'original'},supportsRecovery:true}));await f.console.load();let finish;f.setHandler(()=>new Promise(resolve=>finish=resolve));const recovery=f.console.recover(true);f.switchIdentity();finish({revision:4,phase:'READY'});await recovery;assert.equal(f.console.data.state,null);assert.equal(f.console.canRecover,false);
 });
+
+// Real native adapters report the super-admin wildcard, while FCP requires explicit JDBC grants.
+import {ReleasePermissionHost} from '../../integration/frontend-release/permission-host.ts';
+function nativeProjection(shell='admin',grants=['fcp:release:view','fcp:release:manage']) {
+  let identity='native-user-1', changed=()=>{};
+  let response=async()=>grants;
+  const calls=[];
+  const host={shell,identityKey:()=>identity,permissions:()=>['*:*:*'],observeIdentity(fn){changed=fn;return()=>{}},
+    async request(path,method,body,signal){calls.push({path,signal});const data=path==='/fcp/ui/session'?{releasePermissions:await response()}:
+      path.endsWith('/versions')?{releases:[{id:'ci-system-release'}]}:{revision:1,phase:'EMPTY'};
+      return shell==='admin'?{code:200,data}:{data,error:null};}};
+  const projected=new ReleasePermissionHost(host), console=new ReleaseConsole(projected);
+  return {projected,console,calls,switchIdentity(){identity='native-user-2';changed()},respond(fn){response=fn}};
+}
+test('native wildcard is not a grant but explicit server projection loads both consoles',async()=>{
+  for(const shell of ['admin','teacher']) {
+    const f=nativeProjection(shell);assert.equal(f.console.canView,false);
+    await f.projected.refresh();await f.console.load();
+    assert.equal(f.console.canManage,true);assert.equal(f.console.data.versions.releases[0].id,'ci-system-release');
+    assert.deepEqual(f.calls.map(c=>c.path),['/fcp/ui/session','/fcp/releases/state','/fcp/releases/versions']);
+    f.console.dispose();f.projected.dispose();
+  }
+});
+test('server permission projection never derives grants from wildcard or foreign tenant',async()=>{
+  for(const grants of [[],['fcp:release:view']]) {
+    const f=nativeProjection('admin',grants);await f.projected.refresh();assert.equal(f.console.canView,grants.length===1);assert.equal(f.console.canManage,false);
+  }
+  for(const grants of [['*:*:*'],['fcp:release:view','other'],['fcp:release:view','fcp:release:view'],null]) {
+    const f=nativeProjection('admin',grants);await assert.rejects(()=>f.projected.refresh(),/INVALID_PERMISSION_PROJECTION/);assert.equal(f.console.canView,false);
+  }
+});
+test('native identity changes abort late permission projection and clear release state',async()=>{
+  const f=nativeProjection();await f.projected.refresh();await f.console.load();let resolve;
+  f.respond(()=>new Promise(done=>{resolve=done}));const loading=f.projected.refresh();const signal=f.calls.at(-1).signal;
+  f.switchIdentity();resolve(['fcp:release:view','fcp:release:manage']);await assert.rejects(()=>loading,/STALE_IDENTITY/);
+  assert.equal(signal.aborted,true);assert.equal(f.console.canView,false);assert.equal(f.console.data.versions,null);
+});
+test('permission refresh failure revokes old projection and cannot retain management controls',async()=>{
+  const f=nativeProjection();await f.projected.refresh();await f.console.load();assert.equal(f.console.canManage,true);
+  f.respond(async()=>{throw new Error('network')});await assert.rejects(()=>f.projected.refresh(),/network/);
+  assert.equal(f.console.canManage,false);assert.equal(f.console.data.state,null);
+});
