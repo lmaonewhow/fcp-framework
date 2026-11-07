@@ -2,19 +2,22 @@
 """Disposable loopback development-host A/B benchmark. No native/database/production claim.
 Uses synthetic private credentials in a temporary directory; never prints or exports them.
 """
-import argparse,concurrent.futures,hashlib,http.client,io,json,math,os,platform,secrets,socket,subprocess,sys,tarfile,tempfile,time
+import argparse,datetime,uuid,concurrent.futures,hashlib,http.client,io,json,math,os,platform,secrets,socket,subprocess,sys,tarfile,tempfile,time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 def main():
  parser=argparse.ArgumentParser();parser.add_argument('--baseline-ref',required=True);parser.add_argument('--requests',type=int,default=8000);parser.add_argument('--concurrency',type=int,default=4);args=parser.parse_args()
  if not 100<=args.requests<=20000 or not 1<=args.concurrency<=16:parser.error('Bounded benchmark sizes required')
- report={'status':'FAIL','scope':'loopback development GET /fcp/session, synthetic identity, no native RuoYi/MySQL/Redis/plugin workload','productionPerformance':'NOT_RUN','rounds':[]}
+ report={'status':'FAIL','scope':'loopback development GET /fcp/session, synthetic identity, no native RuoYi/MySQL/Redis/plugin workload','productionPerformance':'NOT_RUN','performanceAcceptance':'NOT_EVALUATED','rounds':[]}
  report['baselineCommit']=subprocess.check_output(['git','rev-parse',args.baseline_ref+'^{commit}'],cwd=ROOT,text=True).strip()
+ report['measurementScriptSha256']=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
  report['candidateCommit']=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
  report['candidateDirty']=subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).splitlines()
  report['candidateSourceHashes']={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for folder in ['core/src','business/src','host/src','development-host/src'] for p in (ROOT/folder).rglob('*.java')}
  report['environment']={'platform':platform.platform(),'java':subprocess.check_output(['java','-version'],stderr=subprocess.STDOUT,text=True).splitlines()[0]}
- output=ROOT/'reports/observability';output.mkdir(parents=True,exist_ok=True)
+ run_id=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex[:8]
+ output=ROOT/'reports/observability/http-overhead'/run_id;output.mkdir(parents=True,exist_ok=False)
+ report['runId']=run_id;report['evidenceDirectory']=str(output.relative_to(ROOT))
  try:
   with tempfile.TemporaryDirectory(prefix='fcp-trace-ab-') as temp:
    temp=Path(temp);baseline=temp/'baseline';baseline.mkdir()
@@ -63,10 +66,13 @@ def main():
       lines=(output/f'http-{index}-{label}.log').read_text().splitlines()
       report['rounds'][-1]['diagnosticEvents']=sum('"event":"http.request"' in line for line in lines)
       report['rounds'][-1]['expectedEvents']=args.requests+1001
+      if report['rounds'][-1]['diagnosticEvents']!=args.requests+1001:raise RuntimeError('Diagnostic event loss in this benchmark; inspect retained logs')
    report['status']='PASS'
    report['interpretation']='Short same-machine alternating A/B rounds with fresh JVMs; includes HTTP/auth/file reads/log queue and JIT/noise. Inspect all rounds; do not infer a production latency budget or average percentiles.'
  except Exception as error:report['error']=type(error).__name__+': '+str(error)
  (output/'http-overhead.json').write_text(json.dumps(report,indent=2)+'\n')
+ # Convenience latest snapshot; the matching raw logs remain immutable in its run-id directory.
+ (ROOT/'reports/observability/http-overhead.json').write_text(json.dumps(report,indent=2)+'\n')
  print(json.dumps({k:v for k,v in report.items() if k!='candidateSourceHashes'},indent=2))
  return 0 if report['status']=='PASS' else 2
 if __name__=='__main__':raise SystemExit(main())
