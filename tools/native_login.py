@@ -34,3 +34,17 @@ def authenticated_storage_state(page, context, base, workspace, timeout_ms=30000
     page.get_by_test_id(markers[workspace]).wait_for(state='visible',timeout=timeout_ms)
     state = context.storage_state()
     return state, native_token(state, base)
+
+
+def require_encrypted_login(response):
+    """Only navigation-safe metadata; Chromium may discard the auth response body."""
+    if response.status != 200 or not response.request.headers.get('encrypt-key'):
+        raise AssertionError('Expected HTTP 200 from genuine encrypted native login')
+
+
+def verify_native_identity(client, expected_user, expected_tenant):
+    """A fresh authenticated server request proves success, not a discarded auth body."""
+    session = client.data('/fcp/ui/session')
+    if str(session.get('subject')) != str(expected_user) or session.get('scope') != 'tenant-'+expected_tenant:
+        raise AssertionError('Authenticated native identity differs from requested synthetic user/tenant')
+    return session
