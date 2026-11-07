@@ -1,7 +1,9 @@
 name: Native ingestion acceptance
 on:
+  pull_request:
+    branches: [dev, main]
   push:
-    branches: [feat/ruoyi-5.6-plugin-ingestion]
+    branches: [dev, feat/ruoyi-5.6-plugin-ingestion]
     paths:
       - '.github/workflows/native-ingestion.yml'
       - 'tools/**'

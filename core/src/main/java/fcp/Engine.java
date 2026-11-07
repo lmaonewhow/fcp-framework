@@ -81,8 +81,39 @@ public final class Engine implements AutoCloseable {
     private void visit(String m,Map<String,List<String>> edges,Set<String> active,Set<String> done,List<String> order){if(active.contains(m))throw new FcpException("DEPENDENCY_CYCLE",m);if(done.contains(m))return;active.add(m);for(String d:edges.get(m))visit(d,edges,active,done,order);active.remove(m);done.add(m);order.add(m);}
     public Map<String,Object> publish(String scope,Object application,long expected){
         // Only publishers serialize with one another; slow preparation does not block calls.
-        synchronized(publication) { try { return prepareAndPublish(scope,application,expected); }
-        finally { disposeQueued(); } }
+        synchronized(publication) { try {
+            synchronized(registry) { return prepareAndPublish(scope,application,expected); }
+        } finally { disposeQueued(); } }
+    }
+    /** Register validated immutable documents and publish under the same admission boundary.
+     * Used by the trusted installation coordinator, never exposed directly as a plugin RPC.
+     * Registration is rolled back if preparation fails. Durable installation intent must be
+     * recorded by the coordinator before this method; this is not a filesystem/DB transaction.
+     */
+    public Map<String,Object> publishCatalog(String scope, List<Map<String,Object>> documents,
+                                              Object application, long expected) {
+        synchronized(publication) {
+            try {
+                synchronized(registry) {
+                    var oldContracts = new LinkedHashMap<>(registry.contracts);
+                    var oldModules = new LinkedHashMap<>(registry.modules);
+                    var oldCompositions = new LinkedHashMap<>(registry.compositions);
+                    try {
+                        for (var document : documents) {
+                            String kind = str(document.get("kind"));
+                            Map<String,Object> definition = map(document.get("document"));
+                            registry.register(kind, definition);
+                        }
+                        return prepareAndPublish(scope, application, expected);
+                    } catch (RuntimeException error) {
+                        registry.contracts.clear(); registry.contracts.putAll(oldContracts);
+                        registry.modules.clear(); registry.modules.putAll(oldModules);
+                        registry.compositions.clear(); registry.compositions.putAll(oldCompositions);
+                        throw error;
+                    }
+                }
+            } finally { disposeQueued(); }
+        }
     }
     private Map<String,Object> prepareAndPublish(String scope,Object application,long expected){
         ident(scope); final Snapshot old;
