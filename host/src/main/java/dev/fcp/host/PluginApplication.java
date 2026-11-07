@@ -20,13 +20,18 @@ public final class PluginApplication {
     private final LifecycleCoordinator lifecycle;
     private final EngineRuntimePort runtime;
     private final Path uploads;
+    private final PackageStaging staging;
     private final Function<TrustedContext,Set<String>> permissions;
     private final Map<String,PendingPlan> plans=new LinkedHashMap<>();
     public PluginApplication(HostCapabilities host,VerifiedPackageRepository packages,LifecycleCoordinator lifecycle,
                              EngineRuntimePort runtime,Path uploads,Function<TrustedContext,Set<String>> permissions)throws IOException {
+        this.staging=new PackageStaging(host,packages,uploads);
         this.host=host;this.packages=packages;this.lifecycle=lifecycle;this.runtime=runtime;this.permissions=permissions;
         this.uploads=uploads.toAbsolutePath().normalize();Files.createDirectories(this.uploads);
         if(Files.isSymbolicLink(this.uploads))throw new IOException("Upload directory must not be a symlink");
+    }
+    public Map<String,Object> stage(TrustedContext context,InputStream body,String digest,String key)throws IOException {
+        return staging.stage(context,body,digest,key);
     }
     public Map<String,Object> install(TrustedContext context,InputStream body,String digest,String key,long expected)throws IOException {
         host.require(context,new HostCapabilities.Grant("control","plugin.lifecycle","install","tenant:"+context.tenantId()));

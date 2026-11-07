@@ -42,9 +42,10 @@ def exported(plugin,capability='echo'):
 
 
 class Client(NativeClient):
-    def upload(self,package,digest,key,revision):
+    def upload(self,package,digest,key,revision=None,staged=False):
         headers={'Content-Type':'application/octet-stream','clientid':self.client_id,'Authorization':'Bearer '+self.token,'X-Fcp-Digest':digest,'Idempotency-Key':key,'X-Fcp-Revision':str(revision)}
-        request=urllib.request.Request(self.base+'/fcp/packages',data=package,headers=headers,method='POST')
+        request=urllib.request.Request(self.base+('/fcp/packages/staged' if staged else '/fcp/packages'),data=package,headers=headers,method='POST')
+        if staged:request.remove_header('X-fcp-revision')
         try:
             with self.opener.open(request,timeout=30) as response:status,data=response.status,response.read(2*1024*1024)
         except urllib.error.HTTPError as error:status,data=error.code,error.read(2*1024*1024)
@@ -169,6 +170,11 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(1,950510),(950001,950511);
                             path=self.output/(shell+'-runtime.png');page.screenshot(path=str(path),full_page=True);self.report['screenshots'].append(str(path.relative_to(ROOT)))
                         except Exception:
                             if 'page' in locals():
+                                try:
+                                    from ui_field_diagnostics import capture_field_diagnostics
+                                    capture_field_diagnostics(page,self.output/(shell+'-runtime-field-failure.json'))
+                                except Exception:
+                                    pass  # Preserve original failure; diagnostics are best effort.
                                 failure_path=self.output/(shell+'-runtime-failure.png')
                                 try:page.screenshot(path=str(failure_path),full_page=True);self.report['screenshots'].append(str(failure_path.relative_to(ROOT)))
                                 except Exception:pass

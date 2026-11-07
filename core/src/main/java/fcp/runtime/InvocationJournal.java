@@ -25,7 +25,7 @@ final class InvocationJournal implements AutoCloseable {
     synchronized void reserveRestart(String plugin,Instant now,int budget){
         live();String key="runner:"+plugin;List<String> attempts=new ArrayList<>();Object raw=records.get(key);if(raw!=null)for(Object t:Schema.list(raw)){Instant time=Instant.parse(Schema.str(t));if(!time.isBefore(now.minusSeconds(60)))attempts.add(time.toString());}
         if(attempts.size()>=budget)throw new FcpException("RESTART_BUDGET","Runner restart budget exhausted");
-        if(!attempts.isEmpty()&&now.isBefore(Instant.parse(attempts.get(attempts.size()-1)).plusMillis(250)))throw new FcpException("RESTART_BACKOFF","Runner restart backoff active");
+        if(!attempts.isEmpty()&&now.isBefore(Instant.parse(attempts.get(attempts.size()-1)).plusMillis(250)))throw new FcpException("RESTART_BACKOFF","Runner restart backoff active",Math.max(1,(java.time.Duration.between(now,Instant.parse(attempts.get(attempts.size()-1)).plusMillis(250)).toNanos()+999999)/1000000));
         attempts.add(now.toString());records.put(key,attempts);persist();
     }
     private void live(){if(poisoned)throw new FcpException("JOURNAL_UNAVAILABLE","Invocation journal failed");}
