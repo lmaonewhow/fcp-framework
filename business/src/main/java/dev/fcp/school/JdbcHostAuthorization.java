@@ -14,6 +14,7 @@ public final class JdbcHostAuthorization {
     private final DataSource dataSource;
     private static final Set<String> ALLOWED=Set.of("fcp:eval:list","fcp:eval:get","fcp:eval:history",
         "fcp:eval:create","fcp:eval:analyze","fcp:eval:manage","fcp:eval:allClasses","fcp:ui:admin",
+        "fcp:plugin:view","fcp:plugin:manage","fcp:plugin:install",
         "fcp:ingest:view","fcp:ingest:import","fcp:ingest:manage","fcp:ingest:allClasses");
     public JdbcHostAuthorization(DataSource dataSource){this.dataSource=Objects.requireNonNull(dataSource);}
     private PreparedStatement prepare(Connection connection,String sql,String tenant,String subject)throws SQLException {

@@ -1,0 +1,25 @@
+{
+  "shell": "admin",
+  "browser": "NOT_RUN",
+  "server": "NOT_RUN",
+  "started": 1794057918.982296,
+  "lockPolicy": "existing-frozen-install",
+  "sources": {
+    "src/fcp/PluginManager.vue": "d74bd646d3c54746f8ae90b1f23d88cad0dd78c4bf739f4584d665da495e7dbf",
+    "src/fcp/usePluginManager.ts": "b76a45db88d83ad2201831577736e3fe595495c4868f6048e2feca9b7d1dfa2e",
+    "src/fcp/runtime/index.ts": "d36e8c64af2f0e07a4f7f37fe0e320c3b3b8ff04a6fea47d0ebbdd9c5eca56ec",
+    "src/fcp/usePlugins.ts": "5faf46bda641755523bf5a2bbc4b576376d9306582d672047b983276074777cc",
+    "src/fcp/PluginWorkspace.vue": "8a572a02ab5ce8994b780744dada2e0130a9762a842b70051f26a21bab50ed49",
+    "src/views/fcp/plugins/index.vue": "dbb8f881624f319fd478c176be113a37f96b35597f4d40bbd7f9558de43f6020",
+    "src/views/fcp/plugins/routes.ts": "8d6e49c0f52cb49de7bf40665d56c3e80993f7796087610680da476648d27c65",
+    "src/router/index.ts": "f68045a530b13cb6995fe10ae9698bfca1c5dda9445806e8c3e4d60556386c2b",
+    "src/fcp/session.ts": "2ff8de3b97f222f48c5a124ad09fc1db7602486cacb0b552b3a76a0859001c04"
+  },
+  "build": "PASS",
+  "typecheck": "PASS",
+  "files": 394,
+  "manifestSha256": "5c61e8eff56eb4b7812324302cef915f84a1e99db38e314cb7668220d86958f7",
+  "status": "PASS",
+  "elapsed": 56.031946897506714,
+  "buildId": "27b10f3f1a9d4fcb817f36f374944ce8"
+}

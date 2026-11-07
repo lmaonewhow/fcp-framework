@@ -50,6 +50,13 @@ public final class PluginApplication {
                 "state","INSTALLED","replayed",replay,"revision",lifecycle.revision());
         } finally { Files.deleteIfExists(upload); }
     }
+    public Map<String,Object> uninstall(TrustedContext context,String plugin,String confirmedDigest,long expected) {
+        host.require(context,new HostCapabilities.Grant(plugin,"plugin.lifecycle","uninstall","tenant:"+context.tenantId()));
+        var installed=lifecycle.installedMetadata(context,plugin);
+        if(confirmedDigest==null||!confirmedDigest.equals(installed.get("digest")))throw new FcpException("VERSION_CONFLICT","Confirm the currently installed package digest");
+        lifecycle.uninstall(context,plugin,expected);
+        return Json.obj("pluginId",plugin,"state","UNINSTALLED","dataRetained",true,"revision",lifecycle.revision());
+    }
     public synchronized Map<String,Object> plan(TrustedContext context,String plugin,String action,long expected) {
         LifecycleCoordinator.Action type;
         try{type=LifecycleCoordinator.Action.valueOf(action.toUpperCase(Locale.ROOT));}
@@ -62,6 +69,7 @@ public final class PluginApplication {
             "affectedPlugins",plan.closure(),"expectedRevision",plan.expectedRevision());
     }
     public synchronized Map<String,Object> confirm(TrustedContext context,String id,String digest,Set<String> affected,String key) {
+        var saved=lifecycle.replayConfirmation(context,digest,affected,key);if(saved!=null)return operation(saved);
         PendingPlan pending=plans.get(id);
         if(pending==null||!pending.owner().equals(owner(context))||host.clock().instant().isAfter(pending.expires()))
             throw new FcpException("PLAN_EXPIRED","Generate a new plan before confirmation");

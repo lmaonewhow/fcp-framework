@@ -1,0 +1,18 @@
+{
+  "buildId": "27b10f3f1a9d4fcb817f36f374944ce8",
+  "environment": "source /workspace/shared/fcp-toolchain/env.sh",
+  "admin": [
+    "native.install_frontend(admin,admin,False,locks/admin-package-lock.json)",
+    "npm run build:prod",
+    "npm exec -- vue-tsc --noEmit"
+  ],
+  "teacher": [
+    "pnpm install --frozen-lockfile",
+    "pnpm run build",
+    "pnpm run typecheck"
+  ],
+  "adminLockSha256": "ae581b28b46e756ef06d73f58807e997e76f877a993da174c1e2a2873c2dc8c5",
+  "teacherLockSha256": "8267181e94d1b5dd9c8b36b1a58b4cda63adaa3b33ef650c5a4f5a9cc5868073",
+  "browser": "NOT_RUN",
+  "server": "NOT_RUN"
+}

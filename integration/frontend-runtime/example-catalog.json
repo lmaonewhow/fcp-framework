@@ -1,0 +1,28 @@
+{
+  "contractVersion": "1.0",
+  "schemaVersion": 1,
+  "revision": 1,
+  "pages": [{
+    "id": "exam:overview",
+    "pluginId": "exam",
+    "path": "/fcp/plugins/exam/overview",
+    "title": "Exam overview",
+    "permissions": ["exam.read"],
+    "components": ["stack@1", "text@1", "button@1"],
+    "capabilities": ["exam.summary"],
+    "content": {"type": "stack", "children": [
+      {"type": "text", "text": "Exam overview"},
+      {"type": "button", "text": "Refresh", "capabilityId": "exam.summary"}
+    ]}
+  }],
+  "slots": [{
+    "id": "exam:status",
+    "pluginId": "exam",
+    "slotId": "dashboard.status",
+    "order": 10,
+    "permissions": ["exam.read"],
+    "capabilities": [],
+    "components": ["text@1"],
+    "content": {"type": "text", "text": "Exam plugin is available"}
+  }]
+}

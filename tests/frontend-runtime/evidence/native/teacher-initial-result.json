@@ -1,0 +1,11 @@
+{
+  "shell": "teacher",
+  "browser": "NOT_RUN",
+  "server": "NOT_RUN",
+  "started": 1794055977.7447345,
+  "lockPolicy": "upstream-pnpm-lock",
+  "build": "PASS",
+  "status": "FAIL",
+  "error": "pnpm exited 2. See the preceding tool output.",
+  "elapsed": 468.33770060539246
+}

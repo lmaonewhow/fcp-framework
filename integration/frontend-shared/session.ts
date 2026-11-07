@@ -41,7 +41,8 @@ export async function ensureShell(shell: Shell, clientId: string): Promise<boole
   const allowed: unknown = body.data?.allowedShells;
   if (!Array.isArray(allowed)) throw new Error('界面授权响应无效');
   if (allowed.includes(shell)) return false;
-  const page = typeof body.data?.home === 'string' && ['/admin/fcp/ingestion','/teacher/fcp/ingestion'].includes(body.data.home) ? 'ingestion' : 'school';
+  const home = body.data?.home;
+  const page = ['/admin/fcp/plugins','/teacher/fcp/plugins'].includes(home) ? 'plugins' : ['/admin/fcp/ingestion','/teacher/fcp/ingestion'].includes(home) ? 'ingestion' : 'school';
   // Server chooses among fixed internal destinations; never follow an arbitrary URL in a response.
   if (allowed.includes('teacher')) {
     window.location.replace(`/teacher/fcp/${page}`); return true;

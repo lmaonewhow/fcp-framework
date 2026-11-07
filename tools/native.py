@@ -273,11 +273,18 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
          'return "redirect:/admin/";')
     for name,project,overlay in [('admin',admin,'plus-ui'),('teacher',teacher,'soybean')]:
         copy_files(ROOT/f'integration/{overlay}/src', project/'src')
-        for file in ['session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue']:
+        for file in ['session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue','usePlugins.ts','PluginWorkspace.vue','usePluginManager.ts','PluginManager.vue']:
             target=project/'src/fcp'/file
             if target.exists(): raise BuildError('FCP session module already present')
             target.parent.mkdir(parents=True,exist_ok=True)
             shutil.copy2(ROOT/'integration/frontend-shared'/file,target)
+        copy_files(ROOT/'integration/frontend-runtime', project/'src/fcp/runtime')
+        router=project/'src/router/index.ts'
+        router_source=router.read_text(encoding='utf-8')
+        router_source="import { fcpPluginRoutes } from '@/views/fcp/plugins/routes';\n"+router_source
+        router_source=replace_once(router_source, 'routes: constantRoutes,' if name=='admin' else 'routes: createBuiltinVueRoutes()',
+                                   'routes: [...constantRoutes, ...fcpPluginRoutes],' if name=='admin' else 'routes: [...createBuiltinVueRoutes(), ...fcpPluginRoutes]')
+        router.write_text(router_source,encoding='utf-8')
         main=project/'src/main.ts'
         if not main.is_file(): raise BuildError(f'{name} main.ts missing')
         main.write_text("import '@/fcp/session-sync';\n"+main.read_text(encoding='utf-8'),encoding='utf-8')
@@ -299,8 +306,8 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
                   "export const localStg = bridgeStorage(createStorage<StorageType.Local>('local', storagePrefix));")
     storage.write_text(s,encoding='utf-8')
     edit(teacher/'src/service/api/route.ts',"url: '/system/menu/getRouters'","url: '/fcp/ui/soybean-routes'")
-    for language, labels in [('en-us', ('School', 'Student evaluation', 'Data ingestion')),
-                             ('zh-cn', ('学校业务', '学生评价', '数据接入'))]:
+    for language, labels in [('en-us', ('School', 'Student evaluation', 'Data ingestion', 'Configuration plugins')),
+                             ('zh-cn', ('学校业务', '学生评价', '数据接入', '配置插件'))]:
         add_school_locale(teacher/'src/locales/langs'/f'{language}.ts', *labels)
     common=f"VITE_FCP_BUILD_ID={build_id}\nVITE_APP_CLIENT_ID='{env['FCP_CLIENT_ID']}'\nVITE_APP_RSA_PUBLIC_KEY='{env['FCP_REQUEST_PUBLIC_KEY']}'\nVITE_APP_RSA_PRIVATE_KEY='{env['FCP_RESPONSE_PRIVATE_KEY']}'\n"
     (admin/'.env.production.local').write_text(common+"VITE_APP_CONTEXT_PATH=/admin/\nVITE_APP_BASE_API=\nVITE_APP_ENCRYPT=true\nVITE_APP_SSE=true\n",encoding='utf-8')
@@ -312,12 +319,12 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
     (resources/'fcp/native-assembly.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
     return manifest
 
-def add_school_locale(path: Path, parent_label: str, school_label: str, ingestion_label: str='Data ingestion') -> None:
+def add_school_locale(path: Path, parent_label: str, school_label: str, ingestion_label: str='Data ingestion', plugins_label: str='Configuration plugins') -> None:
     """Keep generated FCP route keys covered by Soybean's typed locale maps."""
     if re.search(r'^\s*fcp(?:_school)?:', path.read_text(encoding='utf-8'), re.MULTILINE):
         raise BuildError('FCP route locale already exists; refusing duplicate adaptation')
     edit(path, '  route: {\n',
-         "  route: {\n    fcp: "+repr(parent_label)+",\n    fcp_school: "+repr(school_label)+",\n    fcp_ingestion: "+repr(ingestion_label)+",\n")
+         "  route: {\n    fcp: "+repr(parent_label)+",\n    fcp_school: "+repr(school_label)+",\n    fcp_ingestion: "+repr(ingestion_label)+",\n    fcp_plugins: "+repr(plugins_label)+",\n")
 
 def install_frontend(project: Path, name: str, resolve_admin_lock: bool, admin_lock: Path|None=None) -> str:
     if name=='teacher':
@@ -378,6 +385,7 @@ def build(projects: dict[str,Path], work: Path, resolve_admin_lock: bool, admin_
         # Vite first generates auto-import/Elegant files; then the real project's type checker runs.
         run(['npm','run','build:prod'] if name=='admin' else ['pnpm','run','build'],cwd=project,clean_vite=True)
         run(['npm','exec','--','vue-tsc','--noEmit'] if name=='admin' else ['pnpm','run','typecheck'],cwd=project,clean_vite=True)
+        run(['node',ROOT/'tests/frontend-runtime/verify-field-label.mjs',project,name],cwd=ROOT,clean_vite=True)
         dist=project/'dist'; validate_dist(dist,name)
         copy_files(dist,resources/'static'/name)
         lock=project/('package-lock.json' if name=='admin' else 'pnpm-lock.yaml')

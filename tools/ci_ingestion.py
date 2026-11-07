@@ -17,6 +17,7 @@ import sys
 import time
 import uuid
 from native_client import NativeClient, envelope
+from native_login import authenticated_storage_state, native_token, require_encrypted_login, verify_native_identity
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -115,10 +116,12 @@ class Fixture:
             page.get_by_placeholder(re.compile(r'^(验证码|Verification Code)$')).fill(answer)
             with page.expect_response(lambda r: r.url.endswith('/auth/login'), timeout=30000) as response:
                 page.locator('.login-form button.el-button--primary').click()
-            self.check(role+' uses native encrypted login', bool(response.value.request.headers.get('encrypt-key')))
-            page.wait_for_function("Boolean(localStorage.getItem('FCP-Host-Token'))", timeout=30000)
-            self.diagnostic_secrets.append(page.evaluate("localStorage.getItem('FCP-Host-Token')"))
-            state = context.storage_state()
+            require_encrypted_login(response.value)
+            state, token = authenticated_storage_state(page, context, base, 'ingestion')
+            self.diagnostic_secrets.append(token)
+            client = NativeClient(base, token, 'e5cd7e4891bf95d1d19206ce24a7b32e')
+            verify_native_identity(client, {'admin':'1','teacher':'950001','viewer':'950002'}[role], '000000')
+            self.check(role+' uses native encrypted login and verified server identity', True)
             # The genuine login state remains in memory only, never in an artifact or log.
             return state
         finally: context.close()
@@ -152,7 +155,7 @@ class Fixture:
                         expect(marker).to_have_attribute('aria-busy', 'false')
                         self.check(role+' exact native build rendered', marker.get_attribute('data-build-id') == build_id and marker.get_attribute('data-shell') == shell)
                         self.check(role+' page title and framework health', bool(page.title()) and not page.locator('vite-error-overlay').count())
-                        token = page.evaluate("localStorage.getItem('FCP-Host-Token')")
+                        token = native_token(context.storage_state(), base)
                         client = NativeClient(base, token, 'e5cd7e4891bf95d1d19206ce24a7b32e')
                         def snapshot(): return client.data('/fcp/ingestion/bootstrap')
                         def dataset(entity): return client.data('/fcp/ingestion/data/'+entity+'?classId=class-a')

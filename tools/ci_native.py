@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools'))
 from native import doctor
+from ci_cleanup import OwnedDisposableDirectory,record_private_cleanup
 
 class PrerequisiteError(RuntimeError):
  """The isolated CI environment is missing an explicitly required prerequisite."""
@@ -32,15 +33,15 @@ def private(path:Path,content:str):
 def run()->int:
  parser=argparse.ArgumentParser(description=__doc__)
  parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');a=parser.parse_args()
- report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','production':'BLOCKED'}
- process=None;private_dir=None;fixture=None
+ report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'production':'BLOCKED'}
+ process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None
  try:
   if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')
   requirements=doctor()
   if requirements['status']!='READY' or not shutil.which('mysql'):raise PrerequisiteError('Build tools/network/mysql CLI missing')
   root_password=os.environ.get('FCP_CI_MYSQL_PASSWORD','')
   if not re.fullmatch('[A-Za-z0-9_-]{16,100}',root_password):raise PrerequisiteError('Explicit CI MySQL fixture password is required')
-  private_dir=Path(tempfile.mkdtemp(prefix='fcp-native-ci-'));private_dir.chmod(0o700)
+  private_cleanup=OwnedDisposableDirectory.create();private_dir=private_cleanup.path
   command(['java',ROOT/'bootstrap/GenerateKeys.java',private_dir/'keys'])
   sources=ROOT/'work/ci-sources'
   command([sys.executable,ROOT/'tools/native.py','assemble','--work',sources,'--build-env',private_dir/'keys/build.env'])
@@ -69,10 +70,16 @@ def run()->int:
   props=re.sub(r'(?m)^FCP_REDIS_PORT=.*$', 'FCP_REDIS_PORT=36379', props)
   props=re.sub(r'(?m)^FCP_REDIS_PREFIX=.*$', 'FCP_REDIS_PREFIX='+acceptance_redis_prefix(), props)
   props+='\nFCP_PORT=18787\nFCP_BIND=127.0.0.1\n'
+  if (ROOT/'core/src/main/java/fcp/runtime/EngineRuntimePort.java').is_file():
+   props+='\nfcp.runtime.enabled=true\nFCP_RUNTIME_ROOT='+str(private_dir/'runtime-plugins')+'\nFCP_TRUSTED_PUBLISHERS=test\nFCP_RUNTIME_PYTHON='+str(shutil.which('python3'))+'\nFCP_RUNTIME_NODE='+str(shutil.which('node'))+'\n'
   if a.ingestion:
    from ci_ingestion import Fixture
    prefix=re.search(r'(?m)^FCP_REDIS_PREFIX=(.+)$',props)[1]
    fixture=Fixture(database,sql,private_dir,redis_password,prefix)
+   if (ROOT/'tests/runtime-native/native_runtime_acceptance.py').is_file():
+    sys.path.insert(0,str(ROOT/'tests/runtime-native'))
+    from native_runtime_acceptance import RuntimeFixture
+    runtime_fixture=RuntimeFixture(database,sql,private_dir,fixture)
    props+='\nFCP_INGESTION_CONNECTIONS='+str(fixture.connection_file)+'\n'
   private(private_dir/'fcp-runtime.properties',props)
   # @SpringBootTest in the pinned upstream initializes FCP and therefore requires the schema first.
@@ -91,6 +98,29 @@ def run()->int:
   # Classes were built by the preceding component job step. This invocation uses a REAL database driver.
   command(['java','-cp',str(ROOT/'build/component-classes')+os.pathsep+str(driver),'RealMySqlRegression',jdbc],timeout=120)
   report['mysqlAdapter']='PASS'
+  # New storage checks execute against this freshly-created database, not a JDBC proxy.
+  if (ROOT/'tests/runtime-storage/MysqlStorageTest.java').is_file():
+   deployment_user='fcpm_'+secrets.token_hex(6);deployment_password=secrets.token_hex(24)
+   sql(f"CREATE USER '{deployment_user}'@'%' IDENTIFIED BY '{deployment_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX ON `{database}`.* TO '{deployment_user}'@'%';")
+   storage_classes=ROOT/'build/runtime-storage-native';storage_classes.mkdir(parents=True,exist_ok=True)
+   storage_sources=sorted((ROOT/'core/src/main/java').rglob('*.java'))+sorted((ROOT/'tests/runtime-storage').glob('*.java'))
+   command(['javac','--release','17','-encoding','UTF-8','-d',storage_classes,*storage_sources],timeout=120)
+   storage_env=os.environ.copy();storage_env.update(FCP_STORAGE_TEST_URL=url,FCP_STORAGE_TEST_USER=runtime_user,FCP_STORAGE_TEST_PASSWORD=runtime_password,FCP_STORAGE_TEST_DEPLOY_USER=deployment_user,FCP_STORAGE_TEST_DEPLOY_PASSWORD=deployment_password)
+   command(['java','-cp',str(storage_classes)+os.pathsep+str(driver),'MysqlStorageTest'],env=storage_env,timeout=180)
+   report['runtimePluginStorage']='PASS'
+  # Grant-binding probes own a second fresh database: never modify the native lifecycle journal.
+  grant_test=ROOT/'tests/runtime-storage/native/MysqlGrantBindingTest.java'
+  if grant_test.is_file():
+   grant_database='fcp_ci_'+secrets.token_hex(6);grant_user='fcpg_'+secrets.token_hex(6);grant_password=secrets.token_hex(24)
+   sql(f'CREATE DATABASE `{grant_database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;')
+   sql(f'USE `{grant_database}`;\n'+(ROOT/'sql/native/V005__runtime_plugins.sql').read_text())
+   sql(f"CREATE USER '{grant_user}'@'%' IDENTIFIED BY '{grant_password}'; GRANT SELECT,INSERT,UPDATE,DELETE ON `{grant_database}`.* TO '{grant_user}'@'%';")
+   grant_classes=ROOT/'build/runtime-grants-native';grant_classes.mkdir(parents=True,exist_ok=True)
+   grant_sources=sorted((ROOT/'core/src/main/java').rglob('*.java'))+[ROOT/'host/src/main/java/dev/fcp/host/PluginPolicy.java',ROOT/'host/src/main/java/dev/fcp/host/JdbcPluginPolicy.java',ROOT/'tests/runtime-storage/MysqlStorageTest.java',ROOT/'tests/runtime-storage/StorageDeclarationTest.java',grant_test]
+   command(['javac','--release','17','-encoding','UTF-8','-d',grant_classes,*grant_sources],timeout=120)
+   grant_env=os.environ.copy();grant_env.update(FCP_STORAGE_TEST_URL=f'jdbc:mysql://127.0.0.1:33306/{grant_database}?sslMode=DISABLED&allowPublicKeyRetrieval=true&serverTimezone=UTC',FCP_STORAGE_TEST_USER=grant_user,FCP_STORAGE_TEST_PASSWORD=grant_password)
+   command(['java','-cp',str(grant_classes)+os.pathsep+str(driver),'MysqlGrantBindingTest'],env=grant_env,timeout=180)
+   report['runtimePluginGrantBinding']='PASS'
   log_path=private_dir/'native-startup.log';started=time.monotonic()
   def start_host():
    nonlocal process
@@ -116,6 +146,9 @@ def run()->int:
    os.environ['FCP_ACCEPTANCE_DATABASE']=database
    result=fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],restart)
    report.update(scope=result['scope'],browser=result['status'],ingestion=result['status'],nativeChecks=result['totalChecks'])
+   if runtime_fixture:
+    runtime_result=runtime_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],lambda: process.pid if process and process.poll() is None else None)
+    report['runtimePlugins']={'status':runtime_result['status'],'totalChecks':runtime_result['totalChecks'],'browser':runtime_result['browser'],'backendPidUnchanged':runtime_result['backendPidUnchanged']}
 
  except Exception as error:report.update(status=failure_status(error),error=type(error).__name__+': '+str(error))
  finally:
@@ -135,7 +168,9 @@ def run()->int:
    if fixture:text=text.replace(fixture.password,'[REDACTED_FIXTURE_PASSWORD]')
    (output/'native-startup-redacted.log').write_text(text)
   (output/'ci-native.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
-  if private_dir:shutil.rmtree(private_dir)
+  # Redacted diagnostics and original gate failure are persisted before scoped cleanup.
+  record_private_cleanup(report,private_cleanup,process_stopped=process is None or process.poll() is not None)
+  (output/'ci-native.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
   print(json.dumps(report,ensure_ascii=False,indent=2))
  return 0 if report['status']=='PASS' else 2
 if __name__=='__main__':raise SystemExit(run())
