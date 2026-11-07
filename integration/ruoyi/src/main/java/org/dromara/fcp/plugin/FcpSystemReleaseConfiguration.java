@@ -35,7 +35,7 @@ public class FcpSystemReleaseConfiguration {
         for(String action:env.getRequiredProperty("FCP_RELEASE_EXECUTOR_ACTIONS").split(","))capabilities.add(DeploymentProvider.Action.valueOf(action.trim()));
         return new HttpDeploymentProvider(URI.create(env.getRequiredProperty("FCP_RELEASE_EXECUTOR_ENDPOINT")),HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).connectTimeout(Duration.ofSeconds(5)).build(),Duration.ofSeconds(10),capabilities,false,Boolean.parseBoolean(env.getProperty("FCP_RELEASE_EXECUTOR_SAFE_RECOVERY","false")),Boolean.parseBoolean(env.getProperty("FCP_RELEASE_EXECUTOR_FENCED_CONTAINMENT","false")));
     }
-    @Bean public ReleaseController fcpSystemReleaseController(DataSource source,NativePluginHost host,VersionProvider versions,DeploymentProvider executor,Environment env) {
+    @Bean public ReleaseController fcpReleaseCoordinator(DataSource source,NativePluginHost host,VersionProvider versions,DeploymentProvider executor,Environment env) {
         String environment=env.getRequiredProperty("FCP_RELEASE_ENVIRONMENT");
         if(!environment.matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,63}"))throw new IllegalArgumentException("Invalid deployment environment");
         SystemReleasePreflight preflight=new SystemReleasePreflight(versions,()->schema(source));
