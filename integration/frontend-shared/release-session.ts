@@ -33,11 +33,15 @@ export async function ensureUiRelease(shell:'admin'|'teacher',clientId:string,ta
   if(shell==='admin' && /^\/admin\/fcp\/releases\/?$/.test(targetPath))return false;
   const original=token();if(!original){clearReleaseContext();return false;}
   const response=await fetch('/fcp/ui/releases/bootstrap?shell='+shell,{cache:'no-store',credentials:'same-origin',headers:{Authorization:'Bearer '+original,clientid:clientId}});
-  if(response.status===404)return false; // Feature disabled, existing embedded host remains usable.
-  const result=await response.json();if(!response.ok||result.code!==200)throw new Error('UI_RELEASE_UNAVAILABLE');
+  if(!response.ok)throw new Error('UI_RELEASE_UNAVAILABLE');
+  const result=await response.json();if(result.code!==200)throw new Error('UI_RELEASE_UNAVAILABLE');
   if(token()!==original)throw new Error('STALE_IDENTITY');
   const value=result.data;
-  if(!value||value.shell!==shell||typeof value.releaseId!=='string'||typeof value.affinity!=='string'||!/^[a-f0-9]{64}$/.test(value.bundleDigest))throw new Error('UI_RELEASE_INVALID');
+  if(value?.mode==='EMBEDDED' && value.shell===shell && ['DISABLED','NOT_CONFIGURED'].includes(value.reason)) {
+    if(loadedBundle()!=='embedded')throw new Error('UI_RELEASE_UNAVAILABLE');
+    clearReleaseContext();return false;
+  }
+  if(!value||value.mode!=='RELEASE'||value.shell!==shell||typeof value.releaseId!=='string'||typeof value.affinity!=='string'||!/^[a-f0-9]{64}$/.test(value.bundleDigest))throw new Error('UI_RELEASE_INVALID');
   const current=stored(),bundle=loadedBundle();
   if(bundle!==value.bundleDigest||(current&&current.releaseId!==value.releaseId)) {
     if(dirty&&!window.confirm('系统版本已更新。当前有未保存内容，是否放弃并加载新版本？'))return false;

@@ -13,5 +13,5 @@ public class NativeUiReleaseAdvice {
     @ExceptionHandler(FileNotFoundException.class) public ResponseEntity<Map<String,Object>> missing(){return error(404,"UI_ASSET_NOT_FOUND");}
     @ExceptionHandler(IOException.class) public ResponseEntity<Map<String,Object>> unavailable(){return error(503,"UI_ASSET_UNVERIFIED");}
     @ExceptionHandler(IllegalArgumentException.class) public ResponseEntity<Map<String,Object>> invalid(){return error(400,"INVALID_ARGUMENT");}
-    @ExceptionHandler(FcpException.class) public ResponseEntity<Map<String,Object>> known(FcpException e){return error(e.code.equals("UI_RELEASE_NOT_CONFIGURED")?404:e.code.equals("UNAUTHENTICATED")?401:e.code.equals("PERMISSION_DENIED")?403:409,e.code);}
+    @ExceptionHandler(FcpException.class) public ResponseEntity<Map<String,Object>> known(FcpException e){return error(e.code.equals("UNAUTHENTICATED")?401:(e.code.equals("PERMISSION_DENIED")||e.code.equals("FORBIDDEN"))?403:409,e.code);}
 }

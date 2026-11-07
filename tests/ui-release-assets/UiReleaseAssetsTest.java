@@ -36,11 +36,13 @@ public class UiReleaseAssetsTest {
             }
             versions.registerRelease(new SystemRelease("r1","1",Map.of("admin-ui","a1","teacher-ui","t1"),Map.of("hostContract","fcp.host/1"),Map.of()));
             versions.registerRelease(new SystemRelease("r2","2",Map.of("admin-ui","a2","teacher-ui","t2"),Map.of("hostContract","fcp.host/1"),Map.of()));
-            try {new UiReleaseApplication(router,versions,store,"fcp.host/1",(c,shell)->{}).bootstrap(context("a"),"admin",null);throw new AssertionError("empty policy");}
-            catch(FcpException e){check(e.code.equals("UI_RELEASE_NOT_CONFIGURED"),"first deployment explicit embedded fallback only");}
+            var emptyApp=new UiReleaseApplication(router,versions,store,"fcp.host/1",(c,shell)->{});
+            check(emptyApp.bootstrap(context("a"),"admin",null).equals(Map.of("mode","EMBEDDED","shell","admin","reason","NOT_CONFIGURED")),"first deployment returns explicit successful embedded manifest");
+            denied(()->emptyApp.bootstrap(context("a"),"admin","old-affinity"),"lost policy cannot silently downgrade an existing release context");
             router.put(new ReleasePolicy("ui","r1","r2",0,Set.of("a"),Set.of(),true,0),0);
             var app=new UiReleaseApplication(router,versions,store,"fcp.host/1",(c,s)->{if(c.tenantId().equals("denied"))throw new FcpException("PERMISSION_DENIED","denied");});
             var a=app.bootstrap(context("a"),"admin",null);var b=app.bootstrap(context("b"),"admin",null);
+            check(a.get("mode").equals("RELEASE")&&b.get("mode").equals("RELEASE"),"configured manifests explicitly identify RELEASE mode");
             check(a.get("releaseId").equals("r2")&&a.get("bundleDigest").equals(newAdmin),"candidate tenant actual admin bundle");
             check(b.get("releaseId").equals("r1")&&b.get("bundleDigest").equals(oldAdmin),"stable tenant actual admin bundle");
             check(app.bootstrap(context("a"),"teacher",(String)a.get("affinity")).get("bundleDigest").equals(newTeacher),"same affinity selects matching teacher build");

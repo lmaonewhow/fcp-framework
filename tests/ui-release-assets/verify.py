@@ -7,7 +7,7 @@ result={'status':'FAIL','nativeRuoYi':'NOT_RUN','mysql':'NOT_RUN','browser':'NOT
 roots=['host/src/main/java/dev/fcp/host/ui','integration/frontend-shared','integration/ruoyi/src/main/java/org/dromara/fcp/release','tests/ui-release-assets','tests/ui-release-packaging']
 result['sourceHashes']={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for root in roots for p in sorted((ROOT/root).rglob('*')) if p.is_file() and '__pycache__' not in p.parts}
 try:
- for name,cmd in [('assets',['bash','tests/ui-release-assets/run.sh']),('session',['node','--experimental-strip-types','--test','tests/ui-release-assets/release-session.test.mjs']),('packaging',[sys.executable,'-m','unittest','discover','-s','tests/ui-release-packaging','-v'])]:
+ for name,cmd in [('assets',['bash','tests/ui-release-assets/run.sh']),('session',['node','--experimental-strip-types','--test','tests/ui-release-assets/release-session.test.mjs']),('launcher',['node','--test','tests/ui-release-assets/ui-launcher.test.mjs']),('packaging',[sys.executable,'-m','unittest','discover','-s','tests/ui-release-packaging','-v'])]:
   with (out/(name+'.log')).open('w') as log:r=subprocess.run(cmd,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,timeout=180)
   result['groups'].append({'name':name,'command':cmd,'exitCode':r.returncode})
   if r.returncode:raise RuntimeError(name+' failed')

@@ -92,6 +92,7 @@ def run()->int:
    from ci_ingestion import Fixture
    prefix=re.search(r'(?m)^FCP_REDIS_PREFIX=(.+)$',props)[1]
    fixture=Fixture(database,sql,private_dir,redis_password,prefix)
+   fixture.ui_bootstrap_reason="NOT_CONFIGURED" if a.plugin_releases else "DISABLED"
    if (ROOT/'tests/runtime-native/native_runtime_acceptance.py').is_file():
     sys.path.insert(0,str(ROOT/'tests/runtime-native'))
     from native_runtime_acceptance import RuntimeFixture

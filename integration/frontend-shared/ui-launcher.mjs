@@ -14,10 +14,13 @@ async function load() {
       }
     }
     const response=await fetch('/fcp/ui/releases/bootstrap?shell='+SHELL,{cache:'no-store',credentials:'same-origin',headers:{Authorization:'Bearer '+token,clientid:CLIENT_ID}});
-    if(response.status!==404&&response.status!==401) {
-      const body=await response.json();if(!response.ok||body.code!==200)throw new Error('UI_RELEASE_NOT_READY');
-      const m=body.data;
-      if(!m||m.shell!==SHELL||!/^[a-f0-9]{64}$/.test(m.bundleDigest)||!/^[a-f0-9]{64}$/.test(m.indexDigest)||m.indexUrl!=='/fcp/ui/assets/'+m.bundleDigest+'/'+SHELL+'/index.html'||typeof m.affinity!=='string'||typeof m.releaseId!=='string')throw new Error('UI_RELEASE_MANIFEST_INVALID');
+    if(!response.ok)throw new Error('UI_RELEASE_NOT_READY');
+    const body=await response.json();if(body.code!==200)throw new Error('UI_RELEASE_NOT_READY');
+    const m=body.data;
+    if(m?.mode==='EMBEDDED' && m.shell===SHELL && ['DISABLED','NOT_CONFIGURED'].includes(m.reason)) {
+      // Explicit authenticated state, never infer fallback from an HTTP error.
+    } else {
+      if(!m||m.mode!=='RELEASE'||m.shell!==SHELL||!/^[a-f0-9]{64}$/.test(m.bundleDigest)||!/^[a-f0-9]{64}$/.test(m.indexDigest)||m.indexUrl!=='/fcp/ui/assets/'+m.bundleDigest+'/'+SHELL+'/index.html'||typeof m.affinity!=='string'||typeof m.releaseId!=='string')throw new Error('UI_RELEASE_MANIFEST_INVALID');
       url=m.indexUrl;expected=m.indexDigest;context={releaseId:m.releaseId,affinity:m.affinity,bundleDigest:m.bundleDigest,tokenHash:await sha(token)};
     }
   }

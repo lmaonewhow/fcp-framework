@@ -31,3 +31,5 @@ GET /fcp/ui/releases/bootstrap?shell=admin 或 teacher 使用真实原生 Author
 组件命令：`python tests/ui-release-assets/verify.py`，包括真实回环 HTTP 资产服务、文件完整性和客户端状态测试。打包测试使用明确合成 dist，不冒充 Vue。`native.build_ui_variant` 在完整真实基线构建后重新编译两套锁定 Vue 项目，改变编译 buildId，输出独立候选资产；功能源码有意相同，仅用于证明实际版本选择。
 
 `tests/runtime-native/ui_release_acceptance.py` 提供真正原生登录、双 Vue shell、摘要、缓存、深链接与伪造上下文测试，必须由隔离 CI 实际执行。代码和测试存在不代表原生、数据库、浏览器或生产验收通过。本云环境 Chromium 启动曾因 socket 权限失败，不通过改安全参数绕过。
+
+正常首次部署/禁用使用已认证 HTTP 200 清单：mode=EMBEDDED，shell 必须匹配，reason 为 NOT_CONFIGURED 或 DISABLED。启用发布清单使用 mode=RELEASE。客户端不把 HTTP 401/404 或任何错误解释成内置回退；STOPPED、缺失产物和未知发布仍失败关闭。已加载版本化 UI 不接受直接降级到内置壳层。

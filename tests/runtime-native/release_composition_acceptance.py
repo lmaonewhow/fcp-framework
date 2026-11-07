@@ -308,6 +308,11 @@ class ReleaseCompositionFixture(RuntimeFixture):
                     states = {role: self.login_fixture.login(browser, base, role) for role in ('admin', 'teacher')}
                     clients = {role: ReleaseClient(base, self.token(state, base), CLIENT_ID) for role, state in states.items()}
                     admin, teacher = clients['admin'], clients['teacher']
+                    for role, shell in [('admin', 'admin'), ('teacher', 'teacher')]:
+                        status, body = clients[role].request('/fcp/ui/releases/bootstrap?shell='+shell)
+                        self.check(role+' before first DEPLOY bootstrap is explicit HTTP 200 embedded',
+                                   status == 200 and body.get('code') == 200 and body.get('data') ==
+                                   dict(mode='EMBEDDED', shell=shell, reason='NOT_CONFIGURED'))
                     self.check('genuine native Spring/MySQL host build', admin.evidence()['buildId'] == build_id)
                     state = admin.data('/fcp/releases/state')
                     self.check('real native composite executor advertises all release transitions', state['phase'] == 'EMPTY' and
