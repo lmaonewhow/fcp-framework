@@ -4,7 +4,7 @@ Only isolated ci_native may instantiate this fixture. SQL seeds/revokes CI autho
 never business records. Packages, DDL, CSV/API imports and exports use real HTTP.
 """
 from __future__ import annotations
-import hashlib, io, json, os, re, sys, threading, time, urllib.error, urllib.parse, urllib.request, zipfile
+import hashlib, io, json, os, re, subprocess, sys, threading, time, urllib.error, urllib.parse, urllib.request, zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
@@ -100,6 +100,28 @@ class ExchangeFixture:
         return False
     def assert_no_fetch(self,label):
         time.sleep(.75);before=len(self.requests);time.sleep(11);self.check(label,len(self.requests)==before)
+    def configure_retention_probe(self,command,environment):
+        # Installed only by the enclosing disposable CI runner after its genuine JAR/driver build.
+        self.retention_command=list(command);self.retention_environment=dict(environment)
+    def retention_probe(self,*arguments):
+        if not hasattr(self,'retention_command'):raise RuntimeError('Genuine CI retention probe was not configured')
+        result=subprocess.run(self.retention_command+list(arguments),env=self.retention_environment,capture_output=True,text=True,timeout=20)
+        if result.returncode:raise RuntimeError('CI export retention probe failed; no credentials or arbitrary journal keys are reported')
+        return json.loads(result.stdout)
+    def verify_retention(self,client):
+        expired=self.export_csv(client)[0];fresh=self.export_csv(client)[0]
+        aged=self.retention_probe('age',expired['handle']);self.check('original native generated export retains exactly 24 hours',aged.get('originalRetentionHours')==24)
+        until=time.monotonic()+90;proof=None
+        while time.monotonic()<until:
+            proof=self.retention_probe('check',expired['handle'],fresh['handle'],aged['preservedDigest'])
+            if proof.get('status')=='PASS':break
+            if proof.get('status')!='PENDING':raise RuntimeError('Unexpected retention probe outcome')
+            time.sleep(1)
+        self.check('automatic native retention removes only expired snapshot content',proof is not None and proof.get('status')=='PASS')
+        self.check('cleanup audit is durable and fresh snapshot retained',proof.get('cleanupAuditDurable') is True and proof.get('freshSnapshotRetained') is True)
+        status,headers,body=client.binary('/fcp/exchange/downloads/'+expired['handle']);self.check('cleaned native snapshot cannot download',status==403)
+        status,headers,body=client.binary('/fcp/exchange/downloads/'+fresh['handle']);self.check('unexpired native snapshot still downloads',status==200 and b'task2' in body)
+        self.report['retentionProbe']=dict(status='PASS',temporaryObject='generated export snapshot rows, not a physical file',retentionHours=24,preserved='all non-download journal records including previews, receipts and task cursors',productionClockChanged=False)
     def verify(self,base,build_id,pid_provider):
         require_loopback(base)
         if os.environ.get('FCP_ACCEPTANCE_DATABASE')!=self.database:raise RuntimeError('Acceptance database mismatch')
@@ -144,6 +166,7 @@ class ExchangeFixture:
                     self.lifecycle(client,'roster','ENABLE','exchange-reenable-task');self.allow_second=True;self.check('same durable cursor resumes remaining page',self.wait_rows(client,'task2'));self.assert_no_fetch('completed finite task does not reimport pages')
                     # Read-only MySQL evidence of actual TASK identity, never a direct business write.
                     task_audits=self.sql(f"USE `{self.database}`; SELECT COUNT(*) FROM fcp_plugin_storage_audit WHERE plugin_id='roster' AND principal_kind='TASK' AND principal_id='roster-fixture-sync';").strip();self.check('real MySQL write audit has TASK not administrator',int(task_audits)>=2)
+                    self.verify_retention(client)
                     self.check('native JVM unchanged for second plugin and task workflow',pid_provider()==pid)
                 finally:browser.close()
             self.report.update(status='PASS',totalChecks=len(self.report['checks']),elapsedSeconds=round(time.monotonic()-started,3));self._write();return self.report

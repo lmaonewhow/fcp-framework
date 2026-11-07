@@ -1,0 +1,8 @@
+{
+  "scope": "actual production JS bootstrap and native login view only; no backend/authentication/database test",
+  "nativeBackend": "NOT_RUN",
+  "pageErrors": [],
+  "consoleErrors": [],
+  "status": "BLOCKED",
+  "reason": "Chromium launch failed: sandbox socket operation not permitted; no browser execution result"
+}

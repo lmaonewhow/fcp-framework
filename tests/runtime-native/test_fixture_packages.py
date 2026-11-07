@@ -27,6 +27,21 @@ class FixturePackagesTest(unittest.TestCase):
         self.assertTrue(package_bytes('node')[1]['requires'])
         self.assertFalse(package_bytes('python')[1]['requires'])
 
+    def test_version_fixture_packages_are_distinct_and_schema_is_explicit(self):
+        archives=[]
+        for version in ('1.0.0','1.1.0','1.2.0'):
+            archive,manifest=package_bytes('python',version,version=='1.2.0')
+            self.assertEqual(archive,package_bytes('python',version,version=='1.2.0')[0])
+            self.assertEqual(manifest['version'],version)
+            with zipfile.ZipFile(io.BytesIO(archive)) as zipped:
+                self.assertIn("'packageVersion':"+repr(version),zipped.read('runtime.py').decode())
+            self.assertEqual(bool(manifest.get('storage')),version=='1.2.0')
+            archives.append(archive)
+        self.assertEqual(len(set(archives)),3)
+        self.assertEqual(package_bytes('node')[1]['dependencies'][0]['versionRange'],'^1.0.0')
+        with self.assertRaises(ValueError):package_bytes('python','9.0.0')
+        with self.assertRaises(ValueError):package_bytes('python','1.1.0',True)
+
     def test_refuses_non_ci_database_before_any_sql(self):
         calls=[]
         for environment,database in [('false','fcp_ci_123456abcdef'),('true','production')]:

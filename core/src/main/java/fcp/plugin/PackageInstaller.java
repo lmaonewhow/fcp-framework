@@ -68,7 +68,7 @@ public final class PackageInstaller {
             try {manifest=PluginManifest.parse(decode(Files.readAllBytes(manifestFile)));} catch(IllegalArgumentException e) {throw new IOException("Invalid plugin manifest: "+e.getMessage(),e);}
             if(!publishers.contains(manifest.publisher())) throw new IOException("Publisher not allowed");
             Path entry=contents.resolve(manifest.runtime().entry());
-            if(!Files.isRegularFile(entry,NOFOLLOW_LINKS)) throw new IOException("Runtime entry is not a package file");
+            if(!Files.isRegularFile(entry,NOFOLLOW_LINKS)) throw new IOException("Runtime entry is not a package file"); PluginDependencyPolicy.verify(contents);
             Path versionDir=root.resolve("versions").resolve(manifest.pluginId()); safeDirectories(versionDir);
             Path versionFile=versionDir.resolve(manifest.version()+".sha256");
             String versionDigest=readRecord(versionFile);

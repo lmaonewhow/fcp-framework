@@ -25,6 +25,8 @@ public final class EngineRuntimePort implements RuntimePort,AutoCloseable {
     private final ThreadLocal<Boolean> journaled=new ThreadLocal<>();
     private final ThreadLocal<Long> callDeadline=new ThreadLocal<>();
     private final ThreadLocal<Deque<String>> invocationSources=ThreadLocal.withInitial(ArrayDeque::new);
+    @FunctionalInterface public interface StorageCompatibilityFingerprint { String fingerprint(String plugin,String version,String digest,Map<String,Object> declaration); }
+    private volatile StorageCompatibilityFingerprint storageFingerprint=(plugin,version,digest,declaration)->{throw new FcpException("SCHEMA_FINGERPRINT_REQUIRED","Version plans require a read-only schema fingerprint adapter");};
     @FunctionalInterface public interface StorageCompatibilityVerifier { void verify(String plugin,String version,String digest,Map<String,Object> storageDeclaration); }
     private volatile StorageCompatibilityVerifier storageVerifier=(plugin,version,digest,declaration)->{throw new FcpException("STORAGE_ADAPTER_REQUIRED","Storage declarations require the production migration adapter");};
     @FunctionalInterface public interface HostCapabilityHandler { Object invoke(String serverPluginId,TrustedContext context,String capabilityId,Map<String,Object> input); }
@@ -61,6 +63,8 @@ public final class EngineRuntimePort implements RuntimePort,AutoCloseable {
     }
     /** Startup-only, read-only compatibility verifier. Migration/DDL needs a separate approved deployment port. */
     public synchronized void setStorageCompatibilityVerifier(StorageCompatibilityVerifier verifier){live();if(!enabled.isEmpty())throw new FcpException("RUNTIME_IN_USE","Set storage verifier before publishing tenants");storageVerifier=Objects.requireNonNull(verifier);}
+    public synchronized void setStorageCompatibilityFingerprint(StorageCompatibilityFingerprint fingerprint){live();if(!enabled.isEmpty())throw new FcpException("RUNTIME_IN_USE","Configure schema fingerprint before publication");storageFingerprint=Objects.requireNonNull(fingerprint);}
+    @Override public String storageCompatibilityFingerprint(String plugin,String version,String digest){var pkg=resolve(plugin,version,digest);if(pkg.manifest().storage().isEmpty())return "no-declared-schema";storageVerifier.verify(plugin,version,digest,pkg.manifest().storage());String token=storageFingerprint.fingerprint(plugin,version,digest,pkg.manifest().storage());if(token==null||token.isBlank()||token.length()>4096)throw new FcpException("SCHEMA_FINGERPRINT_REQUIRED","Invalid schema fingerprint");return token;}
     /** Server-owned approved port registration; a manifest declaration alone does not grant access. */
     public synchronized void registerHostCapability(PluginManifest.Capability contract,HostCapabilityHandler handler){
         live();Schema.check(contract.inputSchema());Schema.check(contract.outputSchema());

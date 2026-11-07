@@ -32,6 +32,7 @@ public class FcpPluginConfiguration {
         }
         EngineRuntimePort runtime=new EngineRuntimePort(host,packages,executable,new JdbcStateJournal(source,"runtime-calls"),3);
         runtime.setStorageCompatibilityVerifier(new fcp.storage.JdbcStorageCompatibility(source)::verify);
+        runtime.setStorageCompatibilityFingerprint(new fcp.storage.JdbcStorageCompatibility(source)::fingerprint);
         var storage=new fcp.storage.StorageCapabilities(new fcp.storage.JdbcPluginStorage(source,host));
         for(var contract:fcp.storage.StorageCapabilities.contracts()) {
             String operation=contract.id().substring("host.storage.".length());

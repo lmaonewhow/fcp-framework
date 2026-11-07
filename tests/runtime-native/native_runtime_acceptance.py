@@ -4,6 +4,8 @@ ci_native owns the database/JVM. Native login uses ci_ingestion's real encrypted
 flow and captcha from its dedicated Redis namespace. Tokens remain only in memory.
 """
 from __future__ import annotations
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 import hashlib
 import io
 import json
@@ -23,16 +25,22 @@ from native_client import NativeClient,require_loopback
 from ci_ingestion import safe_diagnostic
 
 
-def package_bytes(language: str) -> tuple[bytes,dict]:
+def package_bytes(language: str, version: str = '1.0.0', incompatible_schema: bool = False) -> tuple[bytes,dict]:
     if language not in ('python','node'):raise ValueError('Explicit Python/Node fixture only')
+    if version not in ('1.0.0','1.1.0','1.2.0'):raise ValueError('Explicit fixture versions only')
+    if incompatible_schema and (language!='python' or version!='1.2.0'):raise ValueError('Schema rejection fixture must be Python 1.2.0')
     plugin='ci.'+language;entry='runtime.py' if language=='python' else 'runtime.mjs'
     capability=dict(id='echo',version='1.0.0',permission='echo',sideEffects=False,idempotent=True,timeoutMillis=10000,
         inputSchema=dict(type='object',properties=dict(message=dict(type='string',maxLength=1000),dependency=dict(type='boolean')),additionalProperties=False),outputSchema=dict(type='object'))
     ui=dict(contractVersion='1.0',pages=[dict(id='demo',title='CI '+language.title()+' runtime',permissions=['echo'],capabilities=['echo'],components=['stack@1','text@1','field@1','button@1','table@1'],content=dict(type='stack',children=[dict(type='text',text='Native '+language+' plugin'),dict(type='field',field='message',text='Message'),dict(type='button',text='调用插件',capabilityId='echo'),dict(type='table',text='Native result')]))],slots=[dict(id='status',slotId='dashboard.status',order=1,permissions=['echo'],capabilities=['echo'],components=['text@1'],content=dict(type='text',text='Native '+language+' ready'))])
-    manifest=dict(manifestVersion=1,pluginId=plugin,version='1.0.0',publisher='test',contractVersion='1.0',runtime=dict(type='local',entry=entry,argv=[]),provides=[capability],requires=[capability] if language=='node' else [],dependencies=[dict(pluginId='ci.python',versionRange='1.0.0')] if language=='node' else [],ui=ui)
+    manifest=dict(manifestVersion=1,pluginId=plugin,version=version,publisher='test',contractVersion='1.0',runtime=dict(type='local',entry=entry,argv=[]),provides=[capability],requires=[capability] if language=='node' else [],dependencies=[dict(pluginId='ci.python',versionRange='^1.0.0')] if language=='node' else [],ui=ui)
+    if incompatible_schema:
+        manifest['storage']=dict(schemaVersion=1,compatibleVersions=[1],tables=[dict(name='native_missing',fields=[dict(name='value',type='string',nullable=False,maxLength=100)],indexes=[])],migrations=[])
+    runtime=(Path(__file__).parent/'plugins'/entry).read_bytes()
+    if language=='python':runtime=runtime.replace(b"'language':'python'",("'packageVersion':"+repr(version)+",'language':'python'").encode())
     output=io.BytesIO()
     with zipfile.ZipFile(output,'w',compression=zipfile.ZIP_DEFLATED) as archive:
-        for name,content in [('plugin.json',json.dumps(manifest,ensure_ascii=False,separators=(',',':')).encode()),(entry,(Path(__file__).parent/'plugins'/entry).read_bytes())]:
+        for name,content in [('plugin.json',json.dumps(manifest,ensure_ascii=False,separators=(',',':')).encode()),(entry,runtime)]:
             info=zipfile.ZipInfo(name,date_time=(2026,1,1,0,0,0));info.compress_type=zipfile.ZIP_DEFLATED;info.external_attr=(0o100644<<16);archive.writestr(info,content)
     return output.getvalue(),manifest
 
@@ -42,9 +50,10 @@ def exported(plugin,capability='echo'):
 
 
 class Client(NativeClient):
-    def upload(self,package,digest,key,revision):
+    def upload(self,package,digest,key,revision=None,staged=False):
         headers={'Content-Type':'application/octet-stream','clientid':self.client_id,'Authorization':'Bearer '+self.token,'X-Fcp-Digest':digest,'Idempotency-Key':key,'X-Fcp-Revision':str(revision)}
-        request=urllib.request.Request(self.base+'/fcp/packages',data=package,headers=headers,method='POST')
+        request=urllib.request.Request(self.base+('/fcp/packages/staged' if staged else '/fcp/packages'),data=package,headers=headers,method='POST')
+        if staged:request.remove_header('X-fcp-revision')
         try:
             with self.opener.open(request,timeout=30) as response:status,data=response.status,response.read(2*1024*1024)
         except urllib.error.HTTPError as error:status,data=error.code,error.read(2*1024*1024)
@@ -59,7 +68,7 @@ class RuntimeFixture:
         if login_fixture is None or login_fixture.database!=database:raise RuntimeError('Matching genuine native login fixture required')
         self.database,self.sql,self.private_dir,self.login_fixture=database,sql,private_dir,login_fixture
         self.output=ROOT/'reports/runtime-native';self.output.mkdir(parents=True,exist_ok=True)
-        self.report=dict(status='NOT_RUN',scope='genuine RuoYi HTTP + MySQL grants + real Python/Node subprocesses + both native Vue shells',production='NOT_ACCEPTED',checks=[],screenshots=[],backendPidUnchanged='NOT_RUN',browser='NOT_RUN',packages=[])
+        self.report=dict(status='NOT_RUN',scope='genuine RuoYi HTTP + MySQL grants + real Python/Node subprocesses + both native Vue shells',production='NOT_ACCEPTED',checks=[],screenshots=[],backendPidUnchanged='NOT_RUN',versionLifecycle='NOT_RUN',browser='NOT_RUN',portability=dict(status='NOT_RUN',contract='A35 shared HTTP semantics v1'),packages=[])
         # This is CI fixture setup, not a production migration and not automatic role grants.
         sql(f"""USE `{database}`;
 INSERT INTO sys_menu(menu_id,menu_name,parent_id,order_num,path,component,menu_type,perms,icon,is_frame,is_cache,visible,status,create_by,create_time)
@@ -110,6 +119,63 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(1,950510),(950001,950511);
     def assert_pid(self,pid,provider,label):
         self.check('native JVM PID unchanged '+label,provider()==pid)
 
+    def verify_versions(self,admin,packages,pid,pid_provider):
+        """Real HTTP only. Fixture-unit tests never execute or mark this acceptance PASS."""
+        plugin='ci.python';root='/fcp/plugins/'+plugin
+        grants=lambda:self.sql(f"USE `{self.database}`; SELECT * FROM fcp_runtime_grant ORDER BY tenant_id,plugin_id,capability_id,operation,data_scope;").strip()
+        def plan(action,version):
+            current=admin.data(root)
+            return admin.data(root+'/version-plans',dict(action=action,targetVersion=version,targetDigest=packages[version]['digest'],expectedRevision=current['revision']))
+        def payload(p,key):return dict(digest=p['digest'],idempotencyKey=key,confirmedDowntime=True)
+        before=grants()
+        plans=[plan('UPGRADE','1.1.0'),plan('UPGRADE','1.1.0')]
+        self.check('competing version plans bind the same CAS revision',plans[0]['expectedRevision']==plans[1]['expectedRevision'] and plans[0]['planId']!=plans[1]['planId'])
+        self.check('planning alone does not switch the current version',admin.data(root+'/versions')['current']['digest']==packages['1.0.0']['digest'])
+        barrier=Barrier(2)
+        def confirm(index):
+            client=Client(admin.base,admin.token,admin.client_id)
+            barrier.wait(timeout=10)
+            return client.request('/fcp/version-plans/'+plans[index]['planId']+'/confirm',payload(plans[index],'native-version-race-'+str(index)))
+        with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(confirm,range(2)))
+        successes=[body['data'] for status,body in results if status<400 and str(body.get('code'))=='200']
+        failures=[body for status,body in results if status>=400 or str(body.get('code'))!='200']
+        self.check('concurrent version CAS applies exactly one upgrade',len(successes)==1 and len(failures)==1)
+        self.check('stale concurrent version confirmation is rejected',failures[0].get('data',{}).get('fcpCode')=='REVISION_CONFLICT')
+        operation=successes[0]
+        self.check('upgrade receipt is complete and applied',operation.get('phase')=='COMPLETE' and operation.get('outcome')=='APPLIED')
+        receipt=admin.data('/fcp/version-operations/'+operation['operationId'])
+        self.check('upgrade receipt can be retrieved',receipt.get('operationId')==operation['operationId'] and receipt.get('outcome')=='APPLIED')
+        current=admin.data(root+'/versions')['current']
+        self.check('compatible staged version is current',current.get('state')=='INSTALLED' and current.get('version')=='1.1.0' and current.get('digest')==packages['1.1.0']['digest'])
+        self.check('upgrade keeps plugin disabled and grants unchanged',admin.data(root).get('desired')=='DISABLED' and grants()==before)
+        self.assert_pid(pid,pid_provider,'after version upgrade CAS race')
+        # A new package digest requires new explicit approval; then prove its actual subprocess runs.
+        self.change_grant(admin,plugin,True,'native-upgraded-package-grant')
+        self.lifecycle(admin,plugin,'ENABLE','native-upgraded-package-enable')
+        catalog=admin.data('/fcp/ui/catalog')['catalog']
+        reply=admin.data('/fcp/capabilities/'+exported(plugin)+'/invoke',dict(input=dict(message='upgraded-runtime'),expectedRevision=catalog['revision'],idempotencyKey='native-upgraded-runtime'))
+        self.check('upgraded Python package runs as a real subprocess',reply.get('packageVersion')=='1.1.0' and reply.get('message')=='upgraded-runtime')
+        self.assert_child(reply['pluginPid'],pid,'upgraded Python')
+        self.lifecycle(admin,plugin,'DISABLE','native-upgraded-package-disable')
+        before=grants();revision=admin.data(root)['revision']
+        status,body=admin.request(root+'/version-plans',dict(action='UPGRADE',targetVersion='1.2.0',targetDigest=packages['1.2.0']['digest'],expectedRevision=revision))
+        self.check('undeployed schema version target is rejected',status>=400 and body.get('data',{}).get('fcpCode') in ('STORAGE_NOT_DEPLOYED','STORAGE_VERSION_INCOMPATIBLE','SCHEMA_VERSION_CONFLICT'))
+        self.check('incompatible schema rejection preserves active package and grants',admin.data(root+'/versions')['current']['digest']==packages['1.1.0']['digest'] and admin.data(root)['revision']==revision and grants()==before)
+        rollback=plan('ROLLBACK','1.0.0')
+        result=admin.data('/fcp/version-plans/'+rollback['planId']+'/confirm',payload(rollback,'native-version-rollback'))
+        current=admin.data(root+'/versions')['current']
+        self.check('explicit rollback restores original verified package',result.get('phase')=='COMPLETE' and result.get('outcome')=='APPLIED' and current.get('version')=='1.0.0' and current.get('digest')==packages['1.0.0']['digest'])
+        self.check('rollback keeps disabled state and grants unchanged',admin.data(root).get('desired')=='DISABLED' and grants()==before)
+        self.change_grant(admin,plugin,True,'native-rollback-package-grant')
+        self.lifecycle(admin,plugin,'ENABLE','native-rollback-package-enable')
+        catalog=admin.data('/fcp/ui/catalog')['catalog']
+        reply=admin.data('/fcp/capabilities/'+exported(plugin)+'/invoke',dict(input=dict(message='rollback-runtime'),expectedRevision=catalog['revision'],idempotencyKey='native-rollback-runtime'))
+        self.check('rolled back original Python package runs as a real subprocess',reply.get('packageVersion')=='1.0.0' and reply.get('message')=='rollback-runtime')
+        self.assert_child(reply['pluginPid'],pid,'rolled back Python')
+        self.lifecycle(admin,plugin,'DISABLE','native-rollback-package-disable')
+        self.assert_pid(pid,pid_provider,'after schema rejection and explicit rollback')
+        self.report['versionLifecycle']='PASS';self._write()
+
     def verify(self,base,build_id,pid_provider):
         require_loopback(base)
         if os.environ.get('FCP_ACCEPTANCE_DATABASE')!=self.database:raise RuntimeError('Explicit isolated acceptance database mismatch')
@@ -132,8 +198,17 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(1,950510),(950001,950511);
                         package,manifest=package_bytes(language);digest=hashlib.sha256(package).hexdigest();plugin=manifest['pluginId'];packages[plugin]=dict(digest=digest,package=package)
                         result=admin.upload(package,digest,'native-install-'+language,revision);revision=result['revision']
                         self.check(plugin+' verified ZIP installed without JVM restart',result.get('digest')==digest and result.get('state')=='INSTALLED')
-                        self.report['packages'].append(dict(pluginId=plugin,version='1.0.0',sha256=digest,bytes=len(package)))
+                        self.report['packages'].append(dict(pluginId=plugin,version=manifest['version'],sha256=digest,bytes=len(package)))
                         self.assert_pid(pid,pid_provider,'after '+plugin+' install')
+                    version_packages={'1.0.0':packages['ci.python']}
+                    for version in ('1.1.0','1.2.0'):
+                        package,manifest=package_bytes('python',version,incompatible_schema=version=='1.2.0');digest=hashlib.sha256(package).hexdigest()
+                        result=admin.upload(package,digest,'native-stage-'+version,staged=True);version_packages[version]=dict(package=package,digest=digest)
+                        self.check('staged '+version+' ZIP verified without switching active version',result.get('digest')==digest and admin.data('/fcp/plugins/ci.python/versions')['current']['version']=='1.0.0')
+                        self.report['packages'].append(dict(pluginId='ci.python',version=version,sha256=digest,bytes=len(package),staged=True))
+                    inventory=admin.data('/fcp/plugins/ci.python/versions')['versions']
+                    self.check('verified inventory retains all three Python versions',{(item['version'],item['digest']) for item in inventory}>={(version,item['digest']) for version,item in version_packages.items()})
+                    self.assert_pid(pid,pid_provider,'after staging two versions')
                     replay=admin.upload(packages['ci.python']['package'],packages['ci.python']['digest'],'native-install-python',0)
                     self.check('same package request replay uses installation receipt',replay.get('replayed') is True)
                     node=admin.data('/fcp/plugins/ci.node');status,body=admin.request('/fcp/plugins/ci.node/plans',dict(action='ENABLE',expectedRevision=node['revision']))
@@ -175,6 +250,18 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(1,950510),(950001,950511);
                             raise
                         finally:context.close()
                     self.report['browser']='PASS';self.assert_pid(pid,pid_provider,'after both browser shells')
+                    from ui_boundaries import verify_ui_boundaries
+                    viewers={role:Client(base,self.token(states[role],base),'e5cd7e4891bf95d1d19206ce24a7b32e') for role in states}
+                    boundaries=verify_ui_boundaries(browser=browser,base=base,database=self.database,
+                        storage_states=states,viewer_apis=viewers,admin_api=admin,build_id=build_id,
+                        output_dir=self.output/'ui-boundaries',capability_id=exported('ci.python'),
+                        slow_message='fcp-slow:identity-test')
+                    self.report['uiBoundaries']=boundaries
+                    self.check('both real shells pass declared UI and logout boundaries',boundaries.get('status')=='PASS')
+                    self.assert_pid(pid,pid_provider,'after cross-browser and logout boundaries')
+                    # Real logout invalidated both sessions. Obtain fresh native logins, never reuse old tokens.
+                    states={role:self.login_fixture.login(browser,base,role) for role in ('admin','teacher')}
+                    admin=Client(base,self.token(states['admin'],base),'e5cd7e4891bf95d1d19206ce24a7b32e')
                     old=admin.data('/fcp/ui/catalog')['catalog'];self.change_grant(admin,'ci.node',False,'revoke-ci.node')
                     status,body=admin.request('/fcp/capabilities/'+exported('ci.node')+'/invoke',dict(input=dict(message='must-deny'),expectedRevision=old['revision'],idempotencyKey='revoked-old-entry'))
                     self.check('revoked permission denies previously obtained entry',status>=400 or str(body.get('code'))!='200')
@@ -197,12 +284,25 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(1,950510),(950001,950511);
                     self.check('disabled entry rejects invocation',status>=400 or str(body.get('code'))!='200')
                     for plugin in packages:
                         state=admin.data('/fcp/plugins/'+plugin);self.check(plugin+' durable desired state is disabled',state.get('desired')=='DISABLED')
+                    self.verify_versions(admin,version_packages,pid,pid_provider)
                     existing_records=self.sql(f'USE `{self.database}`; SELECT COUNT(*) FROM fcp_plugin_record;').strip()
                     for plugin in packages:
                         state=admin.data('/fcp/plugins/'+plugin)
                         result=admin.data('/fcp/plugins/'+plugin+'/uninstall',dict(expectedRevision=state['revision'],confirmedDigest=packages[plugin]['digest']))
                         self.check(plugin+' explicit disabled uninstall retains installation history',admin.data('/fcp/plugins/'+plugin).get('installation')=='UNINSTALLED')
                     self.check('uninstall did not delete existing plugin-record rows',self.sql(f'USE `{self.database}`; SELECT COUNT(*) FROM fcp_plugin_record;').strip()==existing_records)
+                    # A35 uses the identical function and ZIP bytes as the development HTTP test.
+                    # Authentication remains the genuine browser-created native session above.
+                    sys.path.insert(0,str(ROOT/'tests/runtime-portability'))
+                    from http_contract import run_http_contract
+                    from host_adapters import NativeAdapter
+                    adapter=NativeAdapter(admin,lambda plugin,allow:self.change_grant(admin,plugin,allow,'a35-grant-'+plugin+'-'+str(allow)),'000000','1')
+                    try:
+                        self.report['portability']=run_http_contract(adapter)
+                    except Exception:
+                        self.report['portability']=dict(status='FAIL',contract='A35 shared HTTP semantics v1')
+                        raise
+                    self.check('A35 shared development/native HTTP semantics',self.report['portability']['status']=='PASS')
                     self.assert_pid(pid,pid_provider,'after grant revoke disable and uninstall');self.report.update(status='PASS',backendPidUnchanged='PASS',totalChecks=len(self.report['checks']),elapsedSeconds=round(time.monotonic()-started,3))
                 finally:browser.close()
         except Exception as error:
@@ -216,8 +316,8 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--package-output',type=Path);args=parser.parse_args()
     if args.package_output:
         args.package_output.mkdir(parents=True,exist_ok=True)
-        for language in ('python','node'):
-            package,manifest=package_bytes(language);path=args.package_output/(manifest['pluginId']+'.zip');path.write_bytes(package);print(json.dumps(dict(pluginId=manifest['pluginId'],sha256=hashlib.sha256(package).hexdigest(),bytes=len(package))))
+        for language,version,incompatible in [('python','1.0.0',False),('node','1.0.0',False),('python','1.1.0',False),('python','1.2.0',True)]:
+            package,manifest=package_bytes(language,version,incompatible);path=args.package_output/(manifest['pluginId']+('' if version=='1.0.0' else '-'+version)+'.zip');path.write_bytes(package);print(json.dumps(dict(pluginId=manifest['pluginId'],sha256=hashlib.sha256(package).hexdigest(),bytes=len(package))))
     else:
         print(json.dumps(dict(status='NOT_RUN',reason='Run via tools/ci_native.py --ingestion with its genuine native login, disposable MySQL/Redis and real JVM fixture.')))
         raise SystemExit(2)

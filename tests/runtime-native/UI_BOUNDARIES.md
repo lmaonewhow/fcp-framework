@@ -1,0 +1,26 @@
+# Real dual-shell UI boundary integration
+
+`ui_boundaries.verify_ui_boundaries` is a synchronous Playwright function. It never installs a package, seeds a token, mocks a response, changes a grant, or bypasses native authentication. Run only against the existing disposable CI MySQL database and actual production admin/teacher builds. Local helper tests are not browser acceptance.
+
+Required keyword arguments:
+
+- `browser`: existing sync Playwright Browser.
+- `base`: loopback native origin, no path.
+- `database`: exact `fcp_ci_<12 lowercase hex>` matching `FCP_ACCEPTANCE_DATABASE`, with `GITHUB_ACTIONS=true`.
+- `storage_states`: dict `admin` / `teacher` of genuine encrypted native login storage states, kept in memory/private files only.
+- `viewer_apis`: dict `admin` / `teacher` of genuine NativeClient objects using those same sessions. `admin_api` is the authorized platform administrator NativeClient.
+- `build_id`: actual assembled build identifier, verified using the real host evidence endpoint for every API client.
+- `output_dir`: sanitized acceptance evidence folder.
+- `capability_id`: actual exported ID of `ci.python` echo (use existing fixture `exported('ci.python')`, never a guessed URL).
+
+Defaults: `fixture_plugins=('ci.python','ci.node')`, `plugin_id='ci.python'`, `page_id='demo'`, `slot_text='Native python ready'`, `timeout_ms=20000`.
+
+Preconditions: target Python page and both fixture plugins are installed, explicitly granted, and enabled in the current tenant for both real users; normal synthetic Message field and 调用插件 button are present. This module must run before revocation, version-switch, and uninstall tests. Each shell opens a separate real admin browser context to preview/confirm disable. It rejects any affected plugin outside the explicit synthetic fixture set, ticks every affected ID, records real elapsed convergence milliseconds, validates slot removal/dirty-edit notice/stale HTTP submission rejection, and restores only fixtures that were originally enabled using exact server plans. A failure stops the suite and leaves state for diagnosis; it does not silently repair unexpected production state.
+
+The optional final logout/in-flight phase requires `slow_message` and a real `logout(page, shell)` callback (the default `native_logout` uses the locked upstream plus-ui avatar/Element MessageBox and Soybean avatar/Naive dialog controls). The callback must use the existing native header logout controls, perform the normal confirmation, and wait for the real logout response. It must not mock, intercept, clear localStorage as a substitute for logout, or inject tokens. `slow_message` is a prefix which the real fixture runtime delays for at least 3 seconds; the module appends a unique suffix. The delay must be implemented in the synthetic plugin, not by intercepted browser requests. Without both inputs the module returns PARTIAL with explicit NOT_RUN entries, never PASS. The tenant-switch scenario remains explicitly NOT_RUN because this fixture does not provide another tenant browser session.
+
+Native logout invalidates supplied session tokens. Put logout last in the entire native acceptance flow, or perform genuine fresh encrypted login afterward. To run core checks earlier without logging out, omit `slow_message`. To test logout later, call with fresh enabled fixtures and genuine fresh sessions; do not re-use invalidated tokens.
+
+Output: `ui-boundaries.json` includes buildId, individually observed checks, per-shell measured convergence, logout/in-flight status, and explicit tenant-switch omission; disabled synthetic page screenshots are emitted per shell. No storage states, token values, login screenshots, or raw exception messages are saved. A FAIL raises to the caller; PARTIAL must not be promoted to a green full A37–39 gate. The success scope for in-flight checking is browser-visible identity cleanup, not proof of server rollback or process cancellation.
+
+Local validation: `python -m unittest discover -s tests/runtime-native -p test_ui_boundaries.py -v` and `python -m py_compile tests/runtime-native/ui_boundaries.py`. Actual native browser execution is NOT_RUN until CI calls the function.

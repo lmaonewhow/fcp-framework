@@ -12,6 +12,8 @@ public interface RuntimePort {
     /** Re-resolve from the trusted installer inventory and verify bytes; never trust the public record alone. */
     void verifyInstalledPackage(fcp.plugin.PackageInstaller.InstalledPackage pkg);
     void verifyStorageCompatibility(String plugin, String version, String digest);
+    /** Version-switch plans need an actual schema token; production adapters must implement this. */
+    default String storageCompatibilityFingerprint(String plugin,String version,String digest){throw new fcp.FcpException("SCHEMA_FINGERPRINT_REQUIRED","Version planning requires a storage compatibility fingerprint");}
     void prepare(String plugin, String version, String digest);
     /** Must verify runner identity and readiness, not merely existence of a PID. */
     boolean ready(String plugin, String version, String digest);

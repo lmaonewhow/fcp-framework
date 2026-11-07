@@ -1,0 +1,11 @@
+test_actual_fixture_process_echoes_supplied_server_context (test_failure_boundaries.FailureBoundariesTest.test_actual_fixture_process_echoes_supplied_server_context) ... ok
+test_cli_reports_not_run (test_failure_boundaries.FailureBoundariesTest.test_cli_reports_not_run) ... ok
+test_deterministic_minimal_package (test_failure_boundaries.FailureBoundariesTest.test_deterministic_minimal_package) ... ok
+test_fault_fixture_does_not_fake_jdbc_results (test_failure_boundaries.FailureBoundariesTest.test_fault_fixture_does_not_fake_jdbc_results) ... ok
+test_guard_precedes_all_seed_sql (test_failure_boundaries.FailureBoundariesTest.test_guard_precedes_all_seed_sql) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.164s
+
+OK
+PASS failure-boundary ZIP verified by production PackageInstaller; native HTTP/MySQL NOT_RUN

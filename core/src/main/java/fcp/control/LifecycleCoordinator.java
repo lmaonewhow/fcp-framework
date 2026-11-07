@@ -19,6 +19,15 @@ import static java.nio.file.StandardOpenOption.*;
 public final class LifecycleCoordinator implements AutoCloseable {
     public enum Action { ENABLE, DISABLE }
     public enum DrainDecision { WAIT, CANCEL }
+    public enum VersionAction { UPGRADE, ROLLBACK }
+    public record VersionPlan(String pluginId,VersionAction action,String fromVersion,String fromDigest,
+                              String targetVersion,String targetDigest,long expectedRevision,
+                              List<String> affectedTenants,List<String> dependentPlugins,String schemaFingerprint,String digest) {
+        public VersionPlan { affectedTenants=List.copyOf(affectedTenants);dependentPlugins=List.copyOf(dependentPlugins); }
+    }
+    public record VersionOperation(String operationId,String pluginId,String action,String fromVersion,String fromDigest,
+                                   String targetVersion,String targetDigest,String phase,String outcome,long revision) {}
+
     public record Plan(String tenant, String plugin, Action action, long expectedRevision,
                        List<String> closure, String digest) {
         public Plan { closure=List.copyOf(closure); }
@@ -42,6 +51,7 @@ public final class LifecycleCoordinator implements AutoCloseable {
         try {
             runtime.resetAdmissions();StateJournal.Snapshot snapshot=journal.load();journalRevision=snapshot.revision();
             state=snapshot.json()!=null?obj(Json.parse(snapshot.json())):new LinkedHashMap<>(Map.of("revision",0,"installs",new LinkedHashMap<>(),"tenants",new LinkedHashMap<>(),"operations",new LinkedHashMap<>(),"deployments",new LinkedHashMap<>()));
+            state.putIfAbsent("versionOperations",new LinkedHashMap<>());
             validateState();for(String p:new ArrayList<>(map("deployments").keySet()))map("deployments").put(p,"UNKNOWN");persist();
         }catch(IOException|RuntimeException e){journal.close();throw e;}
     }
@@ -60,8 +70,9 @@ public final class LifecycleCoordinator implements AutoCloseable {
     }
     /** Registers only a package already verified by PackageInstaller. No migrations execute here. */
     public synchronized void register(TrustedContext c,PackageInstaller.InstalledPackage pkg,long expected) throws IOException {
-        live();String p=pkg.manifest().pluginId();require(c,c.tenantId(),p,"install");cas(expected);
+        live();String p=pkg.manifest().pluginId();require(c,c.tenantId(),p,"install");cas(expected);versionNotPending(p);
         Object previous=map("installs").get(p);if(previous!=null&&"INSTALLED".equals(obj(previous).get("state"))&&pkg.sha256().equals(obj(previous).get("digest"))&&pkg.manifest().version().equals(obj(previous).get("version"))){runtime.verifyInstalledPackage(pkg);return;}
+        if(previous!=null&&"INSTALLED".equals(obj(previous).get("state")))throw fail("VERSION_PLAN_REQUIRED","Stage a version and confirm an explicit upgrade or rollback plan");
         for(Object v:map("tenants").values())if(strings(obj(v).get("enabled")).contains(p))throw fail("PLUGIN_IN_USE","Disable every tenant before version replacement");
         if(map("operations").values().stream().anyMatch(v->!terminal(obj(v)) && strings(obj(v).get("plugins")).contains(p)))throw fail("OPERATION_PENDING","Plugin has unfinished operation");
         runtime.verifyInstalledPackage(pkg);
@@ -71,9 +82,77 @@ public final class LifecycleCoordinator implements AutoCloseable {
         map("installs").put(p,new LinkedHashMap<>(Map.of("manifest",raw,"version",pkg.manifest().version(),"digest",pkg.sha256(),"state","INSTALLED")));
         map("deployments").put(p,"STOPPED");bump();persist();audit(c,p,"install","INSTALLED");
     }
+    /** Reviewed global version selection. No tenant state or platform grant is changed by this plan. */
+    public synchronized VersionPlan planVersion(TrustedContext c,PackageInstaller.InstalledPackage target,VersionAction action,long expected){
+        live();String plugin=target.manifest().pluginId();require(c,c.tenantId(),plugin,"install");cas(expected);versionNotPending(plugin);
+        Map<String,Object> current=installed(plugin);int order=compareVersions(target.manifest().version(),(String)current.get("version"));
+        if((action==VersionAction.UPGRADE&&order<=0)||(action==VersionAction.ROLLBACK&&order>=0))throw fail("INVALID_VERSION_CHANGE","Choose a strictly newer upgrade or older rollback version");
+        List<String> dependents=versionDependents(plugin);Set<String> impacted=new TreeSet<>(dependents);impacted.add(plugin);ensureVersionQuiescent(impacted);
+        List<Object> authorization=new ArrayList<>();for(String p:impacted){require(c,c.tenantId(),p,"install");var decision=host.authorize(c,new HostCapabilities.Grant(p,"plugin.lifecycle","install","tenant:"+c.tenantId()));if(decision==null||!decision.allowed())throw fail("PERMISSION_DENIED","Version approval changed");authorization.add(List.of(p,decision.currentRevision()));}
+        runtime.verifyInstalledPackage(target);validateVersionDependencies(target.manifest(),new HashSet<>(),new HashSet<>());
+        for(String dependent:dependents){PluginManifest m=manifest(dependent);for(var dependency:m.dependencies())if(dependency.pluginId().equals(plugin)&&!PluginManifest.matchesVersion(target.manifest().version(),dependency.versionRange()))throw fail("DEPENDENCY_VERSION","Target version conflicts with dependent: "+dependent);
+            for(var required:m.requires())for(var old:manifest(plugin).provides())if(required.id().equals(old.id())&&sameContract(required,old)&&target.manifest().provides().stream().noneMatch(candidate->sameContract(required,candidate)))throw fail("CONTRACT_MISMATCH","Target removes a required contract for "+dependent);
+        }
+        String schema=runtime.storageCompatibilityFingerprint(plugin,target.manifest().version(),target.sha256());
+        Set<String> tenants=new TreeSet<>();for(String tenant:map("tenants").keySet())if(!Collections.disjoint(enabled(tenant),impacted))tenants.add(tenant);
+        for(Object raw:map("operations").values()){var operation=obj(raw);if(!Collections.disjoint(strings(operation.get("plugins")),impacted))tenants.add((String)operation.get("tenant"));}
+        String digest=hash(Json.write(List.of(plugin,action.name(),current.get("version"),current.get("digest"),target.manifest().version(),target.sha256(),expected,new ArrayList<>(tenants),dependents,schema,authorization)));
+        return new VersionPlan(plugin,action,(String)current.get("version"),(String)current.get("digest"),target.manifest().version(),target.sha256(),expected,new ArrayList<>(tenants),dependents,schema,digest);
+    }
+    public synchronized VersionOperation confirmVersion(TrustedContext c,VersionPlan plan,PackageInstaller.InstalledPackage target,String key,boolean confirmedDowntime)throws IOException {
+        live();require(c,c.tenantId(),plan.pluginId(),"install");if(!confirmedDowntime)throw fail("CONFIRMATION_REQUIRED","Confirm the disabled/drained downtime and retained database state");
+        VersionOperation replay=replayVersion(c,plan.digest(),key);if(replay!=null)return replay;
+        if(!target.manifest().pluginId().equals(plan.pluginId())||!target.manifest().version().equals(plan.targetVersion())||!target.sha256().equals(plan.targetDigest()))throw fail("CONFIRMATION_REQUIRED","Target package differs from reviewed plan");
+        VersionPlan fresh=planVersion(c,target,plan.action(),plan.expectedRevision());if(!fresh.equals(plan))throw fail("CONFIRMATION_REQUIRED","Version impact, authorization or schema changed; review a new plan");
+        String raw=Files.readString(target.directory().resolve("plugin.json"));if(!PluginManifest.parse(raw).equals(target.manifest()))throw fail("PACKAGE_INTEGRITY","Target manifest changed");
+        String id=versionOperationId(c,key);Map<String,Object> operation=new LinkedHashMap<>();
+        operation.put("pluginId",plan.pluginId());operation.put("action",plan.action().name());operation.put("tenant",c.tenantId());operation.put("owner",versionOwner(c));operation.put("fromVersion",plan.fromVersion());operation.put("fromDigest",plan.fromDigest());operation.put("targetVersion",plan.targetVersion());operation.put("targetDigest",plan.targetDigest());operation.put("targetManifest",raw);operation.put("schemaFingerprint",plan.schemaFingerprint());operation.put("expectedRevision",plan.expectedRevision());operation.put("planDigest",plan.digest());operation.put("phase","INTENT");operation.put("outcome","PENDING");
+        bump();operation.put("revision",revision());map("versionOperations").put(id,operation);persist();
+        applyVersion(c,operation);return versionResult(id,operation);
+    }
+    /** Durable lookup precedes ephemeral HTTP plans. Only explicit same-key confirmation resumes UNKNOWN. */
+    public synchronized VersionOperation replayVersion(TrustedContext c,String digest,String key){
+        live();String id=versionOperationId(c,key);Object raw=map("versionOperations").get(id);if(raw==null)return null;Map<String,Object> operation=obj(raw);requireVersionOwner(c,operation);
+        if(!Objects.equals(digest,operation.get("planDigest")))throw fail("IDEMPOTENCY_CONFLICT","Version confirmation changed for this key");
+        if(!terminal(operation))applyVersion(c,operation);return versionResult(id,operation);
+    }
+    public synchronized VersionOperation versionOperation(TrustedContext c,String id){live();Object raw=map("versionOperations").get(id);if(raw==null)throw fail("NOT_FOUND","Unknown version operation");Map<String,Object> operation=obj(raw);requireVersionOwner(c,operation);return versionResult(id,operation);}
+    private void applyVersion(TrustedContext c,Map<String,Object> operation){
+        String plugin=(String)operation.get("pluginId");
+        try {
+            requireVersionOwner(c,operation);Set<String> impacted=new TreeSet<>(versionDependents(plugin));impacted.add(plugin);for(String p:impacted)require(c,c.tenantId(),p,"install");ensureVersionQuiescent(impacted);
+            Map<String,Object> current=installed(plugin);boolean alreadySwitched=Objects.equals(current.get("digest"),operation.get("targetDigest"))&&Objects.equals(current.get("version"),operation.get("targetVersion"));
+            if(!alreadySwitched&&(!Objects.equals(current.get("digest"),operation.get("fromDigest"))||!Objects.equals(current.get("version"),operation.get("fromVersion"))))throw fail("REVISION_CONFLICT","Current version no longer matches the accepted intent");
+            PluginManifest target=PluginManifest.parse((String)operation.get("targetManifest"));String token=runtime.storageCompatibilityFingerprint(plugin,target.version(),(String)operation.get("targetDigest"));
+            if(!alreadySwitched&&!Objects.equals(token,operation.get("schemaFingerprint")))throw fail("SCHEMA_CHANGED","Reviewed database schema changed; no version switch applied");
+            validateVersionDependencies(target,new HashSet<>(),new HashSet<>());
+            for(String dependent:versionDependents(plugin))for(var dependency:manifest(dependent).dependencies())if(dependency.pluginId().equals(plugin)&&!PluginManifest.matchesVersion(target.version(),dependency.versionRange()))throw fail("DEPENDENCY_VERSION","Dependent version requirement changed during recovery");
+            runtime.stop(plugin); // Durable INTENT precedes this idempotent external effect; no tenant process is stopped automatically.
+            if(!alreadySwitched){
+                String afterStop=runtime.storageCompatibilityFingerprint(plugin,target.version(),(String)operation.get("targetDigest"));if(!Objects.equals(token,afterStop))throw fail("SCHEMA_CHANGED","Database schema changed during version preparation");
+                map("installs").put(plugin,new LinkedHashMap<>(Map.of("manifest",operation.get("targetManifest"),"version",target.version(),"digest",operation.get("targetDigest"),"state","INSTALLED")));map("deployments").put(plugin,"STOPPED");
+                bump();operation.put("revision",revision());operation.put("phase","SWITCHED");persist();
+            }
+            operation.put("phase","COMPLETE");operation.put("outcome","APPLIED");persist();audit(c,plugin,"version."+operation.get("action"),"APPLIED_DISABLED_DATA_RETAINED");
+        }catch(RuntimeException failure){operation.put("phase","UNKNOWN");operation.put("outcome","OUTCOME_UNKNOWN");persist();throw failure;}
+    }
+    private void requireVersionOwner(TrustedContext c,Map<String,Object> operation){require(c,c.tenantId(),(String)operation.get("pluginId"),"install");if(!versionOwner(c).equals(operation.get("owner")))throw fail("PERMISSION_DENIED","Version receipt belongs to another caller");}
+    private String versionOperationId(TrustedContext c,String key){if(key==null||key.isBlank()||key.length()>256)throw fail("INVALID_ARGUMENT","Valid version idempotency key required");return "version."+hash(versionOwner(c)+"\n"+key);}
+    private static String versionOwner(TrustedContext c){return Json.write(List.of(c.principal().kind().name(),c.principal().id(),c.tenantId()));}
+    private static VersionOperation versionResult(String id,Map<String,Object> o){return new VersionOperation(id,(String)o.get("pluginId"),(String)o.get("action"),(String)o.get("fromVersion"),(String)o.get("fromDigest"),(String)o.get("targetVersion"),(String)o.get("targetDigest"),(String)o.get("phase"),(String)o.get("outcome"),number(o.get("revision")));}
+    private void versionNotPending(String plugin){for(Object raw:map("versionOperations").values()){var operation=obj(raw);String target=(String)operation.get("pluginId");if(!terminal(operation)&&(plugin.equals(target)||versionDependents(target).contains(plugin)||versionDependents(plugin).contains(target)))throw fail("VERSION_OPERATION_PENDING","Complete or reconcile the related version operation first");}}
+    private List<String> versionDependents(String plugin){Set<String> impacted=new TreeSet<>();boolean changed;do{changed=false;for(var e:map("installs").entrySet())if(!e.getKey().equals(plugin)&&!impacted.contains(e.getKey())&&"INSTALLED".equals(obj(e.getValue()).get("state")))for(var d:manifest(e.getKey()).dependencies())if(d.pluginId().equals(plugin)||impacted.contains(d.pluginId())){impacted.add(e.getKey());changed=true;break;}}while(changed);return List.copyOf(impacted);}
+    private void ensureVersionQuiescent(Set<String> plugins){
+        for(String tenant:map("tenants").keySet())for(String plugin:plugins)if(enabled(tenant).contains(plugin)||runtime.activeCalls(tenant,plugin)>0)throw fail("PLUGIN_IN_USE","Every affected tenant must explicitly disable and drain before version changes");
+        for(Object raw:map("operations").values()){var operation=obj(raw);if(!terminal(operation)&&!Collections.disjoint(plugins,strings(operation.get("plugins"))))throw fail("OPERATION_PENDING","Affected lifecycle operation must finish first");}
+    }
+    private void validateVersionDependencies(PluginManifest target,Set<String> visiting,Set<String> done){versionVisit(target.pluginId(),target,visiting,done);}
+    private void versionVisit(String plugin,PluginManifest target,Set<String> visiting,Set<String> done){if(visiting.contains(plugin))throw fail("DEPENDENCY_CYCLE",plugin);if(done.contains(plugin))return;visiting.add(plugin);PluginManifest current=plugin.equals(target.pluginId())?target:manifest(plugin);for(var dependency:current.dependencies()){PluginManifest selected=dependency.pluginId().equals(target.pluginId())?target:manifest(dependency.pluginId());if(!PluginManifest.matchesVersion(selected.version(),dependency.versionRange()))throw fail("DEPENDENCY_VERSION",dependency.pluginId());versionVisit(dependency.pluginId(),target,visiting,done);}visiting.remove(plugin);done.add(plugin);}
+    private static boolean sameContract(PluginManifest.Capability a,PluginManifest.Capability b){return a.id().equals(b.id())&&a.version().equals(b.version())&&a.sideEffects()==b.sideEffects()&&a.inputSchema().equals(b.inputSchema())&&a.outputSchema().equals(b.outputSchema());}
+    private static int compareVersions(String left,String right){String[] a=left.split("-",2),b=right.split("-",2),aa=a[0].split("\\."),bb=b[0].split("\\.");for(int i=0;i<3;i++){int compare=new java.math.BigInteger(aa[i]).compareTo(new java.math.BigInteger(bb[i]));if(compare!=0)return compare;}if(a.length==1||b.length==1)return Integer.compare(b.length,a.length);String[] ap=a[1].split("\\."),bp=b[1].split("\\.");for(int i=0;i<Math.min(ap.length,bp.length);i++){boolean an=ap[i].matches("[0-9]+"),bn=bp[i].matches("[0-9]+");int compare=an&&bn?new java.math.BigInteger(ap[i]).compareTo(new java.math.BigInteger(bp[i])):an!=bn?(an?-1:1):ap[i].compareTo(bp[i]);if(compare!=0)return compare;}return Integer.compare(ap.length,bp.length);}
     public synchronized Plan plan(TrustedContext c,String tenant,String plugin,Action action,long expected) {
         live();require(c,tenant,plugin,"plan");cas(expected);TreeSet<String> closure=new TreeSet<>();
-        if(action==Action.ENABLE)dependencies(plugin,closure,new HashSet<>());
+        if(action==Action.ENABLE){dependencies(plugin,closure,new HashSet<>());for(Object raw:map("versionOperations").values()){var version=obj(raw);if(!terminal(version)&&closure.contains(version.get("pluginId")))throw fail("VERSION_OPERATION_PENDING","Version switch requires recovery before enabling");}}
         else {
             installed(plugin);closure.add(plugin);boolean changed;
             do {changed=false;for(String p:enabled(tenant))if(!closure.contains(p))for(var d:manifest(p).dependencies())if(closure.contains(d.pluginId())){closure.add(p);changed=true;break;}}while(changed);
@@ -136,7 +215,7 @@ public final class LifecycleCoordinator implements AutoCloseable {
         Object install=map("installs").get(plugin);return new Status(revision(),install==null?"ABSENT":(String)obj(install).get("state"),(String)map("deployments").getOrDefault(plugin,"UNKNOWN"),desired,actual);
     }
     public synchronized void uninstall(TrustedContext c,String plugin,long expected) {
-        live();require(c,c.tenantId(),plugin,"uninstall");cas(expected);installed(plugin);
+        live();require(c,c.tenantId(),plugin,"uninstall");cas(expected);installed(plugin);versionNotPending(plugin);
         for(String tenant:map("tenants").keySet())if(enabled(tenant).contains(plugin)||runtime.activeCalls(tenant,plugin)>0)throw fail("PLUGIN_IN_USE","Disable and drain every tenant first");
         for(Object v:map("operations").values())if(!terminal(obj(v))&&strings(obj(v).get("plugins")).contains(plugin))throw fail("OPERATION_PENDING","Pending operation");
         installed(plugin).put("state","UNINSTALLED");bump();persist();runtime.stop(plugin);map("deployments").put(plugin,"STOPPED");persist();audit(c,plugin,"uninstall","DATA_RETAINED");
@@ -156,6 +235,7 @@ public final class LifecycleCoordinator implements AutoCloseable {
     }
     private void publishDesired(TrustedContext c,String tenant) {
         Set<String> desired=enabled(tenant);
+        for(Object raw:map("versionOperations").values()){Map<String,Object> version=obj(raw);if(!terminal(version)&&desired.contains(version.get("pluginId")))throw fail("VERSION_OPERATION_PENDING","Version switch requires recovery before enabling");}
         Map<String,String> approvals=verifyApprovals(c,desired);
         for(String p:desired){require(c,tenant,p,"enable");Set<String> closure=new TreeSet<>();dependencies(p,closure,new HashSet<>());if(!desired.containsAll(closure))throw fail("DEPENDENCY_BLOCKED","Dependency not enabled");}
         for(String p:desired){if(!approvals.equals(verifyApprovals(c,desired)))throw fail("GRANT_REVISION_CONFLICT","Platform approvals changed before runner preparation");Map<String,Object> i=installed(p);String version=(String)i.get("version"),digest=(String)i.get("digest");runtime.verifyStorageCompatibility(p,version,digest);map("deployments").put(p,"STARTING");persist();runtime.prepare(p,version,digest);if(!runtime.ready(p,version,digest))throw fail("NOT_READY","Runner not ready: "+p);map("deployments").put(p,"READY");persist();}
@@ -193,10 +273,15 @@ public final class LifecycleCoordinator implements AutoCloseable {
     private static String hash(String text){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8)));}catch(NoSuchAlgorithmException e){throw new IllegalStateException(e);}}
     private void validateState()throws IOException {
         try {
-            if(!state.keySet().equals(Set.of("revision","installs","tenants","operations","deployments"))||number(state.get("revision"))<0)throw new IllegalArgumentException();
+            if(!state.keySet().equals(Set.of("revision","installs","tenants","operations","deployments","versionOperations"))||number(state.get("revision"))<0)throw new IllegalArgumentException();
             for(Object raw:map("installs").values()){Map<String,Object> i=obj(raw);if(!i.keySet().equals(Set.of("manifest","version","digest","state"))||!Set.of("INSTALLED","UNINSTALLED").contains(i.get("state"))||!((String)i.get("digest")).matches("[0-9a-f]{64}"))throw new IllegalArgumentException();PluginManifest.parse((String)i.get("manifest"));}
             for(Object raw:map("tenants").values()){Map<String,Object> t=obj(raw);if(!t.keySet().equals(Set.of("enabled")))throw new IllegalArgumentException();for(String p:strings(t.get("enabled")))installed(p);}
             for(Object raw:map("operations").values()){Map<String,Object> o=obj(raw);if(!o.keySet().equals(Set.of("tenant","plugins","action","planDigest","phase","outcome","decisions","drainDeadline")))throw new IllegalArgumentException();Action.valueOf((String)o.get("action"));java.time.Instant.parse((String)o.get("drainDeadline"));if(!(o.get("decisions") instanceof List<?>))throw new IllegalArgumentException();for(String p:strings(o.get("plugins")))if(!map("installs").containsKey(p))throw new IllegalArgumentException();}
+            for(Object raw:map("versionOperations").values()){
+                Map<String,Object> o=obj(raw);if(!o.keySet().equals(Set.of("pluginId","action","tenant","owner","fromVersion","fromDigest","targetVersion","targetDigest","targetManifest","schemaFingerprint","expectedRevision","planDigest","phase","outcome","revision")))throw new IllegalArgumentException();
+                VersionAction.valueOf((String)o.get("action"));if(!Set.of("INTENT","SWITCHED","COMPLETE","UNKNOWN").contains(o.get("phase")))throw new IllegalArgumentException();
+                PluginManifest target=PluginManifest.parse((String)o.get("targetManifest"));if(!target.pluginId().equals(o.get("pluginId"))||!target.version().equals(o.get("targetVersion"))||!((String)o.get("targetDigest")).matches("[a-f0-9]{64}"))throw new IllegalArgumentException();
+            }
             for(Object d:map("deployments").values())if(!Set.of("UNKNOWN","STARTING","READY","STOPPED").contains(d))throw new IllegalArgumentException();
         }catch(RuntimeException invalid){throw new IOException("Invalid lifecycle journal schema",invalid);}
     }

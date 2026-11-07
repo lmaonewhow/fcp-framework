@@ -96,6 +96,10 @@ jobs:
             reports/ingestion.json
             reports/native-ingestion/
             reports/runtime-native/
+            reports/runtime-failure-boundaries/
+            reports/runtime-portability/
+            reports/runtime-crash/
+            reports/runtime-exchange/
             work/ci-native/release/BUILD-EVIDENCE.json
             work/ci-native/release/admin-package-lock.json
             work/ci-native/release/teacher-pnpm-lock.yaml

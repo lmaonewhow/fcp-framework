@@ -273,7 +273,7 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
          'return "redirect:/admin/";')
     for name,project,overlay in [('admin',admin,'plus-ui'),('teacher',teacher,'soybean')]:
         copy_files(ROOT/f'integration/{overlay}/src', project/'src')
-        for file in ['session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue','usePlugins.ts','PluginWorkspace.vue','usePluginManager.ts','PluginManager.vue']:
+        for file in ['session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue','usePlugins.ts','PluginWorkspace.vue','usePluginManager.ts','PluginManager.vue','useVersionManager.ts','VersionManager.vue']:
             target=project/'src/fcp'/file
             if target.exists(): raise BuildError('FCP session module already present')
             target.parent.mkdir(parents=True,exist_ok=True)
