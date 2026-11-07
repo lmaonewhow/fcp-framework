@@ -3,7 +3,7 @@ import io,json,os,subprocess,sys,unittest,zipfile
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).parent))
-from native_exchange_acceptance import ExchangeFixture,package_bytes
+from native_exchange_acceptance import ExchangeFixture,package_bytes,semantic_preview,SAME_OBJECT_CSV
 ROOT=Path(__file__).resolve().parents[2]
 
 class FixtureTests(unittest.TestCase):
@@ -17,6 +17,23 @@ class FixtureTests(unittest.TestCase):
             self.assertEqual(manifest['pluginId'],plugin)
             self.assertEqual(manifest['publisher'],'fcp-fixtures')
             self.assertTrue(manifest['storage']['tables'])
+    def test_same_object_comparison_ignores_only_metadata(self):
+        semantic=dict(rows=[dict(student_code='s1',full_name='Synthetic Alice',class_code='class-a')],errors=[],valid=True)
+        file=dict(previewId='file',source='upload',result=dict(semantic,revision=1))
+        api=dict(previewId='api',source='connector',result=dict(semantic,revision=2))
+        self.assertEqual(semantic_preview(file),semantic_preview(api))
+        api['result']['errors']=[dict(row=2,code='CONFLICT')]
+        self.assertNotEqual(semantic_preview(file),semantic_preview(api))
+        self.assertEqual(SAME_OBJECT_CSV.encode(),b'student_code,full_name,class_code\ns1,Synthetic Alice,class-a\n')
+
+    def test_native_schema_is_deployed_before_installation(self):
+        source=(Path(__file__).parent/'native_exchange_acceptance.py').read_text()
+        stage=source.index("'exchange-stage-'+plugin,staged=True")
+        plan=source.index("'/storage/plans',dict(version='1.0.0',packageDigest=digest)")
+        apply=source.index("'exchange-schema-'+plugin")
+        install=source.index("'exchange-install-'+plugin")
+        self.assertLess(stage,plan);self.assertLess(plan,apply);self.assertLess(apply,install)
+
     def test_isolation_rejected_before_sql_or_server(self):
         writes=[]
         for ci,database in [('false','fcp_ci_123456abcdef'),('true','production')]:

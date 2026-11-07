@@ -21,8 +21,6 @@ public final class FcpPluginVersionController {
     public FcpPluginVersionController(NativePluginHost identity,PluginVersionApplication application){this.identity=identity;this.application=application;}
     @ModelAttribute public void explicitNativeHeader(HttpServletRequest request){String header=request.getHeader("Authorization");if(header==null||header.isBlank())throw new FcpException("UNAUTHENTICATED","Explicit native authorization header required");String token=header.startsWith("Bearer ")?header.substring(7):header;String authenticated=StpUtil.getTokenValue();if(authenticated==null||!java.security.MessageDigest.isEqual(token.getBytes(java.nio.charset.StandardCharsets.UTF_8),authenticated.getBytes(java.nio.charset.StandardCharsets.UTF_8)))throw new FcpException("UNAUTHENTICATED","Native header mismatch");}
     private ResponseEntity<String> ok(Object value){return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(HostResponse.ok(value));}
-    @PostMapping(value="/packages/staged",consumes=MediaType.APPLICATION_OCTET_STREAM_VALUE)
-    public ResponseEntity<String> stage(HttpServletRequest request,@RequestHeader("X-Fcp-Digest") String digest,@RequestHeader("Idempotency-Key") String key)throws Exception{return ok(application.stage(identity.current(),request.getInputStream(),digest,key));}
     @GetMapping("/plugins/{plugin}/versions")
     public ResponseEntity<String> versions(@PathVariable String plugin)throws Exception{return ok(application.versions(identity.current(),plugin));}
     @PostMapping("/plugins/{plugin}/version-plans")

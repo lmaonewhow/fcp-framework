@@ -22,3 +22,22 @@ java -cp /tmp/fcp-native-package-test NativeFixturePackageTest /tmp/fcp-native-p
 Running the Python module without the CI fixture returns `NOT_RUN` and exit code 2. Local validation evidence is in `evidence/local-fixture-validation.log`; `evidence/native-status.json` explicitly records that native HTTP/browser acceptance has not been executed in this workspace. A37–A41, native production readiness, migration/upgrade/rollback, long-duration stability and complete crash matrices are not marked fully accepted by these local checks.
 
 The version fixtures are generated with the same package-output command as the baseline inputs: `ci.python-1.1.0.zip` and `ci.python-1.2.0.zip`. Local version-fixture validation is recorded separately in `evidence/version-fixture-validation.log` and does not establish that the added native HTTP scenarios passed. Full native version acceptance remains NOT_RUN until the isolated native workflow actually executes it.
+
+## A11 storage lifecycle retention
+
+`storage_lifecycle_acceptance.StorageLifecycleFixture` is a separate genuine-native acceptance module, wired into `ci_native.py --ingestion` before the independent failure/exchange scenarios. It uses only its `ci.storage-retention` test package and a dedicated class scope. The optional deployment account is explicitly configured for this CI fixture and shared with the existing storage checks (and exchange fixture when selected); no runtime account receives DDL rights.
+
+The fixture stages three verified Python archives, deploys schema version 1 through the real schema plan/apply endpoints, installs and explicitly grants the package, then creates two actual MySQL records through Python `fcp.call` callbacks only. One active record is updated to revision 2; the other is explicitly deleted to revision 2/del=1. Read-only SQL snapshots preserve every business field, tenant/scope, revision and deletion flag across disable, uninstall, rejected incompatible schema reinstallation, compatible new-package installation, explicit package-bound regrant, and enable. Default list/get must return only the active row and never implicitly restore the tombstone. Business-write audit counts must remain unchanged through lifecycle operations. The incompatible attempt must also preserve the old UNINSTALLED inventory metadata. Both package versions must run as actual children of the unchanged native JVM, with distinct process identities.
+
+The fixture uses genuine encrypted browser login and native HTTP for all package, grant, lifecycle, migration and business operations. SQL writes seed only its synthetic role/menu/class authority; schema deployment uses the production restricted deployment endpoint. Business SQL is read-only evidence. No production roster behavior, exchange worker, or existing business fixture is changed. Reports and row snapshots are under `reports/runtime-native/storage-lifecycle/`, already included by the native workflow artifact.
+
+Local checks, explicitly not A11/MySQL acceptance:
+
+```sh
+python -m unittest discover -s tests/runtime-native -p 'test_storage_lifecycle.py' -v
+python tests/runtime-native/storage_lifecycle_acceptance.py --package-output /tmp/fcp-a11-packages
+javac --release 17 -d /tmp/fcp-a11-classes $(find core/src/main/java -name '*.java') tests/runtime-native/StorageLifecyclePackageTest.java
+java -cp /tmp/fcp-a11-classes StorageLifecyclePackageTest /tmp/fcp-a11-packages
+```
+
+The local Python protocol check launches the actual worker but provides explicitly synthetic callback responses, so it establishes protocol formatting only. The Java check runs the real immutable package installer and compares all required host contracts with the production storage contracts. Native HTTP/MySQL A11 remains NOT_RUN in this workspace until the isolated CI invocation actually executes it; absence of MySQL must never be converted to a passed lifecycle-retention result.

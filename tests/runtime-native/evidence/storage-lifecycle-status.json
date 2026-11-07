@@ -1,0 +1,26 @@
+{
+  "status": "NOT_RUN",
+  "acceptance": "A11",
+  "scope": "Actual native/MySQL storage lifecycle retention",
+  "reason": "Local MySQL is unavailable; fixture package/protocol tests do not establish native acceptance. CI hook is prepared.",
+  "sourceCommit": "1dbf94df03cf637df9f6f14badbb3bffb8df73e3",
+  "sourceHashes": {
+    "tests/runtime-native/storage_lifecycle_acceptance.py": "c7f920dd73e100102e6cdf83643b8d5f36c707eeba48398f90466ff476d46cd3",
+    "tests/runtime-native/storage-retention/worker.py": "5e7d4480a94d0ef1405d692ee567051b6532d3a46da0e21b361691e9b939b418",
+    "tests/runtime-native/test_storage_lifecycle.py": "c933b66ba6c37f920ae16df1d9ece384deaa8e84e2f6cbfb39fb31419ac8dd26",
+    "tests/runtime-native/StorageLifecyclePackageTest.java": "f362e7b0a48ae1f15d46f1bc29801f76ac00980454e5b000d80cfade4f6c8ed3",
+    "tools/ci_native.py": "b21dd763a9b5c5578980dbeb360a91faa80d366f91d7bf83bbb395aed49640b3"
+  },
+  "localOnly": {
+    "pythonFixtureTests": 4,
+    "pythonFixtureResult": "PASS",
+    "verifiedArchiveVersions": [
+      "1.0.0",
+      "1.1.0",
+      "2.0.0"
+    ],
+    "immutablePackageContracts": "PASS",
+    "mysql": "NOT_RUN",
+    "nativeHttp": "NOT_RUN"
+  }
+}

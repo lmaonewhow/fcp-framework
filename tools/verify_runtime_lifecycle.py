@@ -8,7 +8,7 @@ def main():
  REPORT.mkdir(parents=True,exist_ok=True)
  report={'status':'FAIL','scope':'actual Java Engine, Python/Node processes and loopback development HTTP','nativeRuoYi':'NOT_RUN','mysql':'NOT_RUN','browser':'NOT_RUN','groups':[]}
  build=ROOT/'build/runtime-http';build.mkdir(parents=True,exist_ok=True)
- commands=[('versions',['bash','tests/runtime-versions/run.sh']),('lifecycle',['bash','tests/runtime-lifecycle/run.sh']),('compile-http',['javac','--release','17','-encoding','UTF-8','-d',str(build),*[str(p) for tree in ['core/src/main/java','business/src/main/java','host/src/main/java','development-host/src/main/java'] for p in sorted((ROOT/tree).rglob('*.java'))]]),('http',[sys.executable,'-m','unittest','discover','-s','tests/runtime-http','-v'])]
+ commands=[('staging',['bash','tests/runtime-staging/run.sh']),('versions',['bash','tests/runtime-versions/run.sh']),('lifecycle',['bash','tests/runtime-lifecycle/run.sh']),('compile-http',['javac','--release','17','-encoding','UTF-8','-d',str(build),*[str(p) for tree in ['core/src/main/java','business/src/main/java','host/src/main/java','development-host/src/main/java','tests/runtime-http/recovery'] for p in sorted((ROOT/tree).rglob('*.java'))]]),('recovery-backoff',['java','-cp',str(build),'dev.fcp.host.RecoveryBackoffTest']),('http',[sys.executable,'-m','unittest','discover','-s','tests/runtime-http','-v'])]
  try:
   report['baselineCommit']=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
   report['workingTreeStatus']=subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).splitlines()

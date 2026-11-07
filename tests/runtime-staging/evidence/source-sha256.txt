@@ -1,0 +1,9 @@
+86737a0fb66e1d37fc670837a2ef1d7df275244e44bb09cc41f91de1ab4d6275  host/src/main/java/dev/fcp/host/PackageStaging.java
+982444fd86f969d35f55c2857de378eb608ff16df54488ffb28336e5042bf067  host/src/main/java/dev/fcp/host/PluginApplication.java
+19a12ad66099318040151c703f350c4ba3147ace216ec55c5d8ca7e516ffe4b8  host/src/main/java/dev/fcp/host/PluginVersionApplication.java
+e79b98ade072e57e73b41c2efe6ba2b93dc5e96a3eb58ac71f96e608d6c4f0ab  integration/ruoyi/src/main/java/org/dromara/fcp/plugin/FcpPluginController.java
+6f8667e64195e0dee55c660d291bc4e66f82d8754ea689033174a80b9b2668b2  integration/ruoyi/src/main/java/org/dromara/fcp/plugin/FcpPluginVersionController.java
+47ad80146f8e4327869d41868892460233502788ff110393bbaa78d6c79d4934  development-host/src/main/java/dev/fcp/dev/DevHost.java
+4d19c166160411cf1a9f5a5dbaff5dd800aca24781a0c3c1362e14cce52a836d  tests/runtime-staging/StagingTest.java
+2759540d7d7bbcfdd543e331a46367f5683152366e0905a039ae1581590eaefc  tests/runtime-staging/test_stage_http.py
+3d780081e74d68add405eb51d5a0738499a349af5f069c98ef3f194f69666b74  tests/runtime-staging/run.sh

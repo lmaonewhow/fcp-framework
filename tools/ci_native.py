@@ -34,8 +34,8 @@ def run()->int:
  parser=argparse.ArgumentParser(description=__doc__)
  parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');a=parser.parse_args()
  if a.exchange and not a.ingestion:parser.error('--exchange requires genuine --ingestion login fixture')
- report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'production':'BLOCKED'}
- process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None;failure_fixture=None
+ report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeStorageLifecycle':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'production':'BLOCKED'}
+ process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None;failure_fixture=None;storage_lifecycle_fixture=None;deployment_user=None;deployment_password=None
  try:
   if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')
   requirements=doctor()
@@ -83,6 +83,13 @@ def run()->int:
     runtime_fixture=RuntimeFixture(database,sql,private_dir,fixture)
     from failure_boundaries import FailureBoundaryFixture, run_mysql_failure_boundaries
     failure_fixture=FailureBoundaryFixture(database,sql,private_dir,fixture)
+    from storage_lifecycle_acceptance import StorageLifecycleFixture
+    storage_lifecycle_fixture=StorageLifecycleFixture(database,sql,private_dir,fixture)
+    if not a.exchange:
+     deployment_user='fcpm_'+secrets.token_hex(6);deployment_password=secrets.token_hex(24)
+     sql(f"CREATE USER '{deployment_user}'@'%' IDENTIFIED BY '{deployment_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX ON `{database}`.* TO '{deployment_user}'@'%';")
+     props+='\nfcp.runtime.storage-deployment.enabled=true\nFCP_STORAGE_DEPLOYMENT_JDBC_URL='+url+'\nFCP_STORAGE_DEPLOYMENT_USER='+deployment_user+'\nFCP_STORAGE_DEPLOYMENT_PASSWORD='+deployment_password+'\n'
+
    props+='\nFCP_INGESTION_CONNECTIONS='+str(fixture.connection_file)+'\n'
    if a.exchange:
     sys.path.insert(0,str(ROOT/'tests/runtime-exchange'))
@@ -116,8 +123,9 @@ def run()->int:
   report['mysqlAdapter']='PASS'
   # New storage checks execute against this freshly-created database, not a JDBC proxy.
   if (ROOT/'tests/runtime-storage/MysqlStorageTest.java').is_file():
-   deployment_user='fcpm_'+secrets.token_hex(6);deployment_password=secrets.token_hex(24)
-   sql(f"CREATE USER '{deployment_user}'@'%' IDENTIFIED BY '{deployment_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX ON `{database}`.* TO '{deployment_user}'@'%';")
+   if deployment_user is None:
+    deployment_user='fcpm_'+secrets.token_hex(6);deployment_password=secrets.token_hex(24)
+    sql(f"CREATE USER '{deployment_user}'@'%' IDENTIFIED BY '{deployment_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX ON `{database}`.* TO '{deployment_user}'@'%';")
    storage_classes=ROOT/'build/runtime-storage-native';storage_classes.mkdir(parents=True,exist_ok=True)
    storage_sources=sorted((ROOT/'core/src/main/java').rglob('*.java'))+sorted((ROOT/'tests/runtime-storage').glob('*.java'))
    command(['javac','--release','17','-encoding','UTF-8','-d',storage_classes,*storage_sources],timeout=120)
@@ -179,6 +187,9 @@ def run()->int:
    if runtime_fixture:
     runtime_result=runtime_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],lambda: process.pid if process and process.poll() is None else None)
     report['runtimePlugins']={'status':runtime_result['status'],'totalChecks':runtime_result['totalChecks'],'browser':runtime_result['browser'],'backendPidUnchanged':runtime_result['backendPidUnchanged']}
+   if storage_lifecycle_fixture:
+    storage_result=storage_lifecycle_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],lambda: process.pid if process and process.poll() is None else None)
+    report['runtimeStorageLifecycle']={'status':storage_result['status'],'acceptance':'A11','totalChecks':storage_result['totalChecks'],'snapshots':len(storage_result['snapshots'])}
    if failure_fixture:
     failure_result=failure_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],lambda: process.pid if process and process.poll() is None else None)
     report['runtimeFailureBoundaries']={'status':failure_result['status'],'totalChecks':failure_result['totalChecks']}

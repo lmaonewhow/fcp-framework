@@ -15,6 +15,11 @@ from native_runtime_acceptance import Client,RuntimeFixture,exported
 from ci_ingestion import safe_diagnostic
 
 
+SAME_OBJECT_CSV='student_code,full_name,class_code\ns1,Synthetic Alice,class-a\n'
+def semantic_preview(preview):
+    result=preview['result'];return {key:result[key] for key in ('rows','errors','valid')}
+
+
 def package_bytes(plugin):
     if plugin not in ('roster','mock-exam'):raise ValueError('Unknown fixed fixture package')
     root=ROOT/'runtime/runtime-plugins'/plugin;manifest=json.loads((root/'plugin.json').read_text());output=io.BytesIO()
@@ -55,9 +60,9 @@ class ExchangeFixture:
                 if parsed.path!='/campus':self.send_error(404);return
                 owner.requests.append(cursor)
                 if cursor=='task-page2' and not owner.allow_second:self.send_error(503);return
-                if cursor not in ('','manual','task-page2'):self.send_error(400);return
-                code={'':'task1','manual':'api1','task-page2':'task2'}[cursor]
-                payload=json.dumps(dict(content='student_code,full_name,class_code\n'+code+',Synthetic '+code+',class-a\n',nextCursor='task-page2' if cursor=='' else None)).encode()
+                if cursor not in ('','manual','task-page2','same-object'):self.send_error(400);return
+                code={'':'task1','manual':'api1','task-page2':'task2','same-object':'s1'}[cursor]
+                payload=json.dumps(dict(content=SAME_OBJECT_CSV if cursor=='same-object' else 'student_code,full_name,class_code\n'+code+',Synthetic '+code+',class-a\n',nextCursor='task-page2' if cursor=='' else None)).encode()
                 self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(payload)));self.end_headers();self.wfile.write(payload)
         self.server=ThreadingHTTPServer(('127.0.0.1',0),Handler);self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start()
         self.endpoint='http://127.0.0.1:'+str(self.server.server_port)+'/campus'
@@ -85,6 +90,7 @@ class ExchangeFixture:
             self.sql(f"USE `{self.database}`; INSERT INTO fcp_runtime_task_grant(tenant_id,task_id,plugin_id,capability_id,operation,data_scope,package_digest,revision,del,expires_at) VALUES('000000','roster-fixture-sync','roster','{cap}','{op}','{scope}','{digest}',1,0,DATE_ADD(NOW(),INTERVAL 1 HOUR)) ON DUPLICATE KEY UPDATE package_digest=VALUES(package_digest),revision=revision+1,del=0,expires_at=VALUES(expires_at);")
     def revoke_task(self):self.sql(f"USE `{self.database}`; UPDATE fcp_runtime_task_grant SET del=1,revision=revision+1 WHERE tenant_id='000000' AND task_id='roster-fixture-sync' AND plugin_id='roster';")
     def export_authority(self,allow):self.sql(f"USE `{self.database}`; UPDATE fcp_runtime_grant SET del={0 if allow else 1},revision=revision+1 WHERE tenant_id='000000' AND plugin_id='roster' AND capability_id='exchange' AND operation='export' AND data_scope='class:class-a';")
+    def import_authority(self,allow):self.sql(f"USE `{self.database}`; UPDATE fcp_runtime_grant SET del={0 if allow else 1},revision=revision+1 WHERE tenant_id='000000' AND plugin_id='roster' AND capability_id='exchange' AND operation='import' AND data_scope='class:class-a';")
     def lifecycle(self,client,plugin,action,key):
         status=client.data('/fcp/plugins/'+plugin);plan=client.data('/fcp/plugins/'+plugin+'/plans',dict(action=action,expectedRevision=status['revision']));result=RuntimeFixture.confirm(client,plan,key);self.check(plugin+' '+action+' confirmed',result.get('phase')=='COMPLETE')
     def export_csv(self,client,config='roster-fixture',fields=None):
@@ -138,9 +144,10 @@ class ExchangeFixture:
                     digests={}
                     for plugin in ('roster','mock-exam'):
                         package,manifest=package_bytes(plugin);digest=hashlib.sha256(package).hexdigest();digests[plugin]=digest
-                        installed=client.upload(package,digest,'exchange-install-'+plugin,client.data('/fcp/plugins')['revision']);self.check(plugin+' package installed',installed['digest']==digest)
+                        staged=client.upload(package,digest,'exchange-stage-'+plugin,staged=True);self.check(plugin+' immutable package staged before DDL',staged['digest']==digest)
                         plan=client.data('/fcp/plugins/'+plugin+'/storage/plans',dict(version='1.0.0',packageDigest=digest));self.check(plugin+' immutable declared schema plan',plan['packageDigest']==digest and bool(plan['changes']))
                         result=client.data('/fcp/storage/plans/'+plan['planId']+'/apply',dict(digest=plan['digest'],idempotencyKey='exchange-schema-'+plugin));self.check(plugin+' declared schema applied by deployment identity',result['phase']=='COMPLETE')
+                        installed=client.upload(package,digest,'exchange-install-'+plugin,client.data('/fcp/plugins')['revision']);self.check(plugin+' package installed only after declared schema applies',installed['digest']==digest)
                         options=client.data('/fcp/plugins/'+plugin+'/grant-options?targetTenant=000000')
                         grants=[dict(capabilityId=c['id'],dataScope='class:class-a' if c['id'].startswith('host.storage.') else 'tenant:000000',allow=True) for c in manifest['provides']+manifest['requires']]
                         plan=client.data('/fcp/plugins/'+plugin+'/grants/plans',dict(targetTenant='000000',expectedRevision=options['revision'],grants=grants));self.check(plugin+' exact platform grants confirmed over HTTP',RuntimeFixture.confirm(client,plan,'exchange-grants-'+plugin)['phase']=='COMPLETE')
@@ -150,10 +157,16 @@ class ExchangeFixture:
                     catalog=client.data('/fcp/ui/catalog')['catalog']
                     for operation in ('exchange.read','exchange.preview','exchange.commit'):
                         status,body=client.request('/fcp/capabilities/'+exported('roster',operation)+'/invoke',dict(input={},expectedRevision=catalog['revision'],idempotencyKey='no-bypass-'+operation));self.check('generic '+operation+' cannot bypass controlled exchange',status==409 and body.get('data',{}).get('fcpCode')=='CONFIRMATION_REQUIRED')
-                    preview=client.preview('roster-fixture','student_code,full_name,class_code\ns1,Synthetic Alice,class-a\n');self.check('CSV preview validates without writing',preview['result']['valid'] and 's1' not in self.export_csv(client)[1])
+                    preview=client.preview('roster-fixture',SAME_OBJECT_CSV);self.check('CSV preview validates without writing',preview['result']['valid'] and 's1' not in self.export_csv(client)[1])
+                    same_api=client.data('/fcp/exchange/configs/roster-fixture/preview-api',dict(cursor='same-object'));self.check('identical CSV bytes through file and fixed API normalize identically',semantic_preview(preview)==semantic_preview(same_api))
                     receipt=client.confirm_exchange(preview,'native-csv');self.check('CSV confirmed through actual plugin storage',receipt['committed']);self.check('same confirmation receipt replay',client.confirm_exchange(preview,'native-csv')==receipt)
+                    same_file_after=client.preview('roster-fixture',SAME_OBJECT_CSV);same_api_after=client.data('/fcp/exchange/configs/roster-fixture/preview-api',dict(cursor='same-object'));self.check('identical object becomes the same conflict through both entries',semantic_preview(same_file_after)==semantic_preview(same_api_after) and 'CONFLICT' in {r['code'] for r in same_api_after['result']['errors']})
+                    status,body=client.request('/fcp/exchange/previews/'+same_api['previewId']+'/confirm',dict(digest=same_api['digest'],idempotencyKey='same-object-api'));self.check('old API preview cannot overwrite file-committed object',status==409 and body.get('data',{}).get('fcpCode')=='CONFLICT')
                     bad=client.preview('roster-fixture','student_code,full_name,class_code\ns1,Overwrite,class-a\ndup,One,class-a\ndup,Two,class-a\nwrong,Denied,other\n');codes={r['code'] for r in bad['result']['errors']};self.check('duplicate invalid scope conflict row details',{'DUPLICATE','CONFLICT','CLASS_SCOPE_DENIED'}<=codes)
                     status,body=client.request('/fcp/exchange/previews/'+bad['previewId']+'/confirm',dict(digest=bad['digest'],idempotencyKey='reject-bad'));self.check('invalid batch cannot confirm',status==409);self.check('conflicting row not overwritten','Synthetic Alice' in self.export_csv(client,fields=['full_name'])[1] and 'Overwrite' not in self.export_csv(client,fields=['full_name'])[1])
+                    self.import_authority(False);before_denied_fetch=len(self.requests)
+                    status,headers,body=client.binary('/fcp/exchange/configs/roster-fixture/preview',SAME_OBJECT_CSV.encode());self.check('shared import revocation denies file entry',status==403)
+                    status,body=client.request('/fcp/exchange/configs/roster-fixture/preview-api',dict(cursor='same-object'));self.check('shared import revocation denies fixed API before source fetch',status==403 and len(self.requests)==before_denied_fetch);self.import_authority(True)
                     api=client.data('/fcp/exchange/configs/roster-fixture/preview-api',dict(cursor='manual'));self.check('fixed loopback API preview',api['result']['valid']);self.check('API explicit confirmation',client.confirm_exchange(api,'native-api')['committed'])
                     handle,text,headers=self.export_csv(client);self.check('controlled export field projection and no-store','api1' in text and 'Synthetic' not in text and 'no-store' in headers.get('Cache-Control',''))
                     self.export_authority(False);status,headers,body=client.binary('/fcp/exchange/downloads/'+handle['handle']);self.check('existing download denied after live export revocation',status==403);self.export_authority(True)

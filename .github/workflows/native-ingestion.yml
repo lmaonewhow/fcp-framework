@@ -99,6 +99,7 @@ jobs:
             reports/runtime-failure-boundaries/
             reports/runtime-portability/
             reports/runtime-crash/
+            reports/runtime-crash-mysql/
             reports/runtime-exchange/
             work/ci-native/release/BUILD-EVIDENCE.json
             work/ci-native/release/admin-package-lock.json

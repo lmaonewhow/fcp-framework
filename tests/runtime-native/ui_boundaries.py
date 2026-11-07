@@ -16,6 +16,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from native_client import require_loopback
+from native_login import authenticated_storage_state
 
 
 def require_fixture(base, database, fixture_plugins, plugin_id):
@@ -93,8 +94,7 @@ def make_tenant_relogin(login_fixture, base):
         result = authenticated.value
         if result.status != 200 or not result.request.headers.get('encrypt-key') or str(result.json().get('code')) != '200':
             raise AssertionError('Genuine encrypted T2 login did not succeed')
-        page.wait_for_function("Boolean(localStorage.getItem('FCP-Host-Token'))", timeout=30000)
-        token = page.evaluate("localStorage.getItem('FCP-Host-Token')")
+        _state, token = authenticated_storage_state(page, page.context, base, 'plugins')
         login_fixture.diagnostic_secrets.append(token)
         client = NativeClient(base,token,'e5cd7e4891bf95d1d19206ce24a7b32e')
         if shell not in client.data('/fcp/ui/session').get('allowedShells',[]):

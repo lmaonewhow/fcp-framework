@@ -1,0 +1,20 @@
+{
+  "status": "LOCAL_CHECKS_PASS_NATIVE_AX_NOT_RUN",
+  "oldImplicitRendererRegression": "FAIL_EXPECTED_EXIT_1",
+  "realComponentSsr": {
+    "admin": "PASS",
+    "teacher": "PASS"
+  },
+  "sharedStrictTypecheck": "PASS",
+  "vueLifecycleTests": 4,
+  "diagnosticRedactionTests": 1,
+  "nativeAccessibility": "NOT_RUN_PENDING_CI",
+  "sourceSha256": {
+    "integration/frontend-shared/usePlugins.ts": "ecfcd52063445b66d0614823fc1a9894bd0b03aa02038e37005538115efd1cca",
+    "integration/frontend-shared/PluginWorkspace.vue": "2d6f4428219f504686a924a2cdf5746a7d7482f1a90a94db3a69268218cbb9b2",
+    "integration/soybean/src/views/fcp/plugins/index.vue": "bffaced29a739d0df01b5474b2089cb56b4b1f3537683d54296a301dcd45eacf",
+    "integration/plus-ui/src/views/fcp/plugins/index.vue": "e039ea81d4d3e9699c7906f28d7b0d31af761fce45e4ff377b27f9d8d374a648",
+    "tests/frontend-runtime/verify-field-label.mjs": "5e21bbc1471cc98418f7b2ecb526a1b32287436791073a8acb6ca67d702b5078",
+    "tests/runtime-native/ui_field_diagnostics.py": "4cc8b73451d667e849a020230ed20506ac46256acb6a1f83717cac94d3461511"
+  }
+}

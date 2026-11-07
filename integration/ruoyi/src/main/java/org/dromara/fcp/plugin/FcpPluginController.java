@@ -29,6 +29,11 @@ public final class FcpPluginController {
             throw new FcpException("UNAUTHENTICATED","Native authorization header mismatch");
     }
     private ResponseEntity<String> ok(Object value){return ResponseEntity.ok().cacheControl(CacheControl.noStore()).contentType(MediaType.APPLICATION_JSON).body(HostResponse.ok(value));}
+    @PostMapping(value="/packages/staged",consumes=MediaType.APPLICATION_OCTET_STREAM_VALUE) @SaCheckPermission("fcp:plugin:install")
+    public ResponseEntity<String> stage(HttpServletRequest request,@RequestHeader("X-Fcp-Digest") String digest,
+            @RequestHeader("Idempotency-Key") String key)throws Exception {
+        return ok(app.stage(identity.current(),request.getInputStream(),digest,key));
+    }
     @PostMapping(value="/packages",consumes=MediaType.APPLICATION_OCTET_STREAM_VALUE) @SaCheckPermission("fcp:plugin:install")
     public ResponseEntity<String> install(HttpServletRequest request,@RequestHeader("X-Fcp-Digest") String digest,
             @RequestHeader("Idempotency-Key") String key,@RequestHeader("X-Fcp-Revision") long revision)throws Exception {

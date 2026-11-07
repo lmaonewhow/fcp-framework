@@ -30,6 +30,7 @@ sys.path.insert(0, str(ROOT/'tools'))
 sys.path.insert(0, str(Path(__file__).parent))
 from ci_ingestion import redis_get, safe_diagnostic
 from native_client import require_loopback
+from native_login import authenticated_storage_state
 from native_runtime_acceptance import Client, RuntimeFixture, exported
 
 PLUGIN = 'ci.boundary'
@@ -167,8 +168,7 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(960600,960610),(960601,960611)
                 page.locator('.login-form button.el-button--primary').click()
             self.check(username+' genuine encrypted login succeeded',
                        bool(response.value.request.headers.get('encrypt-key')) and str(response.value.json().get('code')) == '200')
-            page.wait_for_function("Boolean(localStorage.getItem('FCP-Host-Token'))", timeout=30000)
-            token = page.evaluate("localStorage.getItem('FCP-Host-Token')")
+            _state, token = authenticated_storage_state(page, context, base, 'plugins')
             self.login_fixture.diagnostic_secrets.append(token)
             return Client(base, token, CLIENT_ID)
         finally:

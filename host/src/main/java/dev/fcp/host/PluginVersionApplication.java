@@ -15,22 +15,14 @@ public final class PluginVersionApplication {
     private final HostCapabilities host;
     private final VerifiedPackageRepository repository;
     private final LifecycleCoordinator lifecycle;
-    private final Path uploads;
+    private final PackageStaging staging;
     private final Map<String,Pending> plans=new LinkedHashMap<>();
     public PluginVersionApplication(HostCapabilities host,VerifiedPackageRepository repository,LifecycleCoordinator lifecycle,Path uploads)throws IOException {
-        this.host=Objects.requireNonNull(host);this.repository=Objects.requireNonNull(repository);this.lifecycle=Objects.requireNonNull(lifecycle);this.uploads=uploads.toAbsolutePath().normalize();
-        Files.createDirectories(this.uploads);if(Files.isSymbolicLink(this.uploads))throw new IOException("Unsafe staging directory");
+        this.host=Objects.requireNonNull(host);this.repository=Objects.requireNonNull(repository);this.lifecycle=Objects.requireNonNull(lifecycle);this.staging=new PackageStaging(host,repository,uploads);
     }
     private void require(TrustedContext c,String plugin){host.require(c,new HostCapabilities.Grant(plugin,"plugin.lifecycle","install","tenant:"+c.tenantId()));}
     public Map<String,Object> stage(TrustedContext context,InputStream body,String digest,String key)throws IOException {
-        require(context,"control");if(key==null||key.isBlank()||key.length()>256)throw new FcpException("INVALID_ARGUMENT","Stage idempotency key required");
-        Path upload=Files.createTempFile(uploads,"version-",".zip");
-        try {
-            try(OutputStream output=Files.newOutputStream(upload)){byte[] buffer=new byte[8192];long size=0;int n;while((n=body.read(buffer))!=-1){if((size+=n)>64L*1024*1024)throw new FcpException("PACKAGE_LIMIT","Package exceeds 64 MiB");output.write(buffer,0,n);}}
-            String scoped=VerifiedPackageRepository.hash(Json.write(List.of("stage",owner(context),key)).getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            var pkg=repository.stageOnly(upload,digest,scoped);require(context,pkg.manifest().pluginId());
-            return Json.obj("pluginId",pkg.manifest().pluginId(),"version",pkg.manifest().version(),"digest",pkg.sha256(),"state","VERIFIED","replayed",pkg.replayed());
-        }finally{Files.deleteIfExists(upload);}
+        return staging.stage(context,body,digest,key);
     }
     public Map<String,Object> versions(TrustedContext context,String plugin)throws IOException {
         require(context,plugin);List<Object> versions=new ArrayList<>();for(var version:repository.verifiedVersions(plugin))versions.add(Json.obj("version",version.version(),"digest",version.digest(),"state","VERIFIED"));
