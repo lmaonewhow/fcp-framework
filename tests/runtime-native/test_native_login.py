@@ -2,6 +2,7 @@
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'tools'))
 from native_login import authenticated_storage_state, native_token, require_encrypted_login, verify_native_identity
 
@@ -29,26 +30,49 @@ class NativeLoginTests(unittest.TestCase):
         self.assertEqual(verify_native_identity(Client(),'960601','960001')['subject'],'960601')
         with self.assertRaises(AssertionError):verify_native_identity(Client(),'1','960001')
         with self.assertRaises(AssertionError):verify_native_identity(Client(),'960601','000000')
-    def test_wait_for_destination_and_visible_ui_before_single_context_snapshot(self):
-        events=[]
-        class Marker:
-            def wait_for(self,**kwargs):
-                self_test.assertEqual(kwargs,{'state':'visible','timeout':30000});events.append('visible')
+    def test_native_index_then_explicit_authorized_workspace_navigation(self):
+        for shell in ('admin','teacher'):
+            events=[]
+            class Marker:
+                def wait_for(self,**kwargs):
+                    self_test.assertEqual(kwargs,{'state':'visible','timeout':30000});events.append('visible')
+            class Page:
+                url=BASE+'/admin/index'
+                def wait_for_url(self,pattern,**kwargs):
+                    self_test.assertTrue(pattern.fullmatch(self.url))
+                    for invalid in ('/admin/login','/admin/login?redirect=/fcp/ingestion','/teacher/login/pwd-login'):
+                        self_test.assertFalse(pattern.fullmatch(BASE+invalid))
+                    self_test.assertFalse(pattern.fullmatch('https://evil.example/admin/index'))
+                    events.append('home' if self.url.endswith('/index') else 'workspace')
+                def goto(self,url,**kwargs):
+                    self_test.assertEqual(url,BASE+'/'+shell+'/fcp/ingestion')
+                    self.url=url;events.append('goto')
+                def get_by_test_id(self,marker):
+                    self_test.assertEqual(marker,'fcp-ingestion');return Marker()
+                def evaluate(self,*_):raise AssertionError('Must not evaluate in redirecting document')
+            class Context:
+                def storage_state(self):events.append('snapshot');return state()
+            class Client:
+                def __init__(self,*args):pass
+                def data(self,path):
+                    self_test.assertEqual(path,'/fcp/ui/session');events.append('session')
+                    return {'defaultShell':shell,'allowedShells':[shell]}
+            self_test=self
+            with patch('native_login.NativeClient',Client):
+                saved,token=authenticated_storage_state(Page(),Context(),BASE,'ingestion')
+            self.assertEqual(events,['home','snapshot','session','goto','workspace','visible','snapshot'])
+            self.assertEqual(native_token(saved,BASE),token)
+    def test_untrusted_server_shell_cannot_choose_arbitrary_destination(self):
         class Page:
-            def wait_for_url(self,pattern,**kwargs):
-                self_test.assertTrue(pattern.fullmatch(BASE+'/teacher/fcp/ingestion'))
-                self_test.assertFalse(pattern.fullmatch(BASE+'/admin/login?redirect=/fcp/ingestion'))
-                self_test.assertFalse(pattern.fullmatch('https://evil.example/teacher/fcp/ingestion'))
-                events.append('redirect')
-            def get_by_test_id(self,marker):
-                self_test.assertEqual(marker,'fcp-ingestion');return Marker()
-            def evaluate(self,*_):raise AssertionError('Must not evaluate in redirecting document')
+            def wait_for_url(self,*args,**kwargs):pass
+            def goto(self,*args,**kwargs):raise AssertionError('Must not navigate to unauthorized shell')
         class Context:
-            def storage_state(self):events.append('snapshot');return state()
-        self_test=self
-        saved,token=authenticated_storage_state(Page(),Context(),BASE,'ingestion')
-        self.assertEqual(events,['redirect','visible','snapshot'])
-        self.assertEqual(native_token(saved,BASE),token)
+            def storage_state(self):return state()
+        for session in ({'defaultShell':'https://evil.example','allowedShells':['https://evil.example']}, {'defaultShell':'admin','allowedShells':['teacher']}):
+            with patch('native_login.NativeClient') as client:
+                client.return_value.data.return_value=session
+                with self.assertRaisesRegex(AssertionError,'known default shell'):
+                    authenticated_storage_state(Page(),Context(),BASE,'plugins')
     def test_failed_destination_never_extracts_token(self):
         class Page:
             def wait_for_url(self,*_,**__):raise TimeoutError('route did not authenticate')
