@@ -2,10 +2,11 @@ test_auth_metadata_does_not_read_discarded_response_body (test_native_login.Nati
 test_exact_origin_and_single_nonempty_token_required (test_native_login.NativeLoginTests.test_exact_origin_and_single_nonempty_token_required) ... ok
 test_failed_destination_never_extracts_token (test_native_login.NativeLoginTests.test_failed_destination_never_extracts_token) ... ok
 test_fresh_session_verifies_exact_user_and_tenant (test_native_login.NativeLoginTests.test_fresh_session_verifies_exact_user_and_tenant) ... ok
+test_native_index_then_explicit_authorized_workspace_navigation (test_native_login.NativeLoginTests.test_native_index_then_explicit_authorized_workspace_navigation) ... ok
 test_unsupported_workspace_fails_before_browser_access (test_native_login.NativeLoginTests.test_unsupported_workspace_fails_before_browser_access) ... ok
-test_wait_for_destination_and_visible_ui_before_single_context_snapshot (test_native_login.NativeLoginTests.test_wait_for_destination_and_visible_ui_before_single_context_snapshot) ... ok
+test_untrusted_server_shell_cannot_choose_arbitrary_destination (test_native_login.NativeLoginTests.test_untrusted_server_shell_cannot_choose_arbitrary_destination) ... ok
 
 ----------------------------------------------------------------------
-Ran 6 tests in 0.001s
+Ran 7 tests in 0.002s
 
 OK

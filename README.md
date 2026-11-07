@@ -47,13 +47,25 @@ python tools/native.py build --work work/locked-build --local-sources work/prepa
 
 ## 一个 Java 应用入口
 
-在发布目录部署 `ruoyi-admin.jar`，将私有 `fcp-runtime.properties` 放到工作目录，并通过其中的 `FCP_INGESTION_CONNECTIONS` 指向私有连接器配置。应用使用原生 `org.dromara.DromaraApplication` 入口，双前端随 JAR 提供，运行时无需 Node/Vite。
+在发布目录部署 `ruoyi-admin.jar`，将私有 `fcp-runtime.properties` 放到工作目录，并通过其中的 `FCP_INGESTION_CONNECTIONS` 指向私有连接器配置。应用使用原生 `org.dromara.DromaraApplication` 入口，双前端随 JAR 提供，静态前端服务无需 Node/Vite；启用 Python 或 Node 运行时插件时，宿主仍需安装对应解释器并显式配置其绝对路径。
 
 ```bash
 java -jar ruoyi-admin.jar --spring.profiles.active=prod,fcp
 ```
 
 管理端路径为 `/admin/`，教师端路径为 `/teacher/`，数据接入页分别为 `/admin/fcp/ingestion` 与 `/teacher/fcp/ingestion`。账号需要明确授予 FCP 权限，教师还需要班级授权；原生超级管理员也须具有显式 FCP 授权。登录令牌由真实宿主获取，不能用伪造令牌或替代后台进行验收。
+
+## 运行时插件与开发宿主
+
+运行时插件能力需要显式开启，不会随安装自动授权或执行。两套真实前端工作台为 `/admin/fcp/plugins` 与 `/teacher/fcp/plugins`，管理操作由服务端原生权限决定。共享组件通过各自 UI 适配器接入路由、输入控件和槽位，不把运行时包当作任意前端脚本执行。
+
+- [原生接入与授权配置](docs/runtime-plugin/NATIVE.md)：V005/V006、运行账号与独立部署账号、可信发布者、解释器及管理流程。
+- [开发宿主与生命周期](docs/runtime-plugin/LIFECYCLE.md)：直接编译共享 Java 代码并启动开发宿主，不依赖预先构建的 ruoyi-admin.jar；开发认证文件不会进入生产 JAR。
+- [版本暂存、升级与回退](tests/runtime-versions/README.md)：明确确认、停用排空、结构兼容及重新授权，不承诺零停机升级或自动数据库回退。
+- [统一导入导出与任务](tests/runtime-exchange/README.md)：文件/API 同一管线、预览确认、独立 TASK、持久回执/游标及 24 小时临时导出内容清理。业务数据和审计不硬删除。
+- [双前端适配与验收](tests/frontend-runtime/README.md)、[宿主一致性和依赖边界](tests/runtime-portability/README.md)。
+
+带存储声明的包先暂存验证，再由独立部署身份审查并执行 schema 计划，最后安装、显式授权和启用。既有版本的替换必须走升级/回退计划，普通安装不是绕过版本确认的入口。完整目标与后续阶段见 [设计 1.1](docs/runtime-plugin/DESIGN.md)；代码存在或本地编译成功不等于 A01–A41 全部通过。
 
 ## 原生场景验收
 
@@ -65,7 +77,7 @@ java -jar ruoyi-admin.jar --spring.profiles.active=prod,fcp
 
 ## 数据库迁移和生产边界
 
-本分支增加 V004 输入插件权限迁移，既有安装按 [docs/MIGRATIONS.md](docs/MIGRATIONS.md) 生成并审查迁移计划后执行。空库初始化工具不用于覆盖已有数据库。MySQL DDL 失败不承诺自动回滚，运行账号没有 DDL 权限。不得对用户已有库执行清库、强制恢复或 Redis FLUSH 操作。
+本分支包含 V004 输入插件权限、V005 运行时状态/存储及 V006 插件管理权限迁移；它们不自动给已有角色授权。既有安装按 [docs/MIGRATIONS.md](docs/MIGRATIONS.md) 生成并审查迁移计划后执行。空库初始化工具不用于覆盖已有数据库。MySQL DDL 失败不承诺自动回滚，运行账号没有 DDL 权限。不得对用户已有库执行清库、强制恢复或 Redis FLUSH 操作。
 
 当前适用范围为可信插件、Linux 单节点、每班每种业务最多 1,000 条记录。普通进程隔离不能替代恶意代码沙箱。同源双前端、依赖供应链、实际学校平台、长期稳定性、备份恢复、生产 TLS 与多节点一致性仍需独立验证。生产门禁使用 `tools/production_gate.py`，目标数值在 `config/production-targets.json` 中，不能当作实测性能。
 

@@ -5,7 +5,7 @@ which can be destroyed by the real admin-to-teacher post-login redirect.
 """
 from __future__ import annotations
 import re
-from native_client import require_loopback
+from native_client import require_loopback, NativeClient
 
 
 def native_token(state, base):
@@ -20,20 +20,35 @@ def native_token(state, base):
 
 
 def authenticated_storage_state(page, context, base, workspace, timeout_ms=30000):
-    """Wait for native routed UI, then return one in-memory context state/token pair.
+    """Respect native login's home, then navigate through the real FCP route guard.
 
+    Native login may choose /admin/index instead of preserving a redirect query.
     No page.evaluate, token injection, arbitrary sleep, retry or cookie/token log.
-    A wrong destination or failed native shell bootstrap remains a test failure.
+    The caller still verifies the exact expected authenticated user and tenant.
     """
     require_loopback(base)
     markers = {'ingestion':'fcp-ingestion', 'plugins':'fcp-plugin-workspace'}
     if workspace not in markers:
         raise ValueError('Only explicit native acceptance workspaces are allowed')
-    destination = re.compile(re.escape(base.rstrip('/'))+r'/(?:admin|teacher)/fcp/'+workspace+r'/?(?:[?#].*)?$')
+    origin = base.rstrip('/')
+    home = re.compile(re.escape(origin)+r'/(?:admin|teacher)/(?!login(?:[/;?#]|$))[^?#]+(?:[?#].*)?$')
+    page.wait_for_url(home, wait_until='domcontentloaded', timeout=timeout_ms)
+    initial_token = native_token(context.storage_state(), base)
+    client = NativeClient(base, initial_token, 'e5cd7e4891bf95d1d19206ce24a7b32e')
+    session = client.data('/fcp/ui/session')
+    shell = session.get('defaultShell')
+    if shell not in ('admin', 'teacher') or shell not in session.get('allowedShells', []):
+        raise AssertionError('Native session did not authorize a known default shell')
+    target = origin+'/'+shell+'/fcp/'+workspace
+    page.goto(target, wait_until='domcontentloaded', timeout=timeout_ms)
+    destination = re.compile(re.escape(target)+r'/?(?:[?#].*)?$')
     page.wait_for_url(destination, wait_until='domcontentloaded', timeout=timeout_ms)
     page.get_by_test_id(markers[workspace]).wait_for(state='visible',timeout=timeout_ms)
     state = context.storage_state()
-    return state, native_token(state, base)
+    token = native_token(state, base)
+    if token != initial_token:
+        raise AssertionError('Native authenticated session changed during workspace navigation')
+    return state, token
 
 
 def require_encrypted_login(response):

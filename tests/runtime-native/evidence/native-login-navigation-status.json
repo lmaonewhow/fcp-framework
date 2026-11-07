@@ -1,14 +1,11 @@
 {
   "status": "LOCAL_UNIT_PASS_NATIVE_NOT_RUN",
-  "unitTests": 6,
+  "unitTests": 7,
   "syntax": "PASS",
   "nativeLoginNavigation": "NOT_RUN_PENDING_CI",
-  "scope": "Encrypted HTTP200 metadata + actual routed UI + context snapshot + fresh authenticated server identity; no auth response-body dependency",
+  "scope": "Wait native non-login home, snapshot genuine token, verify server-authorized default shell, explicitly navigate guarded workbench, return fresh snapshot; caller retains exact subject/tenant check",
   "sourceSha256": {
-    "tools/native_login.py": "e04b8640eefe155c71047f8b642cb75d484a2b86bfa88b264fe2f5a6c1aaaec8",
-    "tools/ci_ingestion.py": "09256ccf7bd18ebb591d72496f4b82e0e5b2cebed12378f13bac07f3cd05fe58",
-    "tests/runtime-native/failure_boundaries.py": "c5086db28efbf40cba0598ee92be9f962e686b807fb03d1e51abc831865e73eb",
-    "tests/runtime-native/ui_boundaries.py": "529a406e9ce6ae0260e319b67912887cba9655dca75c08b713ec32a9a5cebff6",
-    "tests/runtime-native/test_native_login.py": "3744fea1dfb37cb209d7e9fbe0630cc1ba8288afd08ff1625763b5b3fe72137c"
+    "tools/native_login.py": "2ba33f07c556284008e92be9d73f031b6a608dfec8d7ed36794c8900b6b5b488",
+    "tests/runtime-native/test_native_login.py": "936d8ccb965b74bb761b5b98f5150de7e22c734c5a13cf77e1a386b003edddd7"
   }
 }
