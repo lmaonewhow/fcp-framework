@@ -169,6 +169,11 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(1,950510),(950001,950511);
                             path=self.output/(shell+'-runtime.png');page.screenshot(path=str(path),full_page=True);self.report['screenshots'].append(str(path.relative_to(ROOT)))
                         except Exception:
                             if 'page' in locals():
+                                try:
+                                    from ui_field_diagnostics import capture_field_diagnostics
+                                    capture_field_diagnostics(page,self.output/(shell+'-runtime-field-failure.json'))
+                                except Exception:
+                                    pass  # Preserve original failure; diagnostics are best effort.
                                 failure_path=self.output/(shell+'-runtime-failure.png')
                                 try:page.screenshot(path=str(failure_path),full_page=True);self.report['screenshots'].append(str(failure_path.relative_to(ROOT)))
                                 except Exception:pass

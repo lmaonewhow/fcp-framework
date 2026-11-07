@@ -8,6 +8,8 @@ import type { Catalog, Identity, UiNode } from './runtime';
 export interface NativePluginHost {
   shell: 'admin' | 'teacher';
   button: Component; input: Component; fieldValueProp: 'modelValue' | 'value'; fieldUpdateProp: 'onUpdate:modelValue' | 'onUpdate:value';
+  /** Map accessible text onto the library's actual native input, never its wrapper. */
+  fieldAttributes: (label: string) => Record<string, unknown>;
   request(path: string, method: 'GET' | 'POST', input: unknown, signal: AbortSignal, options?: {headers?: Record<string,string>}): Promise<unknown>;
   controlPermissions?(): readonly string[];
   identityKey(): string;

@@ -21,6 +21,7 @@ class DevHostTest(unittest.TestCase):
     if isinstance(body,dict):body=json.dumps(body).encode();h['Content-Type']='application/json'
     req=urllib.request.Request(f'http://127.0.0.1:{port}'+path,data=body,headers=h)
     with urllib.request.urlopen(req,timeout=15) as r:return json.load(r)['data']
+   succeeded=False
    try:
     for _ in range(100):
      try:request('/fcp/ui/catalog');break
@@ -70,7 +71,16 @@ class DevHostTest(unittest.TestCase):
     request('/fcp/plans/'+plan['planId']+'/confirm',{'digest':plan['digest'],'affectedPlugins':plan['affectedPlugins'],'idempotencyKey':'disable-one'})
     self.assertEqual(request('/fcp/ui/catalog')['catalog']['pages'],[])
     with self.assertRaises(urllib.error.HTTPError):request('/fcp/capabilities/'+export+'/invoke',{'input':{},'expectedRevision':catalog['revision']})
+    succeeded=True
    finally:
+    if not succeeded or os.environ.get("FCP_TEST_RECOVERY_DIAGNOSTICS")=="1":
+     log.flush()
+     print("RECOVERY DIAGNOSTICS pid_exit="+str(process.poll()),flush=True)
+     print((work/"server.log").read_text().replace(token,"[REDACTED]").replace(str(work),"[TEMP]"),flush=True)
+     journal=work/"state/control/lifecycle.json"
+     if journal.exists():
+      state=json.loads(json.loads(journal.read_text())["json"])
+      print("RECOVERY STATE "+json.dumps({k:state.get(k) for k in ("revision","tenants","deployments")}),flush=True)
     process.terminate()
     try:process.wait(timeout=10)
     except subprocess.TimeoutExpired:process.kill();process.wait()

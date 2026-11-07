@@ -9,6 +9,7 @@ const user = useUserStore();
 const identityKey = () => JSON.stringify([user.userId,user.tenantId,user.token,user.permissions]);
 const host: NativePluginHost = {
   shell:'admin',button:ElButton,input:ElInput,fieldValueProp:'modelValue',fieldUpdateProp:'onUpdate:modelValue',identityKey,controlPermissions:()=>user.permissions,
+  fieldAttributes: label => ({ariaLabel:label}),
   observeIdentity: changed => watch(identityKey,changed,{flush:'sync'}),
   request: async (url,method,data,signal,options) => {
     try { return await request({url,method,data,signal,headers:{repeatSubmit:false,...options?.headers}}); }
