@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT/'tools'))
 sys.path.insert(0, str(Path(__file__).parent))
 from ci_ingestion import redis_get, safe_diagnostic
 from native_client import require_loopback
-from native_login import authenticated_storage_state, require_encrypted_login, verify_native_identity
+from native_login import authenticated_storage_state, require_encrypted_login, verify_native_identity, open_native_login
 from native_runtime_acceptance import Client, RuntimeFixture, exported
 
 PLUGIN = 'ci.boundary'
@@ -148,9 +148,7 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(960600,960610),(960601,960611)
         context = browser.new_context(viewport=dict(width=1440, height=960))
         page = context.new_page()
         try:
-            with page.expect_response(lambda r: r.url.endswith('/auth/code'), timeout=30000) as code_response:
-                page.goto(base+'/admin/login?redirect=/fcp/plugins', wait_until='domcontentloaded')
-            captcha = code_response.value.json()['data']
+            captcha = open_native_login(page, base, 'plugins', wait_events=self.report.setdefault('captchaRateLimitWaits', []))
             self.check(username+' native captcha is enabled', captcha.get('captchaEnabled', True) and bool(captcha.get('uuid')))
             if tenant != '000000':
                 select = page.locator('.login-form .el-select')
@@ -187,7 +185,8 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(960600,960610),(960601,960611)
 
     @staticmethod
     def _code(response):
-        return response[1].get('data', {}).get('fcpCode')
+        data = response[1].get('data')
+        return data.get('fcpCode') if isinstance(data, dict) else None
 
     def _grant_plan(self, client, tenant, allow):
         options = client.data('/fcp/plugins/'+PLUGIN+'/grant-options?targetTenant='+tenant)

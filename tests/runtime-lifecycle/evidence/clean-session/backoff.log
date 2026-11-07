@@ -1,0 +1,2 @@
+FCP recovery failed: RESTART_BACKOFF (FcpException)
+PASS actual durable restart journal + real recovery scheduler: denied at persisted time, retry after 259ms, original 250ms guard still enforced; reconcile body is an explicit fixture

@@ -42,7 +42,7 @@ public final class EngineRuntimePort implements RuntimePort,AutoCloseable {
     private final int restartBudget;
     private boolean closed;
     private static final class Runner {
-        final PackageInstaller.InstalledPackage pkg;final ProcessProvider transport;final String nonce;volatile ProcessProvider.Identity identity;
+        final PackageInstaller.InstalledPackage pkg;final ProcessProvider transport;final String nonce;volatile ProcessProvider.Identity identity;Instant restartAttempt;
         Runner(PackageInstaller.InstalledPackage p,ProcessProvider transport){pkg=p;this.transport=transport;nonce=UUID.randomUUID().toString();}
     }
     public EngineRuntimePort(HostCapabilities host,VerifiedPackageRepository repository,Map<String,String> executables,Path callJournal,int restartBudget)throws IOException {
@@ -124,7 +124,7 @@ public final class EngineRuntimePort implements RuntimePort,AutoCloseable {
         List<Object> argv=new ArrayList<>();argv.add(exe);argv.add(pkg.directory().resolve(entry).toString());argv.addAll(pkg.manifest().runtime().argv());
         Map<String,Object> launcher=Json.obj("argv",argv,"cwd",".","env",Map.of(),"requires",List.of());
         Map<String,Object> document=Json.obj("runtime",Json.obj("launcher","plugin","timeout",60,"keepAlive",true,"autoRestart",false,"methods",Map.of()));
-        Runner runner=new Runner(pkg,new ProcessProvider(document,pkg.directory(),Map.of("plugin",launcher)));journal.reserveRestart(plugin,now,restartBudget);
+        Runner runner=new Runner(pkg,new ProcessProvider(document,pkg.directory(),Map.of("plugin",launcher)));journal.reserveRestart(plugin,now,restartBudget);runner.restartAttempt=now;
         try{Object handshake=control(runner,"handshake",Json.obj("protocol","fcp.runtime/1","pluginId",plugin,"version",version,"nonce",runner.nonce));Map<String,Object> response=map(handshake);
             if(!response.equals(Json.obj("protocol","fcp.runtime/1","pluginId",plugin,"version",version,"nonce",runner.nonce)))throw new FcpException("HANDSHAKE","Runner identity handshake mismatch");
             runner.identity=runner.transport.identity();if(runner.identity==null||runner.identity.startedAt().equals(Instant.EPOCH))throw new FcpException("RUNNER_IDENTITY","OS start identity unavailable");
@@ -161,7 +161,22 @@ public final class EngineRuntimePort implements RuntimePort,AutoCloseable {
     }
     @Override public long activeCalls(String tenant,String plugin){AtomicInteger count=calls.get(key(tenant,plugin));return count==null?0:count.get();}
     @Override public void cancel(String tenant,String plugin){cancelRequested.add(key(tenant,plugin));Runner r=runners.get(plugin);if(r!=null&&sameIdentity(r)&&totalCalls(plugin)==0)requireOk(control(r,"cancel",Map.of("tenantId",tenant)));}
-    @Override public synchronized void stop(String plugin){if(enabled.values().stream().anyMatch(s->s.contains(plugin))||totalCalls(plugin)>0)throw new FcpException("RUNNER_IN_USE","Shared runner still in use");Runner r=runners.remove(plugin);if(r!=null)try{if(sameIdentity(r))requireOk(control(r,"shutdown",Map.of()));}finally{r.transport.close();}}
+    @Override public synchronized void stop(String plugin){
+        if(enabled.values().stream().anyMatch(s->s.contains(plugin))||totalCalls(plugin)>0)throw new FcpException("RUNNER_IN_USE","Shared runner still in use");
+        Runner r=runners.remove(plugin);if(r==null)return;
+        boolean acknowledged=false;ProcessHandle owned=null;
+        try{if(sameIdentity(r)){
+            try{owned=ProcessHandle.of(r.identity.pid()).filter(h->h.info().startInstant().map(r.identity.startedAt()::equals).orElse(false)).orElse(null);}catch(RuntimeException unavailable){/* No termination proof: never refund. */}
+            requireOk(control(r,"shutdown",Map.of()));acknowledged=true;
+        }}
+        finally{r.transport.close();}
+        // Dead/unknown runners and host shutdown retain their charge across restarts.
+        if(acknowledged){
+            boolean terminated=false;try{terminated=owned!=null&&!owned.isAlive();}catch(RuntimeException unavailable){/* Fail closed. */}
+            if(!terminated)throw new FcpException("RUNNER_TERMINATION_UNKNOWN","Owned process termination could not be confirmed");
+            journal.completeCleanSession(plugin,r.restartAttempt);
+        }
+    }
     private Object invokeProvider(Engine.Context engineContext,String plugin,String capability,Map<String,Object> input){
         TrustedContext trusted=trusted(engineContext);authorizeDependency(trusted,plugin,capability);authorize(trusted,plugin,capability);if(capability(plugin,capability).sideEffects()&&!Boolean.TRUE.equals(journaled.get()))throw new FcpException("SIDE_EFFECT_CONTEXT_REQUIRED","A write dependency requires a journaled top-level operation");String key=key(trusted.tenantId(),plugin);if(cancelRequested.contains(key)||!enabled.getOrDefault(trusted.tenantId(),Set.of()).contains(plugin))throw new FcpException("ADMISSION_CLOSED","Plugin admission is closed");
         Runner r=runners.get(plugin);if(r==null||!sameIdentity(r))throw new FcpException("RUNNER_UNAVAILABLE","Runner identity is not ready");AtomicInteger count=calls.computeIfAbsent(key,k->new AtomicInteger());synchronized(this){if(cancelRequested.contains(key)||!enabled.getOrDefault(trusted.tenantId(),Set.of()).contains(plugin))throw new FcpException("ADMISSION_CLOSED","Plugin admission changed");count.incrementAndGet();}

@@ -1,0 +1,58 @@
+UTC: 2026-11-07T15:31:31Z
+Baseline: dde2bcd7d59ac3b536bcf93455f2ebc48826b3bc
+[0.001s][warning][perf,memops] Cannot use file /tmp/hsperfdata_agent/11 because it is locked by another process (errno = 11)
+openjdk version "21.0.2" 2024-01-16
+OpenJDK Runtime Environment (build 21.0.2+13-58)
+OpenJDK 64-Bit Server VM (build 21.0.2+13-58, mixed mode, sharing)
+Python 3.12.14
+v22.14.0
+{"pluginId": "ci.python", "sha256": "6f0d1f1de76b605e32cd230043ab816bcaf569adf32b976d2c4bf83c9ad1a992", "bytes": 1198}
+{"pluginId": "ci.node", "sha256": "96498fecc96d21ab46cbef34bee6025b22dca427e2e9722185881233456f29ee", "bytes": 1407}
+{"pluginId": "ci.python", "sha256": "1b96cd7dce0b2212dbcbdca6cb68f4107a38c0018eace183cf780df88950f2ed", "bytes": 1200}
+{"pluginId": "ci.python", "sha256": "d565b2433d00de96bdff4f69b57ae1953ad27f2294734518b03a816a845015f1", "bytes": 1275}
+PASS actual version staging/inventory, two-tenant drain fence, explicit UPGRADE/ROLLBACK, CAS race, incompatible target refusal, real Python versions, durable replay
+PASS schema-token fixture: reviewed token bound to plan, prepare race remains disabled/UNKNOWN, explicit same-key recovery rechecks token
+PASS actual JVM version crash/recovery phase=INTENT
+PASS actual JVM version crash/recovery phase=SWITCHED
+PASS actual JVM version crash/recovery phase=COMPLETE
+5622497fa35d90f593b049f72edfcc049d0f0bb913bdb72a44f59adbb7b81471  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/JdbcEnablementPolicy.class
+d9176dfb0268b3f14a08aa48da8543cf204bec78b4833888f74a5de81d07145c  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/JdbcPluginPolicy.class
+182e95a6cac284e72faa33f9f4dd9544e75b6a22b02f4bb19d0653610f353941  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/PackageStaging.class
+af89516a19d3a8048a4613c326b86bbe1a8d16170a3840db17a14446a93450cc  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/PluginApplication$PendingPlan.class
+d7540df37a6effc2883cad09215967d7b8ce94e5ca0df4acffd3dd276784c56d  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/PluginApplication.class
+ca62aaa72cf3987e8364cadcddda07d560bf94b6fabcdfcb03f93e327670d637  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/PluginCatalog.class
+e0c605d3950da5db54597555f2106d31b73f55d07e56dc711d37d0c0f215c3cc  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/PluginGrantAdmin$Pending.class
+385d46b5d5f356774a5ac4129773792f6610733a47eb6cee658c67e8ca150916  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/PluginGrantAdmin.class
+6c0fb837526b632e9c40e28f01d73a86d47e61f2f863e0e484329ff5759f4b31  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/PluginPolicy$Permission.class
+136b80d816ac2fdf4d29bf3dd3b1d23cecff45de616c35613a346aadbe9a3aae  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/PluginPolicy.class
+6bd352876a8173f477ac29b97ae75e04cc84a0ab89f35bb2495d8c358fc23662  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/PluginRecovery$1.class
+42ac6ec170215736d0590dc25b45f0545dbf85fc7c9ffc1ae926191fb18031d9  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/PluginRecovery.class
+3ea4fc335d33b8f4244a7e5e1a4e06188d3ccf04437d5508c85c73fcd67d8065  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/PluginVersionApplication$Pending.class
+aa7b65f30e21bf858d71e5da056297d7a4cf476a5f921937ab7aa0e3c9ac646f  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/PluginVersionApplication.class
+56a6796b9d8abde06682b0fd0d947dd1b8213e7a68260d13b00bf030eb9066f4  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/RuntimeBundle.class
+92a53806e1f96dbadd78233095986779ce92b50d2a4c2cb7b42962b038e88fea  /tmp/tmp.W6Qhu0ZkAp/dev/fcp/host/UiRoutePolicy.class
+7840a9ffa0d2855959b9dedc16496f650dd59838f2128ea4eec15d77365ec5a2  /tmp/tmp.W6Qhu0ZkAp/fcp/control/EnablementPolicy.class
+fbcc5cd7f8a00fa94a82e017c69e6a8e2633a1550bd426e959d97bba216d1ed7  /tmp/tmp.W6Qhu0ZkAp/fcp/control/FileStateJournal.class
+52e4f98bebc02488bc6c5def608af7d120aff21237f4e98465032df08b582305  /tmp/tmp.W6Qhu0ZkAp/fcp/control/LifecycleCoordinator$Action.class
+69f8af17e3653b105a32f12524d422f645677d3ca09187d8161fb274bf8e1783  /tmp/tmp.W6Qhu0ZkAp/fcp/control/LifecycleCoordinator$DrainDecision.class
+010d31515d21fa4e36e84983ec17c6c9051592244325cee85b2c0226db7080a9  /tmp/tmp.W6Qhu0ZkAp/fcp/control/LifecycleCoordinator$Operation.class
+1f07f2dedb85343f52c443fd3f9a18684e887a464eeac0f31c32120045675fd8  /tmp/tmp.W6Qhu0ZkAp/fcp/control/LifecycleCoordinator$Plan.class
+6dd5232524397f9e64470018c23eda09c545f990897c368c53172fe6bb35ab5d  /tmp/tmp.W6Qhu0ZkAp/fcp/control/LifecycleCoordinator$Status.class
+517af113e4e9b483a5655163b8f467155ac2667786729316853e209802922253  /tmp/tmp.W6Qhu0ZkAp/fcp/control/LifecycleCoordinator$VersionAction.class
+73fa3bfdf9322f898144db74d59dcc2ffc8e714ade97ca1e460a289f277cd49a  /tmp/tmp.W6Qhu0ZkAp/fcp/control/LifecycleCoordinator$VersionOperation.class
+d8efd2ff9965d9abc46e8e06dba3354d8c86a5f31b8d890628ceebcf6b8c5068  /tmp/tmp.W6Qhu0ZkAp/fcp/control/LifecycleCoordinator$VersionPlan.class
+7e0c14e46da9409b44f574c89e4e0e2dc235ff023e7c255ea056deda243e3618  /tmp/tmp.W6Qhu0ZkAp/fcp/control/LifecycleCoordinator.class
+c7f26e4dccda95e0084745388a37360bbb239e2af28a30bf41826d7907d672a3  /tmp/tmp.W6Qhu0ZkAp/fcp/control/RuntimePort.class
+c1646f7581d46b798a762c7db9c809fbf1c51522a0df64e566d957ed6cfc7903  /tmp/tmp.W6Qhu0ZkAp/fcp/control/StateJournal$Snapshot.class
+cbdc6d04a0feba8b066560200aa333a1d6595c36a1f2e247567fe7f76214854a  /tmp/tmp.W6Qhu0ZkAp/fcp/control/StateJournal.class
+a8ab3af8f13109a5f8d819a8cd41c6eced4ed7b312e55fa6d7bd57d0247a86df  /tmp/tmp.W6Qhu0ZkAp/fcp/runtime/EngineRuntimePort$CatalogSnapshot.class
+0799dee70b97a201392aaad7790e9774b8619d7225b8dcfe272ec9ef90c17760  /tmp/tmp.W6Qhu0ZkAp/fcp/runtime/EngineRuntimePort$EnabledVersion.class
+f618cde6eff3cbac58d45e5d2ee78798a87a7c62c039304b50eca848ea818eb3  /tmp/tmp.W6Qhu0ZkAp/fcp/runtime/EngineRuntimePort$HostBinding.class
+f5148ae43df5cd459b6a809086e32ece90f1e4b4b655375538f4aa8c0b2acef4  /tmp/tmp.W6Qhu0ZkAp/fcp/runtime/EngineRuntimePort$HostCapabilityHandler.class
+521c6a4cffed68ee06942a5d164fa265b169e8484cba34feaf52e8b36915a0cc  /tmp/tmp.W6Qhu0ZkAp/fcp/runtime/EngineRuntimePort$Runner.class
+7895fe03e4a462ef9b93071a91a7280a78a782178efe17005b381cce595a4ffe  /tmp/tmp.W6Qhu0ZkAp/fcp/runtime/EngineRuntimePort$StorageCompatibilityFingerprint.class
+9ee3af1523ba8f76cea3f2dc85a299bc1f66be4e60c7dc82d0494988dcf12975  /tmp/tmp.W6Qhu0ZkAp/fcp/runtime/EngineRuntimePort$StorageCompatibilityVerifier.class
+6cfdf7d732e3f8b4fd6b2500e8e6acedab5d5ce421725609a1062dafddbc1aef  /tmp/tmp.W6Qhu0ZkAp/fcp/runtime/EngineRuntimePort.class
+5a5fa777419a362a2ee4716aec347bb6ea19025aeea153f5fd9cdec2acace408  /tmp/tmp.W6Qhu0ZkAp/fcp/runtime/InvocationJournal.class
+5bd3a2814caa6eef30196dcb3465e82fbfd6d90e063b58e6c89f8457a8dfcc05  /tmp/tmp.W6Qhu0ZkAp/fcp/runtime/VerifiedPackageRepository$VerifiedVersion.class
+0e9538eaca9363ceaee55334aef3df7ec2b5817daa1f104281761dc44de2ac53  /tmp/tmp.W6Qhu0ZkAp/fcp/runtime/VerifiedPackageRepository.class

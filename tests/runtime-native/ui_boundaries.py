@@ -16,7 +16,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from native_client import require_loopback
-from native_login import authenticated_storage_state, require_encrypted_login, verify_native_identity, native_token
+from native_login import authenticated_storage_state, require_encrypted_login, verify_native_identity, native_token, open_native_login
 
 
 def require_fixture(base, database, fixture_plugins, plugin_id):
@@ -81,9 +81,7 @@ def make_tenant_relogin(login_fixture, base):
         from ci_ingestion import redis_get
         from native_client import NativeClient
         # No new browser context: native logout and T2 login share the prior storage.
-        with page.expect_response(lambda r: r.url.endswith('/auth/code'), timeout=30000) as response:
-            page.goto(base+'/admin/login?redirect=/fcp/plugins', wait_until='domcontentloaded')
-        captcha = response.value.json()['data']
+        captcha = open_native_login(page, base, 'plugins', wait_events=login_fixture.report.setdefault('captchaRateLimitWaits', []))
         if not captcha.get('captchaEnabled', True) or not captcha.get('uuid'):
             raise AssertionError('Genuine native captcha must remain enabled')
         select = page.locator('.login-form .el-select')

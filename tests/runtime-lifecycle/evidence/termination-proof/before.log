@@ -1,0 +1,4 @@
+Exception in thread "main" java.lang.AssertionError: Expected RUNNER_TERMINATION_UNKNOWN
+	at RealRuntimeTest.rejected(RealRuntimeTest.java:29)
+	at CleanStopTerminationTest.main(CleanStopTerminationTest.java:24)
+b33bad9 termination proof exit=1 (expected failing assertion)

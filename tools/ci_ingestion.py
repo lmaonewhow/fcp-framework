@@ -17,7 +17,7 @@ import sys
 import time
 import uuid
 from native_client import NativeClient, envelope
-from native_login import authenticated_storage_state, native_token, require_encrypted_login, verify_native_identity
+from native_login import authenticated_storage_state, native_token, require_encrypted_login, verify_native_identity, open_native_login
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -102,9 +102,7 @@ class Fixture:
         page = context.new_page()
         username = {'admin': 'admin', 'teacher': 'fcp_teacher_ci', 'viewer': 'fcp_viewer_ci'}[role]
         try:
-            with page.expect_response(lambda r: r.url.endswith('/auth/code'), timeout=30000) as code_response:
-                page.goto(base+'/admin/login?redirect=/fcp/ingestion', wait_until='domcontentloaded')
-            captcha = code_response.value.json()['data']
+            captcha = open_native_login(page, base, 'ingestion', wait_events=self.report.setdefault('captchaRateLimitWaits', []))
             self.check(role+' native captcha remains enabled', captcha.get('captchaEnabled', True) and bool(captcha.get('uuid')))
             key = self.redis_prefix+':global:captcha_codes:'+captcha['uuid']
             raw = redis_get(self.redis_password, key)

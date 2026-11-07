@@ -1,0 +1,58 @@
+UTC: 2026-11-07T15:31:34Z
+Baseline: dde2bcd7d59ac3b536bcf93455f2ebc48826b3bc
+openjdk version "21.0.2" 2024-01-16
+OpenJDK Runtime Environment (build 21.0.2+13-58)
+OpenJDK 64-Bit Server VM (build 21.0.2+13-58, mixed mode, sharing)
+Python 3.12.14
+v22.14.0
+PASS lifecycle fixture: dependencies, explicit cascade, live authorization, idempotency, tenant isolation, drain, file lock, concurrent CAS, restart reconciliation, publication failure recovery, invalid journal and symlink rejection
+PASS enablement policy: fail-closed default, explicit platform fixture, plan fingerprint, confirm revocation, prepublication race, recovery recheck
+PASS real python handshake/ready/health/invoke pid=181
+PASS real node handshake/ready/health/invoke pid=185
+PASS real runtime dynamic catalogs, Python+Node, context, permissions, dependency callback, revision, shared tenant drain, durable unknown outcomes, restart and process cleanup
+PASS controlled-clock actual journal: clean completion retains exact 250ms interval and does not refund unknown attempts across reopen
+PASS actual Python: 5 clean cycles, two crashes survive clean stop+journal reopen, third crash exhausts persistent budget, absent-runner stop cannot reset it
+PASS real Python host callbacks: server-bound identity, class scope, live denial, tenant fence, write journal requirement, durable restart budget
+PASS process runtime extensions: owned identity, keepAlive, queue+IO deadline budget, no implicit restart, cleanup
+PASS simulated stale/PID-reuse metadata: start-time mismatch rejected, unrelated real fixture process survives cleanup; OS PID reuse not forced
+Catalog publication tests PASS
+PASS stalled stdin returns DEADLINE without blocking cleanup
+PASS process slot released after child termination
+Elapsed seconds=3.055066595
+RESULT 2 process-termination checks PASS
+PASS actual child preserves whitelisted PATH despite Windows Path casing
+PASS bounded executor attempted process-tree enumeration
+PASS root close does not await 1500ms enumeration (actual 104ms)
+PASS actual root child terminated before close returns
+PASS quota released only after actual root exit
+PASS late enumeration still terminates its captured child
+PASS completed enumeration leaves no pending scan
+RESULT 7 process-tree checks PASS; slow enumeration is an explicit test double
+{"suite":"process-bounds","passed":13,"failed":0,"tests":[{"name":"providers_are_lazy_without_child_processes","status":"PASS"},{"name":"environment_secrets_not_inherited","status":"PASS"},{"name":"bounded_global_process_quota","status":"PASS"},{"name":"idle_epoch_does_not_kill_reused_process","status":"PASS"},{"name":"idle_reaper_releases_slots","status":"PASS"},{"name":"expired_child_restarts","status":"PASS"},{"name":"timeout_stops_child","status":"PASS"},{"name":"timeout_does_not_poison_future_calls","status":"PASS"},{"name":"stdout_frame_limit_enforced","status":"PASS"},{"name":"protocol_id_mismatch_rejected","status":"PASS"},{"name":"large_stderr_drains_without_retention_or_deadlock","status":"PASS"},{"name":"close_reclaims_all_child_slots","status":"PASS"},{"name":"io_threads_expire_after_idle","status":"PASS"}]}
+Compiled runtime/control class hashes:
+7840a9ffa0d2855959b9dedc16496f650dd59838f2128ea4eec15d77365ec5a2  /tmp/tmp.tnwl2sI53S/fcp/control/EnablementPolicy.class
+fbcc5cd7f8a00fa94a82e017c69e6a8e2633a1550bd426e959d97bba216d1ed7  /tmp/tmp.tnwl2sI53S/fcp/control/FileStateJournal.class
+52e4f98bebc02488bc6c5def608af7d120aff21237f4e98465032df08b582305  /tmp/tmp.tnwl2sI53S/fcp/control/LifecycleCoordinator$Action.class
+69f8af17e3653b105a32f12524d422f645677d3ca09187d8161fb274bf8e1783  /tmp/tmp.tnwl2sI53S/fcp/control/LifecycleCoordinator$DrainDecision.class
+010d31515d21fa4e36e84983ec17c6c9051592244325cee85b2c0226db7080a9  /tmp/tmp.tnwl2sI53S/fcp/control/LifecycleCoordinator$Operation.class
+1f07f2dedb85343f52c443fd3f9a18684e887a464eeac0f31c32120045675fd8  /tmp/tmp.tnwl2sI53S/fcp/control/LifecycleCoordinator$Plan.class
+6dd5232524397f9e64470018c23eda09c545f990897c368c53172fe6bb35ab5d  /tmp/tmp.tnwl2sI53S/fcp/control/LifecycleCoordinator$Status.class
+517af113e4e9b483a5655163b8f467155ac2667786729316853e209802922253  /tmp/tmp.tnwl2sI53S/fcp/control/LifecycleCoordinator$VersionAction.class
+73fa3bfdf9322f898144db74d59dcc2ffc8e714ade97ca1e460a289f277cd49a  /tmp/tmp.tnwl2sI53S/fcp/control/LifecycleCoordinator$VersionOperation.class
+d8efd2ff9965d9abc46e8e06dba3354d8c86a5f31b8d890628ceebcf6b8c5068  /tmp/tmp.tnwl2sI53S/fcp/control/LifecycleCoordinator$VersionPlan.class
+7e0c14e46da9409b44f574c89e4e0e2dc235ff023e7c255ea056deda243e3618  /tmp/tmp.tnwl2sI53S/fcp/control/LifecycleCoordinator.class
+c7f26e4dccda95e0084745388a37360bbb239e2af28a30bf41826d7907d672a3  /tmp/tmp.tnwl2sI53S/fcp/control/RuntimePort.class
+c1646f7581d46b798a762c7db9c809fbf1c51522a0df64e566d957ed6cfc7903  /tmp/tmp.tnwl2sI53S/fcp/control/StateJournal$Snapshot.class
+cbdc6d04a0feba8b066560200aa333a1d6595c36a1f2e247567fe7f76214854a  /tmp/tmp.tnwl2sI53S/fcp/control/StateJournal.class
+a8ab3af8f13109a5f8d819a8cd41c6eced4ed7b312e55fa6d7bd57d0247a86df  /tmp/tmp.tnwl2sI53S/fcp/runtime/EngineRuntimePort$CatalogSnapshot.class
+0799dee70b97a201392aaad7790e9774b8619d7225b8dcfe272ec9ef90c17760  /tmp/tmp.tnwl2sI53S/fcp/runtime/EngineRuntimePort$EnabledVersion.class
+f618cde6eff3cbac58d45e5d2ee78798a87a7c62c039304b50eca848ea818eb3  /tmp/tmp.tnwl2sI53S/fcp/runtime/EngineRuntimePort$HostBinding.class
+f5148ae43df5cd459b6a809086e32ece90f1e4b4b655375538f4aa8c0b2acef4  /tmp/tmp.tnwl2sI53S/fcp/runtime/EngineRuntimePort$HostCapabilityHandler.class
+521c6a4cffed68ee06942a5d164fa265b169e8484cba34feaf52e8b36915a0cc  /tmp/tmp.tnwl2sI53S/fcp/runtime/EngineRuntimePort$Runner.class
+7895fe03e4a462ef9b93071a91a7280a78a782178efe17005b381cce595a4ffe  /tmp/tmp.tnwl2sI53S/fcp/runtime/EngineRuntimePort$StorageCompatibilityFingerprint.class
+9ee3af1523ba8f76cea3f2dc85a299bc1f66be4e60c7dc82d0494988dcf12975  /tmp/tmp.tnwl2sI53S/fcp/runtime/EngineRuntimePort$StorageCompatibilityVerifier.class
+6cfdf7d732e3f8b4fd6b2500e8e6acedab5d5ce421725609a1062dafddbc1aef  /tmp/tmp.tnwl2sI53S/fcp/runtime/EngineRuntimePort.class
+5a5fa777419a362a2ee4716aec347bb6ea19025aeea153f5fd9cdec2acace408  /tmp/tmp.tnwl2sI53S/fcp/runtime/InvocationJournal.class
+b93bc6679974f4a52d2c80a9c4546f60ab8fa2c1dd5d68f076ee6c946cde0f9d  /tmp/tmp.tnwl2sI53S/fcp/runtime/RestartJournalTest.class
+5bd3a2814caa6eef30196dcb3465e82fbfd6d90e063b58e6c89f8457a8dfcc05  /tmp/tmp.tnwl2sI53S/fcp/runtime/VerifiedPackageRepository$VerifiedVersion.class
+0e9538eaca9363ceaee55334aef3df7ec2b5817daa1f104281761dc44de2ac53  /tmp/tmp.tnwl2sI53S/fcp/runtime/VerifiedPackageRepository.class

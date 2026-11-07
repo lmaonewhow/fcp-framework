@@ -56,6 +56,11 @@ class FailureBoundariesTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(json.loads(result.stdout)['status'], 'NOT_RUN')
 
+    def test_null_native_error_data_is_not_a_nested_fcp_code(self):
+        self.assertIsNone(FailureBoundaryFixture._code((200, dict(code=500, data=None))))
+        self.assertIsNone(FailureBoundaryFixture._code((403, dict(code=403))))
+        self.assertEqual(FailureBoundaryFixture._code((409, dict(code=409, data=dict(fcpCode='VERSION_CONFLICT')))), 'VERSION_CONFLICT')
+
     def test_fault_fixture_does_not_fake_jdbc_results(self):
         source = (Path(__file__).parent/'failure-fixtures/MysqlFailureBoundariesTest.java').read_text()
         self.assertIn('DriverManager.getConnection(url,user,password)', source)
