@@ -8,8 +8,8 @@ const modules=resolve(project,'node_modules');const require=createRequire(join(m
 const temp=mkdtempSync(join(tmpdir(),'fcp-vue-unit-'));
 try {
  symlinkSync(modules,join(temp,'node_modules'),'dir');
- for(const [source,name] of [['integration/frontend-runtime/index.ts','runtime'],['integration/frontend-shared/usePlugins.ts','usePlugins'],['integration/frontend-shared/usePluginManager.ts','usePluginManager'],['integration/frontend-shared/useVersionManager.ts','useVersionManager']]) {
-   const code=ts.transpileModule(readFileSync(source,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replaceAll("from './runtime'","from './runtime.mjs'");
+ for(const [source,name] of [['integration/frontend-shared/release-session.ts','release-session'],['integration/frontend-runtime/index.ts','runtime'],['integration/frontend-shared/usePlugins.ts','usePlugins'],['integration/frontend-shared/usePluginManager.ts','usePluginManager'],['integration/frontend-shared/useVersionManager.ts','useVersionManager']]) {
+   const code=ts.transpileModule(readFileSync(source,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replaceAll("from './runtime'","from './runtime.mjs'").replaceAll("from './release-session'","from './release-session.mjs'");
    writeFileSync(join(temp,name+'.mjs'),code);
  }
  const testFile=process.argv[3]==='version'?'vue-version.test.mjs':process.argv[3]==='manager'?'vue-manager.test.mjs':'vue-host.test.mjs';

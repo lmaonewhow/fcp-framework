@@ -59,6 +59,7 @@ def redis_get(password: str, key: str):
 
 class Fixture:
     def __init__(self, database, sql, private_dir, redis_password, redis_prefix):
+        self.ui_bootstrap_reason = "DISABLED"
         if os.environ.get('GITHUB_ACTIONS') != 'true' or not re.fullmatch(r'fcp_ci_[a-f0-9]{12}', database):
             raise RuntimeError('This fixture only accepts a freshly created disposable CI database')
         import bcrypt
@@ -155,6 +156,18 @@ class Fixture:
                         self.check(role+' page title and framework health', bool(page.title()) and not page.locator('vite-error-overlay').count())
                         token = native_token(context.storage_state(), base)
                         client = NativeClient(base, token, 'e5cd7e4891bf95d1d19206ce24a7b32e')
+                        status, body = client.request('/fcp/ui/releases/bootstrap?shell='+shell)
+                        self.check(role+' initial UI bootstrap is authenticated explicit embedded success',
+                                   status == 200 and body.get('code') == 200 and body.get('data') ==
+                                   dict(mode='EMBEDDED', shell=shell, reason=self.ui_bootstrap_reason))
+                        if role == 'teacher':
+                            denied_status, denied_body = client.request('/fcp/ui/releases/bootstrap?shell=admin')
+                            self.check('embedded bootstrap cannot grant teacher the admin shell',
+                                       denied_status == 403 and denied_body.get('code') == 403)
+                        if role == 'admin':
+                            denied_status, denied_body = client.request('/fcp/ui/releases/bootstrap?shell=admin', token=False)
+                            self.check('embedded bootstrap still requires native login',
+                                       denied_status in (401, 403) or denied_body.get('code') in (401, 403))
                         def snapshot(): return client.data('/fcp/ingestion/bootstrap')
                         def dataset(entity): return client.data('/fcp/ingestion/data/'+entity+'?classId=class-a')
                         def select(entity):

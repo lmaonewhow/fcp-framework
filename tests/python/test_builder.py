@@ -81,7 +81,7 @@ export function fetchGetRoutes() {
    with self.assertRaises(BuildError):validate_dist(root,'admin')
  def test_no_api_authentication_exclusion(self):
   profile=(ROOT/'config/application-fcp.yml').read_text()
-  self.assertNotIn('- /fcp/',profile);self.assertIn('  enable: true',profile)
+  self.assertEqual([line.strip() for line in profile.splitlines() if line.strip().startswith('- /fcp/')],['- /fcp/ui/assets/**']);self.assertNotIn('- /fcp/ui/releases/',profile);self.assertIn('  enable: true',profile)
   controller=(ROOT/'integration/ruoyi/src/main/java/org/dromara/fcp/school/FcpSchoolController.java').read_text()
   self.assertNotIn('@SaIgnore',controller)
  def test_configuration_uses_native_datasource_only(self):

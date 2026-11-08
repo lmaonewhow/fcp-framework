@@ -59,6 +59,14 @@ public final class DurableReleaseRouter {
         Map<String,Object> m=new LinkedHashMap<>();m.put("domain","affinity-v1");m.put("policy",policy.id());m.put("stable",policy.stableRelease());m.put("candidate",policy.candidateRelease());m.put("release",release);m.put("epoch",policy.epoch());m.put("tenant",context.tenantId());m.put("principal",context.principal().id());m.put("kind",context.principal().kind().name());m.put("authorization",context.authorizationRevision());m.put("expiry",expiry.toEpochMilli());
         return new Decision(release,policy.id(),revision,reason,RoutingCrypto.sign(key,Json.write(m)),expiry);
     }
+    /** Extend a still-valid identity binding without re-bucketing or reviving expired/revoked affinity. */
+    public synchronized Decision renew(TrustedContext context,String affinity) throws IOException {
+        Decision previous=resume(context,affinity);
+        Map<String,Object> value=Schema.map(Json.parse(RoutingCrypto.verify(key,affinity)));
+        Instant expiry=clock.instant().plus(ttl);if(context.deadline().isBefore(expiry))expiry=context.deadline();
+        value.put("expiry",expiry.toEpochMilli());
+        return new Decision(previous.releaseId(),previous.policyId(),previous.revision(),"RENEWED_AFFINITY",RoutingCrypto.sign(key,Json.write(value)),expiry);
+    }
     public synchronized Decision resume(TrustedContext context,String affinity) throws IOException {
         refresh();admitted(context);Map<String,Object> m=Schema.map(Json.parse(RoutingCrypto.verify(key,affinity)));
         String release=Schema.str(m.get("release"));Instant expiry=Instant.ofEpochMilli(Schema.number(m.get("expiry")));

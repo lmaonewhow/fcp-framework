@@ -61,6 +61,7 @@ captcha:
 security:
   excludes:
     - /
+    - /fcp/ui/assets/**
     - /admin
     - /admin/**
     - /teacher

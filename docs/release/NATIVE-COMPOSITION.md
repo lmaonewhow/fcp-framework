@@ -1,0 +1,23 @@
+# Native UI and plugin release composition
+
+This executor changes trusted precompiled admin/teacher UI bundles and independently prepared plugin process groups without restarting the host. It is not a host-JAR deployer or a distributed deployment scheduler. Changed host, service, configuration or schema component references require another `DeploymentProvider`. Existing unchanged references remain traceability metadata, not proof that arbitrary external components were deployed.
+
+## Enable deliberately
+
+Enable `fcp.release.enabled`, `fcp.release.routing.enabled`, `fcp.plugin.release.enabled` and `fcp.ui.release.enabled`. Set `FCP_RELEASE_EXECUTOR_MODE=native`, `FCP_RELEASE_ENVIRONMENT`, `FCP_UI_BUNDLE_ROOT`, `FCP_RELEASE_ROUTING_KEY_FILE`, and `FCP_RELEASE_EXECUTOR_LOCK_FILE`. The lock file must live in an owner-only directory on the same shared runtime data filesystem. One JVM owns the lock from before plugin process recovery until shutdown. All replicas must use the same lock path; different per-node lock paths are not a supported cluster. Do not deploy this mode behind multiple independently writing hosts. Use an independently verified external executor for that topology.
+
+The default HTTP executor and native executor are explicitly mutually exclusive. The UI, plugin catalog, actual invocation and controlled host storage callbacks use the same durable router. The executor serializes effects with its own owner lock, rather than holding the router lock while waiting for process startup. Routing updates themselves serialize with controlled host effects. Already-entered writes may complete before containment returns. External effects already performed by a plugin are not undone.
+
+Register immutable system artifacts and releases first. Each release must declare `admin-ui`, `teacher-ui`, and `compatibility.hostContract=fcp.host/1`. UI artifact digest is the canonical bundle-manifest digest, not a ZIP digest; `metadata.format=fcp.ui-bundle/1`. UI bytes are verified before readiness. Every plugin artifact must match a verified installed package and its dependencies. Explicit per-tenant/principal/digest capability grants remain necessary; registering a system version does not grant capabilities.
+
+DEPLOY prepares both plugin process groups and verifies both UI bundles. CANARY/EXPAND/PROMOTE change actual tenant routing, with affinity retaining an admitted release until explicit epoch revocation. PAUSE holds current allocation. ABORT disables admission and increments the affinity epoch, including at full rollout; it does not silently send writes to an old version. ROLLBACK separately checks compatibility and resumes stable admission. RETIRE closes new work for the unselected release, waits for already-pinned tasks and active calls, then stops its processes. No plugin data or version history is hard-deleted.
+
+The platform release-governance page stays on the trusted embedded UI so STOPPED or missing business assets cannot lock out recovery. Ordinary business pages do not get this bypass. Every operation remains guarded by live native permission and platform tenant checks.
+
+## Recovery and evidence
+
+Command intent and exact target routing are persisted before effects. After a lost completion receipt, reconciliation accepts only the exact observed router revision, composition, epoch, enable flag and allocation. It does not replay an uncertain write. Stop reconciliation requires actual stopped/quiescent proof. Explicit known failures are terminal even when component diagnostics are unavailable. Uncertain process ownership or a PREPARING crash remains a reconciliation blocker, not an automatic duplicate start.
+
+`fcp.release.observation.enabled` adds a trusted bounded request collector and durable rollout policy. Fresh administrators explicitly trigger observation steps. This does not install an unattended scheduler or retain user tokens. Business outcomes default to UNKNOWN unless a host-owned classifier is configured; plugin JSON claiming success is not a trusted metric. Missing, stale, incomplete or insufficient metrics pause expansion. Security incidents are durable and take containment priority. Restart restores only a proven release-generation binding, never fabricated past samples.
+
+Component tests exercise real process startup/stop and router decisions plus injected journal faults. They do not certify Spring, MySQL or browser integration. Final acceptance requires the exact committed source's native composition CI evidence. Do not claim production readiness from component tests or from a different source snapshot's frontend build.

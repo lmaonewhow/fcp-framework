@@ -29,7 +29,7 @@ public final class UiRoutePolicy {
             "meta",Map.of("title","数据接入与业务插件","icon","mdi:database-import-outline","noCache",true)));
         if(id.permissions().contains("fcp:plugin:view"))children.add(Map.of("name","FcpPlugins","path","plugins","component","fcp/plugins/index","hidden",false,
             "meta",Map.of("title","配置插件工作台","icon","mdi:puzzle-outline","noCache",true)));
-        if(id.permissions().contains("fcp:release:view"))children.add(Map.of("name","FcpReleases","path","releases","component","fcp/releases/index","hidden",false,
+        if(canRelease(id))children.add(Map.of("name","FcpReleases","path","releases","component","fcp/releases/index","hidden",false,
             "meta",Map.of("title","系统版本与发布","icon","mdi:cloud-upload-outline","noCache",true)));
         return List.of(Map.of("name","Fcp","path","/fcp","component","Layout",
             "redirect",id.can("list")?"/fcp/school":id.permissions().contains("fcp:ingest:view")?"/fcp/ingestion":id.permissions().contains("fcp:plugin:view")?"/fcp/plugins":"/fcp/releases","hidden",false,
@@ -40,7 +40,8 @@ public final class UiRoutePolicy {
         if(path==null || path.length()>269 || !path.matches("fcp/plugins/"+id+"/"+id))return false;
         String[] parts=path.split("/");return parts[2].length()<=128 && parts[3].length()<=128;
     }
+    private static boolean canRelease(SchoolFacade.Identity id){return id.scope().equals("tenant-000000")&&id.permissions().contains("fcp:release:view");}
     private static void requireRead(SchoolFacade.Identity id) {
-        if(!id.can("list")&&!id.permissions().contains("fcp:ingest:view")&&!id.permissions().contains("fcp:plugin:view")&&!id.permissions().contains("fcp:release:view"))throw new FcpException("FORBIDDEN","FCP workspace permission required");
+        if(!id.can("list")&&!id.permissions().contains("fcp:ingest:view")&&!id.permissions().contains("fcp:plugin:view")&&!canRelease(id))throw new FcpException("FORBIDDEN","FCP workspace permission required");
     }
 }

@@ -2,6 +2,7 @@ package fcp.release.routing;
 
 import fcp.*;
 import fcp.host.TrustedContext;
+import fcp.release.observation.RequestObserver;
 import java.io.*;
 import java.net.*;
 import java.net.http.*;
@@ -31,6 +32,7 @@ public final class ReleaseHttpTransport {
     }
     public record Observation(long requests,long successes,long errors,long businessFailures,long unknown,long totalNanos) {}
     private static final class Counters {final LongAdder requests=new LongAdder(),successes=new LongAdder(),errors=new LongAdder(),business=new LongAdder(),unknown=new LongAdder(),nanos=new LongAdder();}
+    private final RequestObserver observer;
     private final Map<String,Endpoint> endpoints;
     private final DurableReleaseRouter router;
     private final byte[] identityKey;
@@ -38,6 +40,10 @@ public final class ReleaseHttpTransport {
     private final HttpClient client=HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).connectTimeout(Duration.ofSeconds(3)).build();
     private final Map<String,Counters> metrics=new ConcurrentHashMap<>();
     public ReleaseHttpTransport(DurableReleaseRouter router,Collection<Endpoint> endpoints,byte[] identityKey,Clock clock) {
+        this(router,endpoints,identityKey,clock,RequestObserver.NONE);
+    }
+    public ReleaseHttpTransport(DurableReleaseRouter router,Collection<Endpoint> endpoints,byte[] identityKey,Clock clock,RequestObserver observer) {
+        this.observer=Objects.requireNonNull(observer);
         this.router=Objects.requireNonNull(router);this.identityKey=RoutingCrypto.key(identityKey);this.clock=Objects.requireNonNull(clock);
         Map<String,Endpoint> map=new HashMap<>();for(Endpoint endpoint:endpoints)if(map.putIfAbsent(endpoint.releaseId(),endpoint)!=null)throw new IllegalArgumentException("Duplicate release endpoint");this.endpoints=Map.copyOf(map);
     }
@@ -50,6 +56,8 @@ public final class ReleaseHttpTransport {
         Map<String,Object> identity=new LinkedHashMap<>();identity.put("domain","backend-v1");identity.put("release",decision.releaseId());identity.put("tenant",context.tenantId());identity.put("principal",context.principal().id());identity.put("kind",context.principal().kind().name());identity.put("authorization",context.authorizationRevision());identity.put("scopes",new TreeSet<>(context.dataScopes()));identity.put("request",context.requestId());identity.put("trace",context.traceId());identity.put("method",method);identity.put("path",path);identity.put("digest",RoutingCrypto.digest(body));identity.put("expiry",Math.min(context.deadline().toEpochMilli(),clock.instant().plusSeconds(15).toEpochMilli()));
         HttpRequest request=HttpRequest.newBuilder(endpoint.origin().resolve(path)).timeout(Duration.ofMillis(millis)).header("Content-Type","application/json").header("X-FCP-Release-Context",RoutingCrypto.sign(identityKey,Json.write(identity))).method(method,HttpRequest.BodyPublishers.ofByteArray(body)).build();
         Counters counter=metrics.computeIfAbsent(decision.releaseId(),k->new Counters());counter.requests.increment();long start=System.nanoTime();
+        RequestObserver.Ticket ticket=observer.begin(decision.releaseId(),decision.revision());
+        boolean technicalFailure=true,unknownResult=false;RequestObserver.BusinessOutcome businessOutcome=RequestObserver.BusinessOutcome.UNKNOWN;
         try {
             CompletableFuture<HttpResponse<byte[]>> pending=client.sendAsync(request, info->new BoundedBody());
             HttpResponse<byte[]> response;
@@ -60,11 +68,14 @@ public final class ReleaseHttpTransport {
             byte[] result=response.body();
             if(result.length>1024*1024 || !response.headers().firstValue("X-FCP-Release").orElse("").equals(decision.releaseId()))throw new IOException("Backend release identity or response limit mismatch");
             if(response.statusCode()>=300 && response.statusCode()<400)throw new IOException("Redirect refused");
+            String businessSignal=response.headers().firstValue("X-FCP-Business-Outcome").orElse("");
+            businessOutcome=switch(businessSignal){case "success"->RequestObserver.BusinessOutcome.SUCCESS;case "failure"->RequestObserver.BusinessOutcome.FAILURE;default->RequestObserver.BusinessOutcome.UNKNOWN;};
+            technicalFailure=response.statusCode()<200||response.statusCode()>=300;
             boolean businessFailure=response.headers().firstValue("X-FCP-Business-Outcome").orElse("").equals("failure");
             if(businessFailure)counter.business.increment();
             if(response.statusCode()>=200&&response.statusCode()<300&&!businessFailure)counter.successes.increment();else counter.errors.increment();
             return new Response(response.statusCode(),result,decision);
-        }catch(IOException|InterruptedException e){counter.errors.increment();if(!method.equals("GET"))counter.unknown.increment();throw e;}finally{counter.nanos.add(System.nanoTime()-start);}
+        }catch(IOException|InterruptedException e){unknownResult=!method.equals("GET");counter.errors.increment();if(!method.equals("GET"))counter.unknown.increment();throw e;}finally{long elapsed=System.nanoTime()-start;counter.nanos.add(elapsed);ticket.complete(technicalFailure,businessOutcome,unknownResult,elapsed);}
     }
     /** Receiver verifies signed identity AND binds it to the actual method/path/body and release.
      * Call host authorization and application idempotency after verification; this signature is not authorization.

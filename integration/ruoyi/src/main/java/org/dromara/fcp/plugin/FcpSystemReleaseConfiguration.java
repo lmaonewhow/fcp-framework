@@ -30,6 +30,7 @@ public class FcpSystemReleaseConfiguration {
     }
     @Bean public SystemVersionApplication fcpSystemVersions(NativePluginHost host,VersionProvider versions){return new SystemVersionApplication(host,versions);}
     @Bean @ConditionalOnMissingBean(DeploymentProvider.class)
+    @ConditionalOnProperty(name="FCP_RELEASE_EXECUTOR_MODE",havingValue="http",matchIfMissing=true)
     public DeploymentProvider fcpReleaseDeployment(Environment env) {
         Set<DeploymentProvider.Action> capabilities=new HashSet<>();
         for(String action:env.getRequiredProperty("FCP_RELEASE_EXECUTOR_ACTIONS").split(","))capabilities.add(DeploymentProvider.Action.valueOf(action.trim()));
