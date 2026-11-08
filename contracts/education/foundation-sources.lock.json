@@ -1,0 +1,90 @@
+{
+  "format": 2,
+  "objects": [
+    {
+      "name": "ed_host_education_role",
+      "columns": [
+        "tenant_id",
+        "native_role_id",
+        "admin_kind",
+        "school_id",
+        "operation_key",
+        "enabled",
+        "source_approval_id",
+        "created_at",
+        "row_version"
+      ],
+      "checkCount": 3
+    }
+  ],
+  "sha256": {
+    "sql/education/001__host_education_authority.sql": "497d94c997d6812d6c1c7b017b9b52a54422a4e996b3e407079fb1490ff4bc27",
+    "sql/education/002__foundation_menu.sql": "508cc6c3c29af560232090590ee36e3f14802cab3545cf7c4eedced15eb3f1d7"
+  },
+  "menus": [
+    {
+      "id": 986020,
+      "parentId": 942000,
+      "component": "fcp/education/index",
+      "permission": "education:foundation:view",
+      "isCache": 1,
+      "status": "0"
+    },
+    {
+      "id": 986000,
+      "parentId": 986020,
+      "component": "",
+      "permission": "education:foundation:view",
+      "isCache": 1,
+      "status": "0"
+    },
+    {
+      "id": 986001,
+      "parentId": 986020,
+      "component": "",
+      "permission": "education:foundation:read",
+      "isCache": 1,
+      "status": "0"
+    },
+    {
+      "id": 986002,
+      "parentId": 986020,
+      "component": "",
+      "permission": "education:foundation:org:create",
+      "isCache": 1,
+      "status": "0"
+    },
+    {
+      "id": 986003,
+      "parentId": 986020,
+      "component": "",
+      "permission": "education:foundation:org:rename",
+      "isCache": 1,
+      "status": "0"
+    },
+    {
+      "id": 986004,
+      "parentId": 986020,
+      "component": "",
+      "permission": "education:foundation:class:create",
+      "isCache": 1,
+      "status": "0"
+    },
+    {
+      "id": 986005,
+      "parentId": 986020,
+      "component": "",
+      "permission": "education:foundation:class:rename",
+      "isCache": 1,
+      "status": "0"
+    },
+    {
+      "id": 986006,
+      "parentId": 986020,
+      "component": "",
+      "permission": "education:foundation:school:create",
+      "isCache": 1,
+      "status": "0"
+    }
+  ]
+}

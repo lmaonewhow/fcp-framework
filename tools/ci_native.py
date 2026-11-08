@@ -34,16 +34,21 @@ def private(path:Path,content:str):
 
 def parse_args(argv=None):
  parser=argparse.ArgumentParser(description=__doc__)
+ parser.add_argument('--education',action='store_true',help='Fresh isolated education schema and foundation acceptance; requires --ingestion')
  parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');parser.add_argument('--plugin-releases',action='store_true',help='Real dual-UI and multi-plugin composite release acceptance; requires --ingestion, excludes --exchange');a=parser.parse_args(argv)
  if a.exchange and not a.ingestion:parser.error('--exchange requires genuine --ingestion login fixture')
  if a.plugin_releases and not a.ingestion:parser.error('--plugin-releases requires genuine --ingestion login fixture')
  if a.plugin_releases and a.exchange:parser.error('--plugin-releases is isolated from the legacy --exchange execution port')
+ if a.education and not a.ingestion:parser.error('--education requires genuine --ingestion login fixture')
+ if a.education and (a.exchange or a.plugin_releases):parser.error('--education uses its own isolated composition, not exchange or release mutation scenarios')
  return a
 
 def run()->int:
  a=parse_args()
  report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeStorageLifecycle':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'runtimeComposition':{'status':'NOT_RUN'},'production':'BLOCKED'}
  process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None;failure_fixture=None;storage_lifecycle_fixture=None;composition_fixture=None;deployment_user=None;deployment_password=None
+ education_plan=None;education_fixture=None
+ report['educationFoundation']={'status':'NOT_RUN'}
  try:
   if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')
   requirements=doctor()
@@ -61,8 +66,28 @@ def run()->int:
    if result.returncode:raise RuntimeError('Isolated CI SQL failed; inspect private database service logs')
    return result.stdout
   sql(f'CREATE DATABASE `{database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;')
+  if a.education:
+   from ci_education import prepare_schema
+   from ci_education_integration import verified_host_plan
+   host_plan=verified_host_plan(sources/'upstream/backend')
+   education_plan=prepare_schema(database,sql,private_dir,ROOT/'reports/education-native')
+   (education_plan.output/'host-plan.json').write_text(json.dumps(host_plan,indent=2)+'\n')
   command([sys.executable,ROOT/'tools/mysql_install.py','--backend',sources/'upstream/backend','--database',database,'--defaults-file',mysql_file,'--apply'])
   sql(f"CREATE USER '{runtime_user}'@'%' IDENTIFIED BY '{runtime_password}'; GRANT SELECT,INSERT,UPDATE,DELETE ON `{database}`.* TO '{runtime_user}'@'%';")
+  if education_plan:
+   education_ddl_user='fcpe_'+secrets.token_hex(6);education_ddl_password=secrets.token_hex(24)
+   sql(f"CREATE USER '{education_ddl_user}'@'%' IDENTIFIED BY '{education_ddl_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX,REFERENCES ON `{database}`.* TO '{education_ddl_user}'@'%';")
+   education_options=private_dir/'education-ddl.cnf'
+   private(education_options,f'[client]\nhost=127.0.0.1\nport=33306\nuser={education_ddl_user}\npassword={education_ddl_password}\nssl-mode=DISABLED\n')
+   def education_ddl_sql(statement):
+    environment={key:value for key,value in os.environ.items() if not key.startswith('MYSQL_')}
+    environment['MYSQL_TEST_LOGIN_FILE']=str(private_dir/'absent-education.mylogin.cnf')
+    value=subprocess.run(['mysql','--defaults-file='+str(education_options),'--default-character-set=utf8mb4','--batch','--raw','--skip-column-names',database],input=statement,text=True,capture_output=True,timeout=180,env=environment)
+    if value.returncode:
+     code=re.search(r'ERROR\s+(\d+)\s*\(([A-Za-z0-9]+)\)',value.stderr)
+     raise RuntimeError('Education schema SQL failed: '+(':'.join(code.groups()) if code else 'client error')+'; SQL and credentials withheld')
+    return value.stdout.strip()
+   report['educationSchema']=education_plan.apply(education_ddl_sql,runtime_user,host_plan['expectedHostTables'])
   # Local disposable Redis service is unconfigured until this step. No production host is accepted here.
   payload=['CONFIG','SET','requirepass',redis_password]
   request='*'+str(len(payload))+'\r\n'+''.join('$'+str(len(v))+'\r\n'+v+'\r\n' for v in payload)
@@ -141,6 +166,13 @@ def run()->int:
    composition_fixture.ui_versions=prepare_ui_versions(release/'BUILD-EVIDENCE.json',release/'UI-VARIANT-candidate.json',release/'ui-bundles')
    report['uiVariantBuild']=variant
   jar=release/'ruoyi-admin.jar';driver=private_dir/'mysql-driver.jar'
+  if education_plan:
+   from ci_education import EducationFixture
+   education_fixture=EducationFixture(fixture,education_plan,hashlib.sha256(jar.read_bytes()).hexdigest())
+   # Maven tests used the disabled default. Only the newly packaged native host
+   # receives its exact artifact binding; no build identifier supplied by the UI.
+   props+=education_fixture.properties()
+   private(private_dir/'fcp-runtime.properties',props)
   if a.plugin_releases:command([sys.executable,ROOT/'tests/runtime-native/verify_plugin_advice.py',jar])
   with zipfile.ZipFile(jar) as archive:
    matches=[n for n in archive.namelist() if re.fullmatch(r'BOOT-INF/lib/mysql-connector-j-[^/]+\.jar',n)]
@@ -240,6 +272,27 @@ def run()->int:
     from development_business import verify_development_business
     modules.append(NativeModule('developmentBusiness',lambda:verify_development_business(private_dir,url,runtime_user,runtime_password,driver,exchange_fixture.endpoint,exchange_fixture.report.get('sharedBusinessContract',{})),
      lambda value:{'status':value['status'],'sameNativeRows':value['sameNativeRows'],'jvmRestartPersistence':value['jvmRestartPersistence']}))
+   if education_fixture:
+    def verify_education():
+     # Synthetic education roles are installed only after existing role checks,
+     # and education authenticates afresh; do not change those tests' identities.
+     education_fixture.seed()
+     from ci_education_integration import run_native_probe
+     probe=run_native_probe(database=database,url=url,user=runtime_user,password=runtime_password,
+      manifest=education_fixture.digest,driver=driver,output=education_plan.output/'jdbc-probe')
+     report['educationJdbc']=probe
+     result=education_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid)
+     from ci_education_integration import restore_browser_fixture_permission
+     report['educationBrowserFixture']=restore_browser_fixture_permission(education_fixture)
+     sys.path.insert(0,str(ROOT/'tests/education'))
+     from native_browser import verify_browser
+     browser_result=verify_browser(education_fixture,'http://127.0.0.1:18787',report['build']['buildId'])
+     report['educationBrowser']={'status':browser_result['status'],'totalChecks':browser_result['totalChecks'],
+      'screenshots':browser_result['screenshots'],'unknownCommitFaultInjection':browser_result['unknownCommitFaultInjection']}
+     if native_pid() is None:raise RuntimeError('Native JVM exited during education browser verification')
+     return result
+    modules.append(NativeModule('educationFoundation',verify_education,
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'scope':value['scope'],'concurrentRevocation':value.get('concurrentRevocation','NOT_RUN'),'unknownCommitFaultInjection':value.get('unknownCommitFaultInjection','NOT_RUN')}))
    run_native_modules(report,modules,prerequisites_passed=result.get('status')=='PASS' and bool(report.get('build',{}).get('buildId')),
     host_alive=lambda:process is not None and process.poll() is None,
     secrets_provider=lambda:[*fixture.diagnostic_secrets,fixture.password])
