@@ -97,6 +97,7 @@ jobs:
             reports/components.json
             reports/ingestion.json
             reports/native-ingestion/
+            reports/native-branding/
             reports/runtime-native/
             reports/runtime-failure-boundaries/
             reports/runtime-portability/

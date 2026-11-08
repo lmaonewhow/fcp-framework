@@ -1,0 +1,27 @@
+diff --git a/ruoyi-admin/src/main/resources/banner.txt b/ruoyi-admin/src/main/resources/banner.txt
+index 21b1126..94c0c64 100644
+--- a/ruoyi-admin/src/main/resources/banner.txt
++++ b/ruoyi-admin/src/main/resources/banner.txt
+@@ -1,8 +1,3 @@
++智慧云校
+ Application Version: ${revision}
+ Spring Boot Version: ${spring-boot.version}
+-__________            _____.___.__         ____   ____                     __________.__
+-\______   \__ __  ____\__  |   |__|        \   \ /   /_ __   ____          \______   \  |  __ __  ______
+- |       _/  |  \/  _ \/   |   |  |  ______ \   Y   /  |  \_/ __ \   ______ |     ___/  | |  |  \/  ___/
+- |    |   \  |  (  <_> )____   |  | /_____/  \     /|  |  /\  ___/  /_____/ |    |   |  |_|  |  /\___ \
+- |____|_  /____/ \____// ______|__|           \___/ |____/  \___  >         |____|   |____/____//____  >
+-        \/             \/                                       \/                                   \/
+diff --git a/ruoyi-admin/src/main/java/org/dromara/DromaraApplication.java b/ruoyi-admin/src/main/java/org/dromara/DromaraApplication.java
+index 8ef33fe..f495d7e 100644
+--- a/ruoyi-admin/src/main/java/org/dromara/DromaraApplication.java
++++ b/ruoyi-admin/src/main/java/org/dromara/DromaraApplication.java
+@@ -17,7 +17,7 @@ public class DromaraApplication {
+         SpringApplication application = new SpringApplication(DromaraApplication.class);
+         application.setApplicationStartup(new BufferingApplicationStartup(2048));
+         application.run(args);
+-        System.out.println("(♥◠‿◠)ﾉﾞ  RuoYi-Vue-Plus启动成功   ლ(´ڡ`ლ)ﾞ");
++        System.out.println("(♥◠‿◠)ﾉﾞ  智慧云校启动成功   ლ(´ڡ`ლ)ﾞ");
+     }
+ 
+ }

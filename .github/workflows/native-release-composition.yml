@@ -99,6 +99,7 @@ jobs:
             reports/components.json
             reports/ingestion.json
             reports/native-ingestion/
+            reports/native-branding/
             reports/native-release-composition/
             reports/native-login-probe/
             reports/runtime-portability/

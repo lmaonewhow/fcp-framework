@@ -1,0 +1,428 @@
+diff --git a/.env b/.env
+index 843cda9..259a35b 100644
+--- a/.env
++++ b/.env
+@@ -2,9 +2,9 @@
+ # if use a sub directory, it must be end with "/", like "/admin/" but not "/admin"
+ VITE_BASE_URL=/
+ 
+-VITE_APP_TITLE=RuoYi Plus Soybean
++VITE_APP_TITLE=智慧云校
+ 
+-VITE_APP_DESC=RuoYi Plus Soybean 后台管理系统
++VITE_APP_DESC=智慧云校教学与学校管理平台
+ 
+ # the prefix of the icon name
+ VITE_ICON_PREFIX=icon
+diff --git a/index.html b/index.html
+index b04ac55..fb956f9 100644
+--- a/index.html
++++ b/index.html
+@@ -2,7 +2,7 @@
+ <html lang="zh-cmn-Hans">
+   <head>
+     <meta charset="UTF-8" />
+-    <link rel="icon" href="/favicon.svg" />
++    <link rel="icon" href="./smart-school.svg" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+     <meta name="color-scheme" content="light dark" />
+     <title>%VITE_APP_TITLE%</title>
+diff --git a/public/favicon.svg b/public/favicon.svg
+deleted file mode 100644
+index 1b50f85..0000000
+--- a/public/favicon.svg
++++ /dev/null
+@@ -1,4 +0,0 @@
+-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 476.22 476.22">
+-  <path fill="#0e42d2" d="M389.98,400.6c-64.58,76.59-176.66,93.98-261.1,38.54-57.75-37.91-92.29-103.74-87.69-173.54,1.28-19.35,9.54-58.77,33.33-61.44,20.49-2.29,43.2,14.41,62.99,21.14,64.93,22.1,150.88,21.39,214.51-4.81,17.24-7.1,39.23-23.9,58.05-13.31,25.61,14.41,27.13,67.07,24.38,92.75-3.94,36.78-20.9,72.7-44.47,100.65ZM150.91,269c-17.4-4.01-34.19-9.87-50.5-17.04-2.56-1.12-15.17-8.19-16.64-6.83-23.51,92.25,48.81,179.87,140.64,188.01,3.68.33,9,.72,12.64.79,3.76.07,7.18-.41,10.86-.78-.24-3.7-1.05-7.05-.77-10.85,1.3-17.71,28.61-26.36,26.88-43.25-.89-8.76-14.85-11.03-22.02-11.55-8.23-.6-17.94,1.77-25.24-3.11-5.39-3.61-5.08-10.32-7.37-15.76-4.74-11.26-15.86-17.54-27.79-18.47-22.55-1.77-68.52,7.5-81.87-16.63-11.77-21.27,12.24-35.1,29.25-40.42,3.38-1.06,7.52-1.31,10.88-2.55,1.03-.38,1.28.27,1.04-1.56ZM391.83,245.21c-1.03-.58-12.51,5.5-14.65,6.42-20.82,8.92-42.01,16.02-64.2,20.87-10.31,2.25-21.7,3.15-31.66,5.65-19.17,4.82-17.59,22.78-.42,29.11,10.27,3.78,25.34,3.94,36.56,5.97,23.56,4.26,56.74,11.28,53.56,41.93-.31,2.98-2.13,5.86-2.26,8.2-.08,1.48.18,1.21,1.5,1.13,5.18-9.87,11.46-19.09,15.7-29.46,7.55-18.44,12.19-42.75,11.17-62.68-.19-3.67-2.95-25.81-5.31-27.15Z"/>
+-  <path fill="#0e42d2" d="M278.22,21.54c4.79,5.69,9.27,14.39,11.84,21.37.67,1.8,1.49,7.86,2.59,8.61,1.49,1.01,17.78-3.63,21.39-4.05,71.76-8.37,101.88,65.14,44.46,110.3-41.92,32.98-84.43,32.67-135.62,31.41-47.74-1.18-111.25-13.52-129.97-64.78-19.66-53.81,31.01-83.19,77.15-58.5,2,1.07,11.58,7.79,12.54,7.59,1.57-.32,1.05-4.62,1.34-6.14,3.75-19.76,11.37-39.47,27.8-52.04,20.82-15.93,49.31-14.16,66.47,6.23ZM256.71,71.1c1.07-24.31-18.03-42.71-30.8-12.52-5.88,13.9-7.77,32.56-3.36,47,1.73.46,1.24-.41,1.7-.95,10.15-11.8,19.02-25.11,32.46-33.52ZM340.18,123.96c10.12-10.37,17.92-27.48.94-35.85-29-14.31-83.74,17.89-87.91,49.24-1.6,11.97,2.2,14.36,13.71,14.53,21.84.32,57.86-12.13,73.26-27.92ZM173.64,117.92c-4.77-6.36-9.81-11.55-16.53-15.93-7.07-4.62-24.6-13.3-29.47-2.16-3.94,9.02,6.8,23.05,13.43,28.86,12.36,10.83,29.63,16.76,45.66,19.42-.28-11.02-6.62-21.58-13.08-30.19Z"/>
+-</svg>
+diff --git a/public/smart-school.svg b/public/smart-school.svg
+new file mode 100644
+index 0000000..96c138a
+--- /dev/null
++++ b/public/smart-school.svg
+@@ -0,0 +1,6 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="智慧云校">
++  <rect width="64" height="64" rx="16" fill="#2563eb"/>
++  <path d="M19 27a9 9 0 0 1 17-5 7 7 0 1 1 8 12H20a7 7 0 0 1-1-14" fill="#bfdbfe"/>
++  <path d="M13 32c7-3 13-2 19 2 6-4 12-5 19-2v17c-7-3-13-2-19 2-6-4-12-5-19-2z" fill="white"/>
++  <path d="M32 35v14M18 38l9 2M18 43l9 2M37 40l9-2M37 45l9-2" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
++</svg>
+diff --git a/public/third-party-notices.txt b/public/third-party-notices.txt
+new file mode 100644
+index 0000000..d8c8e6c
+--- /dev/null
++++ b/public/third-party-notices.txt
+@@ -0,0 +1,75 @@
++智慧云校 · 开源许可与版权声明
++
++本产品基于以下开源项目构建。保留原作者版权与许可证，不代表由原作者提供或背书。
++
++===== backend =====
++The MIT License (MIT)
++
++Copyright (c) 2019 RuoYi-Vue-Plus
++
++Permission is hereby granted, free of charge, to any person obtaining a copy of
++this software and associated documentation files (the "Software"), to deal in
++the Software without restriction, including without limitation the rights to
++use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
++the Software, and to permit persons to whom the Software is furnished to do so,
++subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
++FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
++COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++
++===== admin =====
++The MIT License (MIT)
++
++Copyright (c) 2019 RuoYi-Vue-Plus
++
++Permission is hereby granted, free of charge, to any person obtaining a copy of
++this software and associated documentation files (the "Software"), to deal in
++the Software without restriction, including without limitation the rights to
++use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
++the Software, and to permit persons to whom the Software is furnished to do so,
++subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
++FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
++COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++
++===== teacher =====
++MIT License
++
++Copyright (c) 2024 xlsea
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
++
++
++Additional original UI attribution:
++Copyright © 2018-2026 疯狂的狮子Li All Rights Reserved.
++Copyright MIT © 2024 马铃薯头
+diff --git a/src/App.vue b/src/App.vue
+index ce819c3..4620671 100644
+--- a/src/App.vue
++++ b/src/App.vue
+@@ -26,7 +26,7 @@ const naiveDateLocale = computed(() => {
+ });
+ 
+ const watermarkProps = computed<WatermarkProps>(() => {
+-  const appTitle = import.meta.env.VITE_APP_TITLE || 'RuoYi-Vue-Plus';
++  const appTitle = import.meta.env.VITE_APP_TITLE || '智慧云校';
+   const content =
+     themeStore.watermark.enableUserName && userInfo.user?.userName
+       ? `${userInfo.user?.nickName}@${appTitle} ${userInfo.user?.userName}`
+diff --git a/src/assets/smart-school-avatar.svg b/src/assets/smart-school-avatar.svg
+new file mode 100644
+index 0000000..7227a70
+--- /dev/null
++++ b/src/assets/smart-school-avatar.svg
+@@ -0,0 +1 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="默认头像"><rect width="64" height="64" rx="32" fill="#dbeafe"/><circle cx="32" cy="24" r="11" fill="#2563eb"/><path d="M13 56a19 19 0 0 1 38 0" fill="#2563eb"/></svg>
+diff --git a/src/assets/svg-icon/logo.svg b/src/assets/svg-icon/logo.svg
+index 1b50f85..96c138a 100644
+--- a/src/assets/svg-icon/logo.svg
++++ b/src/assets/svg-icon/logo.svg
+@@ -1,4 +1,6 @@
+-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 476.22 476.22">
+-  <path fill="#0e42d2" d="M389.98,400.6c-64.58,76.59-176.66,93.98-261.1,38.54-57.75-37.91-92.29-103.74-87.69-173.54,1.28-19.35,9.54-58.77,33.33-61.44,20.49-2.29,43.2,14.41,62.99,21.14,64.93,22.1,150.88,21.39,214.51-4.81,17.24-7.1,39.23-23.9,58.05-13.31,25.61,14.41,27.13,67.07,24.38,92.75-3.94,36.78-20.9,72.7-44.47,100.65ZM150.91,269c-17.4-4.01-34.19-9.87-50.5-17.04-2.56-1.12-15.17-8.19-16.64-6.83-23.51,92.25,48.81,179.87,140.64,188.01,3.68.33,9,.72,12.64.79,3.76.07,7.18-.41,10.86-.78-.24-3.7-1.05-7.05-.77-10.85,1.3-17.71,28.61-26.36,26.88-43.25-.89-8.76-14.85-11.03-22.02-11.55-8.23-.6-17.94,1.77-25.24-3.11-5.39-3.61-5.08-10.32-7.37-15.76-4.74-11.26-15.86-17.54-27.79-18.47-22.55-1.77-68.52,7.5-81.87-16.63-11.77-21.27,12.24-35.1,29.25-40.42,3.38-1.06,7.52-1.31,10.88-2.55,1.03-.38,1.28.27,1.04-1.56ZM391.83,245.21c-1.03-.58-12.51,5.5-14.65,6.42-20.82,8.92-42.01,16.02-64.2,20.87-10.31,2.25-21.7,3.15-31.66,5.65-19.17,4.82-17.59,22.78-.42,29.11,10.27,3.78,25.34,3.94,36.56,5.97,23.56,4.26,56.74,11.28,53.56,41.93-.31,2.98-2.13,5.86-2.26,8.2-.08,1.48.18,1.21,1.5,1.13,5.18-9.87,11.46-19.09,15.7-29.46,7.55-18.44,12.19-42.75,11.17-62.68-.19-3.67-2.95-25.81-5.31-27.15Z"/>
+-  <path fill="#0e42d2" d="M278.22,21.54c4.79,5.69,9.27,14.39,11.84,21.37.67,1.8,1.49,7.86,2.59,8.61,1.49,1.01,17.78-3.63,21.39-4.05,71.76-8.37,101.88,65.14,44.46,110.3-41.92,32.98-84.43,32.67-135.62,31.41-47.74-1.18-111.25-13.52-129.97-64.78-19.66-53.81,31.01-83.19,77.15-58.5,2,1.07,11.58,7.79,12.54,7.59,1.57-.32,1.05-4.62,1.34-6.14,3.75-19.76,11.37-39.47,27.8-52.04,20.82-15.93,49.31-14.16,66.47,6.23ZM256.71,71.1c1.07-24.31-18.03-42.71-30.8-12.52-5.88,13.9-7.77,32.56-3.36,47,1.73.46,1.24-.41,1.7-.95,10.15-11.8,19.02-25.11,32.46-33.52ZM340.18,123.96c10.12-10.37,17.92-27.48.94-35.85-29-14.31-83.74,17.89-87.91,49.24-1.6,11.97,2.2,14.36,13.71,14.53,21.84.32,57.86-12.13,73.26-27.92ZM173.64,117.92c-4.77-6.36-9.81-11.55-16.53-15.93-7.07-4.62-24.6-13.3-29.47-2.16-3.94,9.02,6.8,23.05,13.43,28.86,12.36,10.83,29.63,16.76,45.66,19.42-.28-11.02-6.62-21.58-13.08-30.19Z"/>
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="智慧云校">
++  <rect width="64" height="64" rx="16" fill="#2563eb"/>
++  <path d="M19 27a9 9 0 0 1 17-5 7 7 0 1 1 8 12H20a7 7 0 0 1-1-14" fill="#bfdbfe"/>
++  <path d="M13 32c7-3 13-2 19 2 6-4 12-5 19-2v17c-7-3-13-2-19 2-6-4-12-5-19-2z" fill="white"/>
++  <path d="M32 35v14M18 38l9 2M18 43l9 2M37 40l9-2M37 45l9-2" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
+ </svg>
+diff --git a/src/layouts/modules/global-footer/index.vue b/src/layouts/modules/global-footer/index.vue
+index 69403b3..4ebe627 100644
+--- a/src/layouts/modules/global-footer/index.vue
++++ b/src/layouts/modules/global-footer/index.vue
+@@ -6,7 +6,7 @@ defineOptions({
+ 
+ <template>
+   <DarkModeContainer class="h-full flex-center">
+-    <a href="https://blog.xlsea.cn" target="_blank" rel="noopener noreferrer">Copyright MIT © 2024 马铃薯头</a>
++    <span>智慧云校 · <a href="./third-party-notices.txt" target="_blank" rel="noopener noreferrer">开源许可</a></span>
+   </DarkModeContainer>
+ </template>
+ 
+diff --git a/src/layouts/modules/global-header/components/message-button.vue b/src/layouts/modules/global-header/components/message-button.vue
+index d751d34..a94980b 100644
+--- a/src/layouts/modules/global-header/components/message-button.vue
++++ b/src/layouts/modules/global-header/components/message-button.vue
+@@ -15,9 +15,6 @@ const noticeNum = computed(() => {
+   return state.value.notices.filter(notice => !notice.read).length || 0;
+ });
+ 
+-const toGitee = () => {
+-  window.open('https://gitee.com/xlsea/ruoyi-plus-soybean', '_blank');
+-};
+ </script>
+ 
+ <template>
+@@ -82,11 +79,6 @@ const toGitee = () => {
+         </template>
+         <NEmpty v-else class="h-180px flex-center" />
+       </NScrollbar>
+-      <template #footer>
+-        <div class="flex items-center justify-end">
+-          <NButton type="primary" size="small" @click="toGitee">前往 Gitee</NButton>
+-        </div>
+-      </template>
+     </NCard>
+   </NPopover>
+ </template>
+diff --git a/src/layouts/modules/global-header/components/user-avatar.vue b/src/layouts/modules/global-header/components/user-avatar.vue
+index 9cc2971..46ed448 100644
+--- a/src/layouts/modules/global-header/components/user-avatar.vue
++++ b/src/layouts/modules/global-header/components/user-avatar.vue
+@@ -5,7 +5,7 @@ import { useBoolean } from '@sa/hooks';
+ import { useAuthStore } from '@/store/modules/auth';
+ import { useRouterPush } from '@/hooks/common/router';
+ import { useSvgIcon } from '@/hooks/common/icon';
+-import defaultAvatar from '@/assets/imgs/soybean.jpg';
++import defaultAvatar from '@/assets/smart-school-avatar.svg';
+ import { $t } from '@/locales';
+ 
+ defineOptions({
+diff --git a/src/layouts/modules/theme-drawer/modules/page-fun.vue b/src/layouts/modules/theme-drawer/modules/page-fun.vue
+index 0b00f2b..dc75b80 100644
+--- a/src/layouts/modules/theme-drawer/modules/page-fun.vue
++++ b/src/layouts/modules/theme-drawer/modules/page-fun.vue
+@@ -127,7 +127,7 @@ const isWrapperScrollMode = computed(() => themeStore.layout.scrollMode === 'wra
+         type="text"
+         size="small"
+         class="w-120px"
+-        placeholder="SoybeanAdmin"
++        placeholder="智慧云校"
+       />
+     </SettingItem>
+     <SettingItem key="9" :label="$t('theme.header.multilingual.visible')">
+diff --git a/src/locales/langs/en-us.ts b/src/locales/langs/en-us.ts
+index 3928cba..30d1023 100644
+--- a/src/locales/langs/en-us.ts
++++ b/src/locales/langs/en-us.ts
+@@ -1,6 +1,6 @@
+ const local: App.I18n.Schema = {
+   system: {
+-    title: 'RuoYi Plus Soybean',
++    title: '智慧云校',
+     updateTitle: 'System Version Update Notification',
+     updateContent: 'A new version of the system has been detected. Do you want to refresh the page immediately?',
+     updateConfirm: 'Refresh immediately',
+diff --git a/src/locales/langs/zh-cn.ts b/src/locales/langs/zh-cn.ts
+index 449a839..248bd5a 100644
+--- a/src/locales/langs/zh-cn.ts
++++ b/src/locales/langs/zh-cn.ts
+@@ -1,6 +1,6 @@
+ const local: App.I18n.Schema = {
+   system: {
+-    title: 'RuoYi Plus Soybean',
++    title: '智慧云校',
+     updateTitle: '系统版本更新通知',
+     updateContent: '检测到系统有新版本发布，是否立即刷新页面？',
+     updateConfirm: '立即刷新',
+diff --git a/src/store/modules/theme/shared.ts b/src/store/modules/theme/shared.ts
+index 8655d96..029ad89 100644
+--- a/src/store/modules/theme/shared.ts
++++ b/src/store/modules/theme/shared.ts
+@@ -20,6 +20,9 @@ export function initThemeSettings() {
+   const localSettings = localStg.get('themeSettings');
+ 
+   let settings = defu(localSettings, themeSettings);
++  if (settings.watermark.text === 'RuoYi-Vue-Plus' || settings.watermark.text === 'SoybeanAdmin') {
++    settings.watermark.text = '智慧云校';
++  }
+ 
+   const isOverride = localStg.get('overrideThemeFlag') === BUILD_TIME;
+ 
+diff --git a/src/theme/settings.ts b/src/theme/settings.ts
+index c4bad43..c35a542 100644
+--- a/src/theme/settings.ts
++++ b/src/theme/settings.ts
+@@ -58,7 +58,7 @@ export const themeSettings: App.Theme.ThemeSetting = {
+   },
+   watermark: {
+     visible: import.meta.env.VITE_WATERMARK === 'Y',
+-    text: 'RuoYi-Vue-Plus',
++    text: '智慧云校',
+     enableUserName: false
+   },
+   table: {
+diff --git a/src/views/_builtin/login/modules/pwd-login.vue b/src/views/_builtin/login/modules/pwd-login.vue
+index d42e747..623361b 100644
+--- a/src/views/_builtin/login/modules/pwd-login.vue
++++ b/src/views/_builtin/login/modules/pwd-login.vue
+@@ -30,8 +30,8 @@ const tenantOption = ref<SelectOption[]>([]);
+ 
+ const model: Api.Auth.PwdLoginForm = reactive({
+   tenantId: '000000',
+-  username: 'admin',
+-  password: 'admin123'
++  username: '',
++  password: ''
+ });
+ type RuleKey = Extract<keyof Api.Auth.PwdLoginForm, 'username' | 'password' | 'code' | 'tenantId'>;
+ 
+@@ -199,7 +199,7 @@ async function handleSocialLogin(type: Api.System.SocialSource) {
+       </NButton>
+     </div>
+ 
+-    <div class="mt-32px w-full text-center text-18px text-#858585">
++    <div v-if="registerEnabled" class="mt-32px w-full text-center text-18px text-#858585">
+       您还没有账户？
+       <NA type="primary" class="text-18px" @click="toggleLoginModule('register')">
+         {{ $t('page.login.common.register') }}
+diff --git a/src/views/_builtin/user-center/modules/user-avatar.vue b/src/views/_builtin/user-center/modules/user-avatar.vue
+index 45d0357..8cfced2 100644
+--- a/src/views/_builtin/user-center/modules/user-avatar.vue
++++ b/src/views/_builtin/user-center/modules/user-avatar.vue
+@@ -6,7 +6,7 @@ import { Cropper } from 'vue-advanced-cropper';
+ import { useBoolean, useLoading } from '@sa/hooks';
+ import { fetchUpdateUserAvatar } from '@/service/api/system';
+ import { useAuthStore } from '@/store/modules/auth';
+-import defaultAvatar from '@/assets/imgs/soybean.jpg';
++import defaultAvatar from '@/assets/smart-school-avatar.svg';
+ import 'vue-advanced-cropper/dist/style.css';
+ 
+ interface CropperOptions {
+diff --git a/src/views/home/index.vue b/src/views/home/index.vue
+index 2d0760e..731d4af 100644
+--- a/src/views/home/index.vue
++++ b/src/views/home/index.vue
+@@ -1,59 +1,24 @@
+ <script setup lang="ts">
+ import { computed } from 'vue';
+-import { useAppStore } from '@/store/modules/app';
+-import HeaderBanner from './modules/header-banner.vue';
+-import CardData from './modules/card-data.vue';
+-import LineChart from './modules/line-chart.vue';
+-import PieChart from './modules/pie-chart.vue';
+-import ProjectNews from './modules/project-news.vue';
+-import CreativityBanner from './modules/creativity-banner.vue';
+-
+-const appStore = useAppStore();
+-
+-const gap = computed(() => (appStore.isMobile ? 0 : 16));
++import { useAuth } from '@/hooks/business/auth';
++const { hasAuth } = useAuth();
++const entries = [
++  { title: '课堂评价', description: '记录学生成长，查看评价与统计。', path: '/fcp/school', permission: 'fcp:eval:list' },
++  { title: '数据接入', description: '导入学生名册和考勤，核对同步结果。', path: '/fcp/ingestion', permission: 'fcp:ingest:view' }
++];
++const available = computed(() => entries.filter(entry => hasAuth(entry.permission)));
+ </script>
+-
+ <template>
+-  <NSpace vertical :size="16">
+-    <NAlert title="如遇问题请先看这里" type="warning">
+-      <div class="text-18px">
+-        <div>
+-          开发前请先查看 ReadMe.md 文件中的
+-          <NA
+-            href="https://gitee.com/xlsea/ruoyi-plus-soybean#%E5%BC%80%E5%8F%91%E5%89%8D%E5%BF%85%E7%9C%8B"
+-            target="_blank"
+-            rel="noopener noreferrer"
+-          >
+-            开发前必看
+-          </NA>
+-        </div>
+-        <div>如遇菜单无法点击，请检查是否已替换菜单 SQL</div>
+-        <div>如遇代码无法生成，请检查是否已替换代码生成模板</div>
+-      </div>
+-    </NAlert>
+-    <HeaderBanner />
+-    <CardData />
+-    <NGrid :x-gap="gap" :y-gap="16" responsive="screen" item-responsive>
+-      <NGi span="24 s:24 m:14">
+-        <NCard :bordered="false" class="card-wrapper">
+-          <LineChart />
+-        </NCard>
+-      </NGi>
+-      <NGi span="24 s:24 m:10">
+-        <NCard :bordered="false" class="card-wrapper">
+-          <PieChart />
+-        </NCard>
+-      </NGi>
+-    </NGrid>
+-    <NGrid :x-gap="gap" :y-gap="16" responsive="screen" item-responsive>
+-      <NGi span="24 s:24 m:14">
+-        <ProjectNews />
+-      </NGi>
+-      <NGi span="24 s:24 m:10">
+-        <CreativityBanner />
+-      </NGi>
+-    </NGrid>
+-  </NSpace>
++  <main class="p-24px" data-testid="smart-school-home">
++    <NCard :bordered="false" class="mb-24px">
++      <p class="text-primary">教师工作台</p><h1 class="my-12px text-32px font-bold">智慧云校</h1>
++      <p>关注每一位学生，让教学记录清晰可查。</p>
++    </NCard>
++    <div class="grid gap-16px sm:grid-cols-2">
++      <RouterLink v-for="entry in available" :key="entry.path" :to="entry.path">
++        <NCard :title="entry.title" hoverable><p>{{ entry.description }}</p><span class="text-primary">进入功能 →</span></NCard>
++      </RouterLink>
++    </div>
++    <p class="mt-24px leading-6">可用功能以当前账号、租户和班级授权为准。更多功能请从左侧菜单进入。</p>
++  </main>
+ </template>
+-
+-<style scoped></style>
+diff --git a/src/views/tool/gen/index.vue b/src/views/tool/gen/index.vue
+index e78cbb0..a6ce9a4 100644
+--- a/src/views/tool/gen/index.vue
++++ b/src/views/tool/gen/index.vue
+@@ -244,7 +244,7 @@ async function handleGenCode(row?: Api.Tool.GenTable) {
+     if (error) return;
+     window.$message?.success('生成成功');
+   } else {
+-    zip(`/tool/gen/batchGenCode?tableIdStr=${tableIds}`, `RuoYi-${row?.tableId ? `${row.className}` : Date.now()}.zip`);
++    zip(`/tool/gen/batchGenCode?tableIdStr=${tableIds}`, `smart-school-${row?.tableId ? `${row.className}` : Date.now()}.zip`);
+   }
+ }
+ 
+diff --git a/src/views/tool/gen/modules/gen-table-operate-drawer.vue b/src/views/tool/gen/modules/gen-table-operate-drawer.vue
+index f61b4fb..e65c540 100644
+--- a/src/views/tool/gen/modules/gen-table-operate-drawer.vue
++++ b/src/views/tool/gen/modules/gen-table-operate-drawer.vue
+@@ -347,7 +347,7 @@ const columns: NaiveUI.TableColumn<Api.Tool.GenTableColumn>[] = [
+                 <NFormItemGi span="24 s:12" path="packageName">
+                   <template #label>
+                     <div class="flex-center">
+-                      <FormTip content="生成在哪个java包下，例如 com.ruoyi.system" />
++                      <FormTip content="生成在哪个java包下，例如 com.school.system" />
+                       <span class="pl-3px">生成包路径</span>
+                     </div>
+                   </template>

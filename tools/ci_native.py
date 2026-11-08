@@ -219,7 +219,9 @@ def run()->int:
    result=fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],restart)
    report.update(scope=result['scope'],browser=result['status'],ingestion=result['status'],nativeChecks=result['totalChecks'])
    def native_pid():return process.pid if process and process.poll() is None else None
-   modules=[]
+   from ci_branding import verify_branding
+   modules=[NativeModule('branding',lambda:verify_branding(fixture,'http://127.0.0.1:18787',report['build']['buildId']),
+    lambda value:{'status':value['status'],'totalChecks':value['totalChecks']})]
    if composition_fixture:
     modules.append(NativeModule('runtimeComposition',lambda:composition_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
      lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'browser':value['browser'],'backendPidUnchanged':value['backendPidUnchanged'],'observation':value['observation']}))

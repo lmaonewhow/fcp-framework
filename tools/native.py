@@ -20,6 +20,7 @@ import uuid
 import urllib.parse
 import zipfile
 from native_trace_frontend import apply_frontend_trace
+from native_branding import apply_branding, apply_generator_branding
 
 ROOT = Path(__file__).resolve().parents[1]
 PINS = json.loads((ROOT / 'upstreams.lock.json').read_text())['upstreams']
@@ -292,6 +293,7 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
     redact_auth_failure_log(backend)
     invalidate_deleted_auth_cache(backend)
     apply_compatibility_patch(admin,ROOT/'integration/plus-ui/compat-5.6',PINS['admin']['commit'])
+    apply_branding(projects)
     java=backend/'ruoyi-admin/src/main/java'
     for tree in ['core','business','host']:
         copy_files(ROOT/tree/'src/main/java',java)
@@ -354,6 +356,7 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
     for language, labels in [('en-us', ('School', 'Student evaluation', 'Data ingestion', 'Configuration plugins')),
                              ('zh-cn', ('学校业务', '学生评价', '数据接入', '配置插件'))]:
         add_school_locale(teacher/'src/locales/langs'/f'{language}.ts', *labels)
+    apply_generator_branding(admin)
     common=f"VITE_FCP_BUILD_ID={build_id}\nVITE_APP_CLIENT_ID='{env['FCP_CLIENT_ID']}'\nVITE_APP_RSA_PUBLIC_KEY='{env['FCP_REQUEST_PUBLIC_KEY']}'\nVITE_APP_RSA_PRIVATE_KEY='{env['FCP_RESPONSE_PRIVATE_KEY']}'\n"
     (admin/'.env.production.local').write_text(common+"VITE_APP_CONTEXT_PATH=/admin/\nVITE_APP_BASE_API=\nVITE_APP_ENCRYPT=true\nVITE_APP_SSE=true\n",encoding='utf-8')
     (teacher/'.env.prod.local').write_text(common+"VITE_BASE_URL=/teacher/\nVITE_APP_BASE_API=\nVITE_SERVICE_BASE_URL=\nVITE_APP_ENCRYPT=Y\nVITE_ROUTE_HOME=fcp_school\nVITE_AUTH_ROUTE_MODE=dynamic\nVITE_HTTP_PROXY=N\nVITE_AUTOMATICALLY_DETECT_UPDATE=N\n",encoding='utf-8')
@@ -449,7 +452,7 @@ def build(projects: dict[str,Path], work: Path, resolve_admin_lock: bool, admin_
         (resources/'static'/name/'release-loader.mjs').write_text(launcher,encoding='utf-8')
         # Fixed same-origin module: identical response-only diagnostics as the dev host.
         shutil.copy2(ROOT/'development-host/src/main/resources/dev-ui/trace.js',resources/'static'/name/'release-trace.mjs')
-        (resources/'static'/name/'index.html').write_text(f'<!doctype html><html><head><meta charset="UTF-8"><title>FCP</title></head><body><p>正在校验系统版本…</p><script type="module" src="/{name}/release-loader.mjs"></script></body></html>',encoding='utf-8')
+        (resources/'static'/name/'index.html').write_text(f'<!doctype html><html><head><meta charset="UTF-8"><title>智慧云校</title></head><body><p>正在校验系统版本…</p><script type="module" src="/{name}/release-loader.mjs"></script></body></html>',encoding='utf-8')
         lock=project/('package-lock.json' if name=='admin' else 'pnpm-lock.yaml')
         evidence['frontend'][name]={'lockPolicy':policy,'lockSha256':sha(lock.read_bytes()),'typecheck':'PASS','productionBuild':'PASS','uiBundle':bundle['manifest']}
     test_runtime_config=validate_test_runtime(test_runtime_config,existing_redis_no_password=existing_redis_no_password)

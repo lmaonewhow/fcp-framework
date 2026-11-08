@@ -1,0 +1,635 @@
+diff --git a/.env.development b/.env.development
+index 3737274..c4b9d8f 100644
+--- a/.env.development
++++ b/.env.development
+@@ -1,6 +1,6 @@
+ # 页面标题
+-VITE_APP_TITLE = RuoYi-Vue-Plus多租户管理系统
+-VITE_APP_LOGO_TITLE = RuoYi-Vue-Plus
++VITE_APP_TITLE = 智慧云校
++VITE_APP_LOGO_TITLE = 智慧云校
+ 
+ # 开发环境配置
+ VITE_APP_ENV = 'development'
+diff --git a/.env.production b/.env.production
+index 883c8f1..e59e821 100644
+--- a/.env.production
++++ b/.env.production
+@@ -1,6 +1,6 @@
+ # 页面标题
+-VITE_APP_TITLE = RuoYi-Vue-Plus多租户管理系统
+-VITE_APP_LOGO_TITLE = RuoYi-Vue-Plus
++VITE_APP_TITLE = 智慧云校
++VITE_APP_LOGO_TITLE = 智慧云校
+ 
+ # 生产环境配置
+ VITE_APP_ENV = 'production'
+diff --git a/index.html b/index.html
+index f0742ca..15e9160 100644
+--- a/index.html
++++ b/index.html
+@@ -5,7 +5,7 @@
+     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+     <meta name="renderer" content="webkit" />
+     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+-    <link rel="icon" href="/favicon.ico" />
++    <link rel="icon" href="./smart-school.svg" />
+     <title>%VITE_APP_TITLE%</title>
+     <!--[if lt IE 11
+       ]><script>
+diff --git a/public/favicon.ico b/public/favicon.ico
+deleted file mode 100644
+index 3f919d85a5d1e093fd8d80ebcbe9987a3bdbb54f..0000000000000000000000000000000000000000
+GIT binary patch
+literal 0
+HcmV?d00001
+
+literal 8131
+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
+
+diff --git a/public/smart-school.svg b/public/smart-school.svg
+new file mode 100644
+index 0000000..96c138a
+--- /dev/null
++++ b/public/smart-school.svg
+@@ -0,0 +1,6 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="智慧云校">
++  <rect width="64" height="64" rx="16" fill="#2563eb"/>
++  <path d="M19 27a9 9 0 0 1 17-5 7 7 0 1 1 8 12H20a7 7 0 0 1-1-14" fill="#bfdbfe"/>
++  <path d="M13 32c7-3 13-2 19 2 6-4 12-5 19-2v17c-7-3-13-2-19 2-6-4-12-5-19-2z" fill="white"/>
++  <path d="M32 35v14M18 38l9 2M18 43l9 2M37 40l9-2M37 45l9-2" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
++</svg>
+diff --git a/public/third-party-notices.txt b/public/third-party-notices.txt
+new file mode 100644
+index 0000000..d8c8e6c
+--- /dev/null
++++ b/public/third-party-notices.txt
+@@ -0,0 +1,75 @@
++智慧云校 · 开源许可与版权声明
++
++本产品基于以下开源项目构建。保留原作者版权与许可证，不代表由原作者提供或背书。
++
++===== backend =====
++The MIT License (MIT)
++
++Copyright (c) 2019 RuoYi-Vue-Plus
++
++Permission is hereby granted, free of charge, to any person obtaining a copy of
++this software and associated documentation files (the "Software"), to deal in
++the Software without restriction, including without limitation the rights to
++use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
++the Software, and to permit persons to whom the Software is furnished to do so,
++subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
++FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
++COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++
++===== admin =====
++The MIT License (MIT)
++
++Copyright (c) 2019 RuoYi-Vue-Plus
++
++Permission is hereby granted, free of charge, to any person obtaining a copy of
++this software and associated documentation files (the "Software"), to deal in
++the Software without restriction, including without limitation the rights to
++use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
++the Software, and to permit persons to whom the Software is furnished to do so,
++subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
++FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
++COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++
++===== teacher =====
++MIT License
++
++Copyright (c) 2024 xlsea
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
++
++
++Additional original UI attribution:
++Copyright © 2018-2026 疯狂的狮子Li All Rights Reserved.
++Copyright MIT © 2024 马铃薯头
+diff --git a/src/assets/logo/smart-school.svg b/src/assets/logo/smart-school.svg
+new file mode 100644
+index 0000000..96c138a
+--- /dev/null
++++ b/src/assets/logo/smart-school.svg
+@@ -0,0 +1,6 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="智慧云校">
++  <rect width="64" height="64" rx="16" fill="#2563eb"/>
++  <path d="M19 27a9 9 0 0 1 17-5 7 7 0 1 1 8 12H20a7 7 0 0 1-1-14" fill="#bfdbfe"/>
++  <path d="M13 32c7-3 13-2 19 2 6-4 12-5 19-2v17c-7-3-13-2-19 2-6-4-12-5-19-2z" fill="white"/>
++  <path d="M32 35v14M18 38l9 2M18 43l9 2M37 40l9-2M37 45l9-2" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
++</svg>
+diff --git a/src/assets/smart-school-avatar.svg b/src/assets/smart-school-avatar.svg
+new file mode 100644
+index 0000000..7227a70
+--- /dev/null
++++ b/src/assets/smart-school-avatar.svg
+@@ -0,0 +1 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="默认头像"><rect width="64" height="64" rx="32" fill="#dbeafe"/><circle cx="32" cy="24" r="11" fill="#2563eb"/><path d="M13 56a19 19 0 0 1 38 0" fill="#2563eb"/></svg>
+diff --git a/src/layout/components/Navbar.vue b/src/layout/components/Navbar.vue
+index 3bf1a86..6e3c55a 100644
+--- a/src/layout/components/Navbar.vue
++++ b/src/layout/components/Navbar.vue
+@@ -47,14 +47,6 @@
+             </el-popover>
+           </div>
+         </el-tooltip>
+-        <el-tooltip content="Github" effect="dark" placement="bottom">
+-          <ruo-yi-git id="ruoyi-git" class="right-menu-item hover-effect" />
+-        </el-tooltip>
+-
+-        <el-tooltip :content="proxy.$t('navbar.document')" effect="dark" placement="bottom">
+-          <ruo-yi-doc id="ruoyi-doc" class="right-menu-item hover-effect" />
+-        </el-tooltip>
+-
+         <el-tooltip :content="proxy.$t('navbar.full')" effect="dark" placement="bottom">
+           <screenfull id="screenfull" class="right-menu-item hover-effect" />
+         </el-tooltip>
+diff --git a/src/layout/components/Sidebar/Logo.vue b/src/layout/components/Sidebar/Logo.vue
+index 3301cf3..55f5d3d 100644
+--- a/src/layout/components/Sidebar/Logo.vue
++++ b/src/layout/components/Sidebar/Logo.vue
+@@ -22,7 +22,7 @@
+ 
+ <script setup lang="ts">
+ import variables from '@/assets/styles/variables.module.scss';
+-import logo from '@/assets/logo/logo.png';
++import logo from '@/assets/logo/smart-school.svg';
+ import { useSettingsStore } from '@/store/modules/settings';
+ const { proxy } = getCurrentInstance() as ComponentInternalInstance;
+ import { NavTypeEnum } from '@/enums/NavTypeEnum';
+diff --git a/src/layout/components/notice/index.vue b/src/layout/components/notice/index.vue
+index 684ae6a..7dd98b7 100644
+--- a/src/layout/components/notice/index.vue
++++ b/src/layout/components/notice/index.vue
+@@ -19,7 +19,6 @@
+       </template>
+       <el-empty v-else :description="'消息为空'"></el-empty>
+     </div>
+-    <div v-if="newsList.length > 0" class="foot-box" @click="onGoToGiteeClick">前往gitee</div>
+   </div>
+ </template>
+ 
+@@ -52,11 +51,6 @@ const onNewsClick = (item: any) => {
+   noticeStore.state.notices = newsList.value;
+ };
+ 
+-// 前往通知中心点击
+-const onGoToGiteeClick = () => {
+-  window.open('https://gitee.com/dromara/RuoYi-Vue-Plus/tree/5.X/');
+-};
+-
+ onMounted(() => {
+   nextTick(() => {
+     getTableData();
+diff --git a/src/store/modules/user.ts b/src/store/modules/user.ts
+index b714d03..72dcdcb 100644
+--- a/src/store/modules/user.ts
++++ b/src/store/modules/user.ts
+@@ -2,7 +2,7 @@ import { to } from 'await-to-js';
+ import { getToken, removeToken, setToken } from '@/utils/auth';
+ import { login as loginApi, logout as logoutApi, getInfo as getUserInfo } from '@/api/login';
+ import { LoginData } from '@/api/types';
+-import defAva from '@/assets/images/profile.jpg';
++import defAva from '@/assets/smart-school-avatar.svg';
+ import { defineStore } from 'pinia';
+ import { ref } from 'vue';
+ 
+diff --git a/src/views/index.vue b/src/views/index.vue
+index a252957..f1b3751 100644
+--- a/src/views/index.vue
++++ b/src/views/index.vue
+@@ -1,165 +1,32 @@
++<script setup lang="ts">
++import { computed } from 'vue';
++import { useUserStore } from '@/store/modules/user';
++const user = useUserStore();
++const entries = [
++  { title: '课堂评价', description: '记录学生成长，查看评价与统计。', path: '/fcp/school', permission: 'fcp:eval:list' },
++  { title: '数据接入', description: '导入学生名册和考勤，核对同步结果。', path: '/fcp/ingestion', permission: 'fcp:ingest:view' },
++  { title: '代码生成', description: '从数据库表配置并生成业务代码。', path: '/tool/gen', permission: 'tool:gen:list' }
++];
++const available = computed(() => entries.filter(entry => user.permissions.includes('*:*:*') || user.permissions.includes(entry.permission)));
++</script>
+ <template>
+-  <div class="app-container home">
+-    <el-row :gutter="20">
+-      <el-col :sm="24" :lg="12" style="padding-left: 20px">
+-        <h2>RuoYi-Vue-Plus多租户管理系统</h2>
+-        <p>
+-          RuoYi-Vue-Plus 是基于 RuoYi-Vue 针对 分布式集群 场景升级(不兼容原框架)
+-          <br />
+-          * 前端开发框架 Vue3、TS、Element Plus<br />
+-          * 后端开发框架 Spring Boot<br />
+-          * 容器框架 Undertow 基于 Netty 的高性能容器<br />
+-          * 权限认证框架 Sa-Token 支持多终端认证系统<br />
+-          * 关系数据库 MySQL 适配 8.X 最低 5.7<br />
+-          * 缓存数据库 Redis 适配 6.X 最低 4.X<br />
+-          * 数据库框架 Mybatis-Plus 快速 CRUD 增加开发效率<br />
+-          * 数据库框架 p6spy 更强劲的 SQL 分析<br />
+-          * 多数据源框架 dynamic-datasource 支持主从与多种类数据库异构<br />
+-          * 序列化框架 Jackson 统一使用 jackson 高效可靠<br />
+-          * Redis客户端 Redisson 性能强劲、API丰富<br />
+-          * 分布式限流 Redisson 全局、请求IP、集群ID 多种限流<br />
+-          * 分布式锁 Lock4j 注解锁、工具锁 多种多样<br />
+-          * 分布式幂等 Lock4j 基于分布式锁实现<br />
+-          * 分布式链路追踪 SkyWalking 支持链路追踪、网格分析、度量聚合、可视化<br />
+-          * 分布式任务调度 SnailJob 高性能 高可靠 易扩展<br />
+-          * 文件存储 Minio 本地存储<br />
+-          * 文件存储 七牛、阿里、腾讯 云存储<br />
+-          * 监控框架 SpringBoot-Admin 全方位服务监控<br />
+-          * 校验框架 Validation 增强接口安全性 严谨性<br />
+-          * Excel框架 FastExcel(原Alibaba EasyExcel) 性能优异 扩展性强<br />
+-          * 文档框架 SpringDoc、javadoc 无注解零入侵基于java注释<br />
+-          * 工具类框架 Hutool、Lombok 减少代码冗余 增加安全性<br />
+-          * 代码生成器 适配MP、SpringDoc规范化代码 一键生成前后端代码<br />
+-          * 部署方式 Docker 容器编排 一键部署业务集群<br />
+-          * 国际化 SpringMessage Spring标准国际化方案<br />
+-        </p>
+-        <p><b>当前版本:</b> <span>v5.6.2</span></p>
+-        <p>
+-          <el-tag type="danger">&yen;免费开源</el-tag>
+-        </p>
+-        <p>
+-          <el-button type="primary" icon="Cloudy" plain @click="goTarget('https://gitee.com/dromara/RuoYi-Vue-Plus')">访问码云</el-button>
+-          <el-button type="primary" icon="Cloudy" plain @click="goTarget('https://github.com/dromara/RuoYi-Vue-Plus')">访问GitHub</el-button>
+-          <el-button type="primary" icon="Cloudy" plain @click="goTarget('https://plus-doc.dromara.org/#/ruoyi-vue-plus/changlog')"
+-            >更新日志</el-button
+-          >
+-        </p>
+-      </el-col>
+-
+-      <el-col :sm="24" :lg="12" style="padding-left: 20px">
+-        <h2>RuoYi-Cloud-Plus多租户微服务管理系统</h2>
+-        <p>
+-          RuoYi-Cloud-Plus 微服务通用权限管理系统 重写 RuoYi-Cloud 全方位升级(不兼容原框架)
+-          <br />
+-          * 前端开发框架 Vue3、TS、Element UI<br />
+-          * 后端开发框架 Spring Boot<br />
+-          * 微服务开发框架 Spring Cloud、Spring Cloud Alibaba<br />
+-          * 容器框架 Undertow 基于 XNIO 的高性能容器<br />
+-          * 权限认证框架 Sa-Token、Jwt 支持多终端认证系统<br />
+-          * 关系数据库 MySQL 适配 8.X 最低 5.7<br />
+-          * 关系数据库 Oracle 适配 11g 12c<br />
+-          * 关系数据库 PostgreSQL 适配 13 14<br />
+-          * 关系数据库 SQLServer 适配 2017 2019<br />
+-          * 缓存数据库 Redis 适配 6.X 最低 5.X<br />
+-          * 分布式注册中心 Alibaba Nacos 采用2.X 基于GRPC通信高性能<br />
+-          * 分布式配置中心 Alibaba Nacos 采用2.X 基于GRPC通信高性能<br />
+-          * 服务网关 Spring Cloud Gateway 响应式高性能网关<br />
+-          * 负载均衡 Spring Cloud Loadbalancer 负载均衡处理<br />
+-          * RPC远程调用 Apache Dubbo 原生态使用体验、高性能<br />
+-          * 分布式限流熔断 Alibaba Sentinel 无侵入、高扩展<br />
+-          * 分布式事务 Alibaba Seata 无侵入、高扩展 支持 四种模式<br />
+-          * 分布式消息队列 Apache Kafka 高性能高速度<br />
+-          * 分布式消息队列 Apache RocketMQ 高可用功能多样<br />
+-          * 分布式消息队列 RabbitMQ 支持各种扩展插件功能多样性<br />
+-          * 分布式搜索引擎 ElasticSearch 业界知名<br />
+-          * 分布式链路追踪 Apache SkyWalking 链路追踪、网格分析、度量聚合、可视化<br />
+-          * 分布式日志中心 ELK 业界成熟解决方案<br />
+-          * 分布式监控 Prometheus、Grafana 全方位性能监控<br />
+-          * 其余与 Vue 版本一致<br />
+-        </p>
+-        <p><b>当前版本:</b> <span>v2.6.2</span></p>
+-        <p>
+-          <el-tag type="danger">&yen;免费开源</el-tag>
+-        </p>
+-        <p>
+-          <el-button type="primary" icon="Cloudy" plain @click="goTarget('https://gitee.com/dromara/RuoYi-Cloud-Plus')">访问码云</el-button>
+-          <el-button type="primary" icon="Cloudy" plain @click="goTarget('https://github.com/dromara/RuoYi-Cloud-Plus')">访问GitHub</el-button>
+-          <el-button type="primary" icon="Cloudy" plain @click="goTarget('https://plus-doc.dromara.org/#/ruoyi-cloud-plus/changlog')"
+-            >更新日志</el-button
+-          >
+-        </p>
+-      </el-col>
+-    </el-row>
+-    <el-divider />
+-  </div>
++  <main class="school-home" data-testid="smart-school-home">
++    <header><p class="eyebrow">管理工作台</p><h1>智慧云校</h1><p>在一个工作台里管理教学业务与学校数据。</p></header>
++    <section class="school-entries" aria-label="常用功能">
++      <router-link v-for="entry in available" :key="entry.path" :to="entry.path" class="school-entry">
++        <h2>{{ entry.title }}</h2><p>{{ entry.description }}</p><span>进入功能 →</span>
++      </router-link>
++    </section>
++    <p class="school-note">可用功能以当前账号、租户和班级授权为准。更多功能请从左侧菜单进入。</p>
++  </main>
+ </template>
+-
+-<script setup name="Index" lang="ts">
+-const goTarget = (url: string) => {
+-  window.open(url, '__blank');
+-};
+-</script>
+-
+-<style lang="scss" scoped>
+-.home {
+-  blockquote {
+-    padding: 10px 20px;
+-    margin: 0 0 20px;
+-    font-size: 17.5px;
+-    border-left: 5px solid #eee;
+-  }
+-  hr {
+-    margin-top: 20px;
+-    margin-bottom: 20px;
+-    border: 0;
+-    border-top: 1px solid #eee;
+-  }
+-  .col-item {
+-    margin-bottom: 20px;
+-  }
+-
+-  ul {
+-    padding: 0;
+-    margin: 0;
+-  }
+-
+-  font-family: 'open sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+-  font-size: 13px;
+-  color: #676a6c;
+-  overflow-x: hidden;
+-
+-  ul {
+-    list-style-type: none;
+-  }
+-
+-  h4 {
+-    margin-top: 0px;
+-  }
+-
+-  h2 {
+-    margin-top: 10px;
+-    font-size: 26px;
+-    font-weight: 100;
+-  }
+-
+-  p {
+-    margin-top: 10px;
+-
+-    b {
+-      font-weight: 700;
+-    }
+-  }
+-
+-  .update-log {
+-    ol {
+-      display: block;
+-      list-style-type: decimal;
+-      margin-block-start: 1em;
+-      margin-block-end: 1em;
+-      margin-inline-start: 0;
+-      margin-inline-end: 0;
+-      padding-inline-start: 40px;
+-    }
+-  }
+-}
++<style scoped>
++.school-home { padding: 32px; color: var(--el-text-color-primary); }
++header { padding: 28px; border-radius: 16px; background: var(--el-color-primary-light-9); }
++.eyebrow { color: var(--el-color-primary); } h1 { margin: 8px 0 12px; font-size: 32px; } h2 { font-size: 20px; }
++.school-entries { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-top: 24px; }
++.school-entry { display: block; padding: 24px; border: 1px solid var(--el-border-color); border-radius: 12px; }
++.school-entry:focus-visible, .school-entry:hover { border-color: var(--el-color-primary); }
++.school-entry span { color: var(--el-color-primary); } .school-note { margin-top: 24px; color: var(--el-text-color-secondary); line-height: 1.6; }
++@media (max-width: 600px) { .school-home { padding: 16px; } }
+ </style>
+diff --git a/src/views/login.vue b/src/views/login.vue
+index a890c63..470ee0e 100644
+--- a/src/views/login.vue
++++ b/src/views/login.vue
+@@ -73,7 +73,7 @@
+     </el-form>
+     <!--  底部  -->
+     <div class="el-login-footer">
+-      <span>Copyright © 2018-2026 疯狂的狮子Li All Rights Reserved.</span>
++      <span>智慧云校 · <a href="./third-party-notices.txt" target="_blank" rel="noopener">开源许可</a></span>
+     </div>
+   </div>
+ </template>
+@@ -96,8 +96,8 @@ const { t } = useI18n();
+ 
+ const loginForm = ref<LoginData>({
+   tenantId: '000000',
+-  username: 'admin',
+-  password: 'admin123',
++  username: '',
++  password: '',
+   rememberMe: false,
+   code: '',
+   uuid: ''
+diff --git a/src/views/register.vue b/src/views/register.vue
+index 300f474..2d5f39f 100644
+--- a/src/views/register.vue
++++ b/src/views/register.vue
+@@ -67,7 +67,7 @@
+     </el-form>
+     <!--  底部  -->
+     <div class="el-register-footer">
+-      <span>Copyright © 2018-2026 疯狂的狮子Li All Rights Reserved.</span>
++      <span>智慧云校 · <a href="./third-party-notices.txt" target="_blank" rel="noopener">开源许可</a></span>
+     </div>
+   </div>
+ </template>
+diff --git a/src/views/tool/gen/genInfoForm.vue b/src/views/tool/gen/genInfoForm.vue
+index 477aac2..01e6f50 100644
+--- a/src/views/tool/gen/genInfoForm.vue
++++ b/src/views/tool/gen/genInfoForm.vue
+@@ -15,7 +15,7 @@
+         <el-form-item prop="packageName">
+           <template #label>
+             生成包路径
+-            <el-tooltip content="生成在哪个java包下，例如 com.ruoyi.system" placement="top">
++            <el-tooltip content="生成在哪个java包下，例如 com.school.system" placement="top">
+               <el-icon><question-filled /></el-icon>
+             </el-tooltip>
+           </template>
