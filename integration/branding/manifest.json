@@ -4,7 +4,7 @@
   "upstreams": {
     "backend": {
       "commit": "8136a0191a2258c0e1b36a8146a1c5ebc070c139",
-      "patchSha256": "d6af19deca1228787979d6237fedcb4be9470fdc7b84988c79f57d4209ba4fd8",
+      "patchSha256": "cb2ea2d6ce14edff095eafd18f6abf07c6d55a39668e8a441096c8d04017b5e8",
       "files": {
         "ruoyi-admin/src/main/resources/banner.txt": {
           "before": "6a5c64f3a506a5e2aa0244139d7022b9d4ef59c7e9b9aba1c2949f6e05b92b08",
@@ -18,7 +18,7 @@
     },
     "admin": {
       "commit": "d0d451967676707021b9857df529c395b27e90a7",
-      "patchSha256": "9b2f1e6f93952616e96663a3c9d055cd823978af39e86eaf6736915e4ecfc651",
+      "patchSha256": "fd3b94f5e44798ae5115bb35b6f45240f3e48f637359f857fc21161c0ffb9b3d",
       "files": {
         ".env.development": {
           "before": "b534af14b7c09a39cbe1c1a1546b82adf2785f26b23845924de256b13f598579",
@@ -88,7 +88,7 @@
     },
     "teacher": {
       "commit": "4e625111ce173e5c2f40dbfc47475f2849c58feb",
-      "patchSha256": "c842cfc811e0af71f0edb6da6bd21557c4d07560fdf6a285668fa392024a6ec2",
+      "patchSha256": "dacc94a9315582b61c9cd96a3e6fc3b79f9f1b19c11bc172c3f5c97da9b484b8",
       "files": {
         ".env": {
           "before": "4146512d550a96e0474542f90d85b3489697464ef51c388a16d16895eb1322c0",
@@ -173,6 +173,14 @@
         "src/views/tool/gen/modules/gen-table-operate-drawer.vue": {
           "before": "b29fba67c2370f0fc3e27f5432985db2f09cc214a1cfa2d914bf374e345fa074",
           "after": "283ec8fc1bb586bff4dafda2e6dc01e2bb4d077d5d53104ca98e8f098b41126a"
+        },
+        "src/router/guard/title.ts": {
+          "before": "a1516596a8b99f20e63b89ed066269183b0830b48785c1ce5448a357fb3535c0",
+          "after": "547c27d39649eae735729981b6172201f844219130107269e82d9b787e32c164"
+        },
+        "src/store/modules/app/index.ts": {
+          "before": "369bf4355b1990b784db1a7c2487c4b97c1b8ff35565094d323e470419bd6809",
+          "after": "3b6ea89ddd7f09d0940586ce810688bc318702254a961dd6e33d80a46155e556"
         }
       }
     }

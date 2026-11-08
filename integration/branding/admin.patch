@@ -8,7 +8,7 @@ index 3737274..c4b9d8f 100644
 -VITE_APP_LOGO_TITLE = RuoYi-Vue-Plus
 +VITE_APP_TITLE = 智慧云校
 +VITE_APP_LOGO_TITLE = 智慧云校
- 
+
  # 开发环境配置
  VITE_APP_ENV = 'development'
 diff --git a/.env.production b/.env.production
@@ -21,7 +21,7 @@ index 883c8f1..e59e821 100644
 -VITE_APP_LOGO_TITLE = RuoYi-Vue-Plus
 +VITE_APP_TITLE = 智慧云校
 +VITE_APP_LOGO_TITLE = 智慧云校
- 
+
  # 生产环境配置
  VITE_APP_ENV = 'production'
 diff --git a/index.html b/index.html
@@ -339,7 +339,7 @@ index 3301cf3..55f5d3d 100644
 --- a/src/layout/components/Sidebar/Logo.vue
 +++ b/src/layout/components/Sidebar/Logo.vue
 @@ -22,7 +22,7 @@
- 
+
  <script setup lang="ts">
  import variables from '@/assets/styles/variables.module.scss';
 -import logo from '@/assets/logo/logo.png';
@@ -358,11 +358,11 @@ index 684ae6a..7dd98b7 100644
 -    <div v-if="newsList.length > 0" class="foot-box" @click="onGoToGiteeClick">前往gitee</div>
    </div>
  </template>
- 
+
 @@ -52,11 +51,6 @@ const onNewsClick = (item: any) => {
    noticeStore.state.notices = newsList.value;
  };
- 
+
 -// 前往通知中心点击
 -const onGoToGiteeClick = () => {
 -  window.open('https://gitee.com/dromara/RuoYi-Vue-Plus/tree/5.X/');
@@ -383,7 +383,7 @@ index b714d03..72dcdcb 100644
 +import defAva from '@/assets/smart-school-avatar.svg';
  import { defineStore } from 'pinia';
  import { ref } from 'vue';
- 
+
 diff --git a/src/views/index.vue b/src/views/index.vue
 index a252957..f1b3751 100644
 --- a/src/views/index.vue
@@ -597,7 +597,7 @@ index a890c63..470ee0e 100644
    </div>
  </template>
 @@ -96,8 +96,8 @@ const { t } = useI18n();
- 
+
  const loginForm = ref<LoginData>({
    tenantId: '000000',
 -  username: 'admin',

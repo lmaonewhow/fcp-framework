@@ -5,13 +5,13 @@ index 843cda9..259a35b 100644
 @@ -2,9 +2,9 @@
  # if use a sub directory, it must be end with "/", like "/admin/" but not "/admin"
  VITE_BASE_URL=/
- 
+
 -VITE_APP_TITLE=RuoYi Plus Soybean
 +VITE_APP_TITLE=智慧云校
- 
+
 -VITE_APP_DESC=RuoYi Plus Soybean 后台管理系统
 +VITE_APP_DESC=智慧云校教学与学校管理平台
- 
+
  # the prefix of the icon name
  VITE_ICON_PREFIX=icon
 diff --git a/index.html b/index.html
@@ -136,7 +136,7 @@ index ce819c3..4620671 100644
 +++ b/src/App.vue
 @@ -26,7 +26,7 @@ const naiveDateLocale = computed(() => {
  });
- 
+
  const watermarkProps = computed<WatermarkProps>(() => {
 -  const appTitle = import.meta.env.VITE_APP_TITLE || 'RuoYi-Vue-Plus';
 +  const appTitle = import.meta.env.VITE_APP_TITLE || '智慧云校';
@@ -169,14 +169,14 @@ index 69403b3..4ebe627 100644
 --- a/src/layouts/modules/global-footer/index.vue
 +++ b/src/layouts/modules/global-footer/index.vue
 @@ -6,7 +6,7 @@ defineOptions({
- 
+
  <template>
    <DarkModeContainer class="h-full flex-center">
 -    <a href="https://blog.xlsea.cn" target="_blank" rel="noopener noreferrer">Copyright MIT © 2024 马铃薯头</a>
 +    <span>智慧云校 · <a href="./third-party-notices.txt" target="_blank" rel="noopener noreferrer">开源许可</a></span>
    </DarkModeContainer>
  </template>
- 
+
 diff --git a/src/layouts/modules/global-header/components/message-button.vue b/src/layouts/modules/global-header/components/message-button.vue
 index d751d34..a94980b 100644
 --- a/src/layouts/modules/global-header/components/message-button.vue
@@ -184,12 +184,12 @@ index d751d34..a94980b 100644
 @@ -15,9 +15,6 @@ const noticeNum = computed(() => {
    return state.value.notices.filter(notice => !notice.read).length || 0;
  });
- 
+
 -const toGitee = () => {
 -  window.open('https://gitee.com/xlsea/ruoyi-plus-soybean', '_blank');
 -};
  </script>
- 
+
  <template>
 @@ -82,11 +79,6 @@ const toGitee = () => {
          </template>
@@ -214,7 +214,7 @@ index 9cc2971..46ed448 100644
 -import defaultAvatar from '@/assets/imgs/soybean.jpg';
 +import defaultAvatar from '@/assets/smart-school-avatar.svg';
  import { $t } from '@/locales';
- 
+
  defineOptions({
 diff --git a/src/layouts/modules/theme-drawer/modules/page-fun.vue b/src/layouts/modules/theme-drawer/modules/page-fun.vue
 index 0b00f2b..dc75b80 100644
@@ -259,14 +259,14 @@ index 8655d96..029ad89 100644
 +++ b/src/store/modules/theme/shared.ts
 @@ -20,6 +20,9 @@ export function initThemeSettings() {
    const localSettings = localStg.get('themeSettings');
- 
+
    let settings = defu(localSettings, themeSettings);
 +  if (settings.watermark.text === 'RuoYi-Vue-Plus' || settings.watermark.text === 'SoybeanAdmin') {
 +    settings.watermark.text = '智慧云校';
 +  }
- 
+
    const isOverride = localStg.get('overrideThemeFlag') === BUILD_TIME;
- 
+
 diff --git a/src/theme/settings.ts b/src/theme/settings.ts
 index c4bad43..c35a542 100644
 --- a/src/theme/settings.ts
@@ -285,7 +285,7 @@ index d42e747..623361b 100644
 --- a/src/views/_builtin/login/modules/pwd-login.vue
 +++ b/src/views/_builtin/login/modules/pwd-login.vue
 @@ -30,8 +30,8 @@ const tenantOption = ref<SelectOption[]>([]);
- 
+
  const model: Api.Auth.PwdLoginForm = reactive({
    tenantId: '000000',
 -  username: 'admin',
@@ -294,11 +294,11 @@ index d42e747..623361b 100644
 +  password: ''
  });
  type RuleKey = Extract<keyof Api.Auth.PwdLoginForm, 'username' | 'password' | 'code' | 'tenantId'>;
- 
+
 @@ -199,7 +199,7 @@ async function handleSocialLogin(type: Api.System.SocialSource) {
        </NButton>
      </div>
- 
+
 -    <div class="mt-32px w-full text-center text-18px text-#858585">
 +    <div v-if="registerEnabled" class="mt-32px w-full text-center text-18px text-#858585">
        您还没有账户？
@@ -315,7 +315,7 @@ index 45d0357..8cfced2 100644
 -import defaultAvatar from '@/assets/imgs/soybean.jpg';
 +import defaultAvatar from '@/assets/smart-school-avatar.svg';
  import 'vue-advanced-cropper/dist/style.css';
- 
+
  interface CropperOptions {
 diff --git a/src/views/home/index.vue b/src/views/home/index.vue
 index 2d0760e..731d4af 100644
@@ -412,7 +412,7 @@ index e78cbb0..a6ce9a4 100644
 +    zip(`/tool/gen/batchGenCode?tableIdStr=${tableIds}`, `smart-school-${row?.tableId ? `${row.className}` : Date.now()}.zip`);
    }
  }
- 
+
 diff --git a/src/views/tool/gen/modules/gen-table-operate-drawer.vue b/src/views/tool/gen/modules/gen-table-operate-drawer.vue
 index f61b4fb..e65c540 100644
 --- a/src/views/tool/gen/modules/gen-table-operate-drawer.vue
@@ -426,3 +426,28 @@ index f61b4fb..e65c540 100644
                        <span class="pl-3px">生成包路径</span>
                      </div>
                    </template>
+diff --git a/src/router/guard/title.ts b/src/router/guard/title.ts
+index ff310f8..c25fe1b 100644
+--- a/src/router/guard/title.ts
++++ b/src/router/guard/title.ts
+@@ -8,6 +8,6 @@ export function createDocumentTitleGuard(router: Router) {
+
+     const documentTitle = i18nKey ? $t(i18nKey) : title;
+
+-    useTitle(documentTitle);
++    useTitle(documentTitle ? `${documentTitle} · ${$t('system.title')}` : $t('system.title'));
+   });
+ }
+diff --git a/src/store/modules/app/index.ts b/src/store/modules/app/index.ts
+index 2714955..2091d81 100644
+--- a/src/store/modules/app/index.ts
++++ b/src/store/modules/app/index.ts
+@@ -77,7 +77,7 @@ export const useAppStore = defineStore(SetupStoreId.App, () => {
+
+     const documentTitle = i18nKey ? $t(i18nKey) : title;
+
+-    useTitle(documentTitle);
++    useTitle(documentTitle ? `${documentTitle} · ${$t('system.title')}` : $t('system.title'));
+   }
+
+   function init() {
