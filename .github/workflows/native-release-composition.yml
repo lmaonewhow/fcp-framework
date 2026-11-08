@@ -65,6 +65,8 @@ jobs:
           test "$(pnpm --version)" = '10.5.2'
           python3 -m pip install --break-system-packages -r e2e/requirements.txt bcrypt==4.3.0
           python3 -m playwright install --with-deps chromium
+      - name: Probe native login helper lifecycle on synthetic loopback HTTP
+        run: python3 tests/runtime-native/probe_native_login_body.py
       - name: Verify the committed and accepted dependency lock
         run: python3 tools/check_ingestion_lock.py
       - name: Component checks and actual native composite release acceptance
@@ -98,6 +100,7 @@ jobs:
             reports/ingestion.json
             reports/native-ingestion/
             reports/native-release-composition/
+            reports/native-login-probe/
             reports/runtime-portability/
             reports/runtime-crash/
             reports/runtime-crash-mysql/

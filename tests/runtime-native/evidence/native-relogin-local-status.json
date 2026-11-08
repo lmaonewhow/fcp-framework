@@ -1,0 +1,60 @@
+{
+  "status": "LOCAL_UNIT_PASS_BROWSER_BLOCKED",
+  "scope": "Unit/control-flow regression, not native RuoYi acceptance or reproduction of the CI error",
+  "sourceBaseCommit": "89e266ccbd3ec94f00f521da7fc160388d6ea5d5",
+  "python": "3.12.14",
+  "playwright": "1.62.0",
+  "sourceFiles": {
+    "tools/native_login.py": "ef472aed68ae19bb2975ed1f891a7dc0773a8f04704b2351f4024ac634dcd3c6",
+    "tests/runtime-native/ui_boundaries.py": "1d6463f13e4ba32b49b1fa89aadc02c879fddc8d20ecc131312cc426d84b6eab",
+    "tests/runtime-native/release_composition_acceptance.py": "8b59da41433e94ac0706ccc8e505acfb8aa600bb85b8dbde718bbf3528b12d60",
+    "tests/runtime-native/ui_native_trace_evidence.py": "f92df18f9f6a71ecb43d28485a3e596215204d36553564fc0a8596ad243b68cb",
+    "tests/runtime-native/probe_native_login_body.py": "d36ccfa587e15cf9f5eeae28b7c52d59af4ba1e68fa82138f4cea2a3903dcf5e",
+    ".github/workflows/native-release-composition.yml": "8805a0f895c031a31f02ac1324541236fd44b6b04860fcb47e9dfb07d3d10452"
+  },
+  "checks": [
+    {
+      "command": "python -m unittest discover -s tests/runtime-native -p 'test_*.py' -v",
+      "tests": 91,
+      "exitCode": 0
+    },
+    {
+      "command": "python -m unittest discover -s tests/python -p 'test_native_composition_config.py' -v",
+      "tests": 11,
+      "exitCode": 0
+    },
+    {
+      "command": "python -m unittest discover -s tests/python -p 'test_ci_native*.py' -v",
+      "tests": 15,
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "browserProbe": {
+    "command": "python tests/runtime-native/probe_native_login_body.py --browser-executable /usr/bin/chromium --output reports/native-login-probe-local",
+    "exitCode": 2,
+    "status": "BLOCKED",
+    "observedLaunchFailure": "Chromium socket() Operation not permitted, including authorized escalation; no further bypass attempted",
+    "ciExecution": "NOT_RUN; separate composition workflow gate",
+    "result": {
+      "status": "BLOCKED",
+      "scope": "Synthetic loopback HTTP + real Chromium helper lifecycle only",
+      "nativeRuoYiAcceptance": "NOT_RUN",
+      "production": "NOT_ACCEPTED",
+      "sourceFiles": {
+        "tools/native_login.py": "ef472aed68ae19bb2975ed1f891a7dc0773a8f04704b2351f4024ac634dcd3c6",
+        "tests/runtime-native/ui_boundaries.py": "1d6463f13e4ba32b49b1fa89aadc02c879fddc8d20ecc131312cc426d84b6eab",
+        "tests/runtime-native/probe_native_login_body.py": "d36ccfa587e15cf9f5eeae28b7c52d59af4ba1e68fa82138f4cea2a3903dcf5e"
+      },
+      "failureKind": "target-closed",
+      "reason": "chromium-launch-unavailable",
+      "elapsedSeconds": 0.75
+    }
+  },
+  "originalCiFailureCause": "UNKNOWN",
+  "nativeAcceptance": "NOT_RUN",
+  "production": "NOT_ACCEPTED"
+}

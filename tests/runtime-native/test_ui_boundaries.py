@@ -42,6 +42,7 @@ class UiBoundaryGuards(unittest.TestCase):
         class Response:
             status=200
             url='http://127.0.0.1:8080/auth/logout'
+            headers={'content-type':'application/json'}
             def json(self):raise AssertionError('Navigation may discard logout body')
             def body(self):raise AssertionError('Navigation may discard logout body')
         class Wait:
@@ -49,7 +50,15 @@ class UiBoundaryGuards(unittest.TestCase):
             def __enter__(self):return self
             def __exit__(self,*args):return False
         class Page:
-            def __init__(self,response):self.response=response
+            url='http://127.0.0.1:8080/teacher/fcp/plugins'
+            def __init__(self,response):self.response=response;self.context=self;self.waited=False
+            def wait_for_url(self,expected,**kwargs):
+                assert expected.fullmatch("http://127.0.0.1:8080/teacher/login/pwd-login?redirect=%2Fprivate")
+                assert not expected.fullmatch("https://evil.invalid/teacher/login")
+                self.waited=True
+            def storage_state(self):
+                assert self.waited
+                return {"origins":[]}
             def locator(self,*args,**kwargs):return self
             def get_by_role(self,*args,**kwargs):return self
             def filter(self,*args,**kwargs):return self
@@ -61,6 +70,8 @@ class UiBoundaryGuards(unittest.TestCase):
             native_logout(Page(Response()),shell)
             response=Response();response.status=500
             with self.assertRaises(AssertionError):native_logout(Page(response),shell)
+            response=Response();response.url='http://127.0.0.1:9090/auth/logout'
+            with self.assertRaisesRegex(AssertionError,'Wrong endpoint'):native_logout(Page(response),shell)
 
     def test_disposable_database_and_loopback_required(self):
         env={'GITHUB_ACTIONS':'true','FCP_ACCEPTANCE_DATABASE':'fcp_ci_0123456789ab'}

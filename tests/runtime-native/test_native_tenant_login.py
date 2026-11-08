@@ -62,7 +62,8 @@ class TenantLoginTests(unittest.TestCase):
         for responses in ([challenge(),tenant()],[tenant(),challenge()]):
             result,page,clock,events=self.run_flow([responses])
             self.assertEqual(result['uuid'],'a'*32);self.assertEqual(len(page.navigations),1)
-            self.assertEqual(clock.waits,[]);self.assertEqual(events,[])
+            self.assertEqual(clock.waits,[]);self.assertEqual([e['stage'] for e in events],['validated','validated'])
+            self.assertTrue(all(r.body_reads == 1 for r in responses))
     def test_precise_throttle_reloads_both_and_returns_fresh_captcha(self):
         for endpoint in (CODE,TENANT):
             for msg in ('访问过于频繁，请稍候再试','Visit too frequently, please try again later'):
@@ -70,7 +71,7 @@ class TenantLoginTests(unittest.TestCase):
                 result,page,clock,events=self.run_flow([first,[challenge('b'),tenant()]])
                 self.assertEqual(result['uuid'],'b'*32);self.assertEqual(clock.waits,[60.0])
                 self.assertEqual([t for _,t in page.navigations],[0,60])
-                self.assertEqual(events[0]['endpoint'],endpoint)
+                self.assertEqual(next(e for e in events if e['stage']=='rate-limited')['endpoint'],endpoint)
     def test_non_json_http429_is_explicit_limit(self):
         limited=Response(ValueError('private'),status=429,url=BASE+TENANT)
         self.assertEqual(self.run_flow([[challenge(),limited],[challenge(),tenant()]])[2].waits,[60.0])
@@ -111,6 +112,40 @@ class TenantLoginTests(unittest.TestCase):
         self.assertEqual(error.exception.diagnostic['stage'],'incomplete-rate-window')
         self.assertEqual(len(page.navigations),1)
         with self.assertRaises(ValueError):open_native_tenant_login(None,'https://remote.invalid')
+    def test_body_read_and_parse_errors_are_distinct_and_never_retry(self):
+        for raw, stage, kind in ((RuntimeError('No resource with given identifier found private'), 'body-read-failed', 'resource-unavailable'),
+                                 (b'{private', 'invalid-json', 'json-syntax'),
+                                 (b'\xffprivate', 'invalid-json', 'invalid-utf8')):
+            response=tenant()
+            def body(raw=raw):
+                if isinstance(raw, Exception): raise raw
+                return raw
+            response.body=body
+            response.headers={'content-type':'application/json; private-secret', 'x-trace-id':'A'*32,
+                              'set-cookie':'private-secret', 'location':'https://private.invalid/?token=private'}
+            error,page,clock,events=self.fail_flow([[challenge(),response]])
+            self.assertEqual((error.diagnostic['stage'],error.diagnostic['failureKind']),(stage,kind))
+            self.assertEqual(error.diagnostic['traceId'],'a'*32)
+            self.assertEqual(error.diagnostic['contentType'],'json')
+            self.assertEqual(error.diagnostic['bodyBytes'],None if isinstance(raw,Exception) else len(raw))
+            self.assertEqual(len(page.navigations),1);self.assertEqual(clock.waits,[])
+            self.assertNotIn('private',json.dumps(events)+str(error))
+    def test_header_whitelist_and_no_arbitrary_exception_class_names(self):
+        PrivateSecret = type('PrivateSecret', (RuntimeError,), {})
+        for trace in ('0'*32, 'secret', 'b'*32+'?token=private'):
+            response=tenant();response.payload=PrivateSecret('private-secret')
+            response.headers={'content-type':'private-secret', 'x-trace-id':trace}
+            error,_,_,events=self.fail_flow([[challenge(),response]])
+            self.assertIsNone(error.diagnostic['traceId'])
+            self.assertEqual(error.diagnostic['contentType'],'other')
+            self.assertEqual(error.diagnostic['failureKind'],'other-error')
+            self.assertNotIn('private',json.dumps(events).lower())
+    def test_success_diagnostics_never_contain_tenant_or_challenge_body(self):
+        _,_,_,events=self.run_flow([[challenge(),tenant()]])
+        encoded=json.dumps(events)
+        for private in ('960001','Synthetic CI tenant','synthetic-unit-image','uuid','voList'):
+            self.assertNotIn(private,encoded)
+        self.assertTrue(all(e['bodyBytes'] > 0 for e in events))
     def test_ui_gate_and_safe_report_remain_connected(self):
         source=(Path(__file__).parent/'ui_boundaries.py').read_text()
         self.assertLess(source.index('captcha = open_native_tenant_login('),source.index("select = page.locator('.login-form .el-select')"))

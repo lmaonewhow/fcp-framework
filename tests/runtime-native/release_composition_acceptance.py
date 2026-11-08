@@ -17,6 +17,7 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'tools'))
 from ci_ingestion import safe_diagnostic
+from native_login import NativeLoginPreparationError
 from native_client import require_loopback
 from native_runtime_acceptance import Client, RuntimeFixture, exported
 from native_observation_acceptance import package_bytes
@@ -108,6 +109,20 @@ class ReleaseCompositionFixture(RuntimeFixture):
                            observation=dict(status='NOT_RUN', endpoints=[], automaticExpansion='NOT_RUN',
                                securityContainment='NOT_RUN', scope='Live native USER-approved WindowedObservation pause only; default business classifier UNKNOWN, insufficient samples'))
         self._write()
+
+    def tenant_relogin(self, page, base):
+        """Persist preparation evidence before the page/context can close on failure."""
+        from ui_boundaries import native_logout, make_tenant_relogin
+        relogin = make_tenant_relogin(self.login_fixture, base)
+        self.report['loginPreparation'] = relogin.diagnostics
+        try:
+            native_logout(page, 'teacher', events=self.report.setdefault('logoutPreparation', []))
+            return relogin(page, 'teacher')
+        except NativeLoginPreparationError as error:
+            self.report['loginFailure'] = error.diagnostic
+            raise
+        finally:
+            self._write()
 
     def grant(self, admin, artifact, allow=True, tenant='000000'):
         target = dict(pluginId=artifact['component'], version=artifact['version'], digest=artifact['sha256'],
@@ -420,11 +435,9 @@ class ReleaseCompositionFixture(RuntimeFixture):
                         candidate_pages[shell] = page
                     # Genuine second native tenant login. Its role has business permissions but no
                     # version grants. A T1 affinity cannot be replayed under T2's native identity.
-                    from ui_boundaries import native_logout, make_tenant_relogin
                     tenant_page = candidate_pages['teacher']
                     original_context = tenant_page.context
-                    native_logout(tenant_page, 'teacher')
-                    raw = make_tenant_relogin(self.login_fixture, base)(tenant_page, 'teacher')
+                    raw = self.tenant_relogin(tenant_page, base)
                     tenant = ReleaseClient(base, raw.token, raw.client_id)
                     self.check('same browser context performs genuine cross-tenant logout/login', tenant_page.context is original_context)
                     tenant_page.goto(base+'/teacher/fcp/plugins/ci.python/demo', wait_until='domcontentloaded')

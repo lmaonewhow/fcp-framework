@@ -13,10 +13,11 @@ import re
 import sys
 import time
 import uuid
+from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from native_client import require_loopback
-from native_login import open_native_tenant_login, NativeLoginPreparationError, authenticated_storage_state, require_encrypted_login, verify_native_identity, native_token
+from native_login import wait_native_logout, open_native_tenant_login, NativeLoginPreparationError, authenticated_storage_state, require_encrypted_login, verify_native_identity, native_token
 
 
 def require_fixture(base, database, fixture_plugins, plugin_id):
@@ -42,13 +43,16 @@ def is_rejected(status, body):
     return (400 <= status < 500) or (status == 200 and code in {'400', '401', '403', '404', '409', '410', '422'})
 
 
-def native_logout(page, shell):
-    """Execute locked native logout UI and observe HTTP completion only.
+def native_logout(page, shell, *, events=None):
+    """Execute locked native logout UI and wait for its native cleanup.
 
     This helper does not prove logout success: the caller must still check that
     the workspace disappears and the old token is rejected by the actual API.
     Do not read the response body, which Chromium may discard during redirect.
     """
+    initial = urlsplit(page.url)
+    origin = initial.scheme+'://'+initial.netloc
+    require_loopback(origin)
     label = re.compile(r'^(退出登录|退出|注销|Log out|Logout)$', re.I)
     if shell == 'admin':
         page.locator('.avatar-wrapper').click()
@@ -61,11 +65,12 @@ def native_logout(page, shell):
         positive = page.locator('.n-dialog').get_by_role('button', name=re.compile(r'^(确认|Confirm)$'))
     else:
         raise ValueError('Unsupported native shell')
-    with page.expect_response(lambda response: response.url.split('?',1)[0].endswith('/auth/logout'), timeout=20000) as logged_out:
+    with page.expect_response(lambda response: response.url.split('?',1)[0] == origin+'/auth/logout', timeout=20000) as logged_out:
         positive.click()
     response = logged_out.value
     if response.status != 200:
         raise AssertionError('Native logout HTTP request did not complete with status 200')
+    wait_native_logout(page, response, origin, events=events)
 
 
 def make_tenant_relogin(login_fixture, base):

@@ -1,0 +1,16 @@
+test_acceptance_refuses_component_environment_before_browser (test_native_composition_config.NativeCompositionConfigurationTests.test_acceptance_refuses_component_environment_before_browser) ... ok
+test_acceptance_requires_both_actual_builds (test_native_composition_config.NativeCompositionConfigurationTests.test_acceptance_requires_both_actual_builds) ... ok
+test_canonical_manifest_digest_has_no_map_order_dependency (test_native_composition_config.NativeCompositionConfigurationTests.test_canonical_manifest_digest_has_no_map_order_dependency) ... ok
+test_ci_calls_native_baseline_before_actual_variant (test_native_composition_config.NativeCompositionConfigurationTests.test_ci_calls_native_baseline_before_actual_variant) ... ok
+test_composition_requires_real_login_and_isolates_exchange (test_native_composition_config.NativeCompositionConfigurationTests.test_composition_requires_real_login_and_isolates_exchange) ... ok
+test_legacy_modes_unchanged (test_native_composition_config.NativeCompositionConfigurationTests.test_legacy_modes_unchanged) ... ok
+test_observation_fixture_uses_browser_schema_denial_and_no_manual_pause (test_native_composition_config.NativeCompositionConfigurationTests.test_observation_fixture_uses_browser_schema_denial_and_no_manual_pause) ... ok
+test_observation_pause_requires_actual_matching_executor_receipt (test_native_composition_config.NativeCompositionConfigurationTests.test_observation_pause_requires_actual_matching_executor_receipt) ... ok
+test_observation_policy_is_limits_only_and_uses_live_revision (test_native_composition_config.NativeCompositionConfigurationTests.test_observation_policy_is_limits_only_and_uses_live_revision) ... ok
+test_package_artifacts_bind_two_real_distinct_fixture_versions (test_native_composition_config.NativeCompositionConfigurationTests.test_package_artifacts_bind_two_real_distinct_fixture_versions) ... ok
+test_real_fixture_uses_only_control_plane_deployment (test_native_composition_config.NativeCompositionConfigurationTests.test_real_fixture_uses_only_control_plane_deployment) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.011s
+
+OK

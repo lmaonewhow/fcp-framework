@@ -1,5 +1,6 @@
 """Control-flow fake-clock tests only; they do not establish native login acceptance."""
 import contextlib
+import json
 import io
 from pathlib import Path
 import sys
@@ -14,6 +15,13 @@ CHALLENGE = dict(captchaEnabled=True, uuid='a'*32, img='synthetic-unit-image')
 class Response:
     def __init__(self, payload, status=200, url=BASE+'/auth/code'):
         self.payload, self.status, self.url = payload, status, url
+        self.headers = {'content-type': 'application/json'}
+        self.body_reads = 0
+    def body(self):
+        self.body_reads += 1
+        if isinstance(self.payload, Exception):
+            raise self.payload
+        return json.dumps(self.payload).encode()
     def json(self):
         if isinstance(self.payload, Exception):
             raise self.payload

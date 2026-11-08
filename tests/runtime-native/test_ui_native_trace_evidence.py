@@ -31,6 +31,22 @@ class NativeTraceProjectionTests(unittest.TestCase):
             self.assertEqual(len(result['records']),1)
             self.assertNotIn(SECRET,json.dumps(result))
 
+    def test_http200_login_body_failure_is_correlated_without_guessing_rate_limit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'logs').mkdir()
+            (root/'logs/fcp-request.log').write_text(complete(code=200))
+            for key in ('loginFailure','loginPreparation','logoutPreparation'):
+                event={'endpoint':'/auth/tenant/list','stage':'body-read-failed','status':200,'traceId':TRACE}
+                report={key:event if key=='loginFailure' else [event]}
+                result=project_native_trace_evidence(root,report)
+                self.assertEqual(result['targetCount'],1)
+                self.assertEqual(result['records'][0]['businessCode'],200)
+                self.assertEqual(result['missingTraceIds'],[])
+    def test_login_success_or_invalid_trace_is_not_selected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for stage,trace in (('validated',TRACE),('logout-ui-complete',TRACE),('body-read-failed','0'*32),('body-read-failed',SECRET)):
+                report={'loginPreparation':[{'endpoint':'/auth/tenant/list','stage':stage,'traceId':trace}]}
+                self.assertEqual(project_native_trace_evidence(tmp,report)['targetCount'],0)
     def test_unknown_route_is_never_published(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);(root/'logs').mkdir()

@@ -80,6 +80,19 @@ def project_native_trace_evidence(private_dir, report):
                 value=event.get('traceId','')
                 if isinstance(value,str) and re.fullmatch(TRACE,value) and value!='0'*32:
                     targets.add(value)
+    # A body-read/parse failure can have HTTP 200 and no business envelope. Preserve
+    # its response Trace independently of navigation pageerror/throttle evidence.
+    preparation = [report.get('loginFailure', {})]
+    for key in ('loginPreparation', 'logoutPreparation'):
+        preparation.extend(report.get(key, [])[:16])
+    for event in preparation:
+        if event.get('endpoint') not in ('/auth/code', '/auth/tenant/list', '/auth/logout'):
+            continue
+        if event.get('stage') in ('validated', 'logout-ui-complete', 'rate-window-wait'):
+            continue
+        value=event.get('traceId', '')
+        if isinstance(value,str) and re.fullmatch(TRACE,value) and value!='0'*32 and len(targets)<512:
+            targets.add(value)
     startup=Path(private_dir)/'native-startup.log'
     if startup.is_file():
         for line in bounded_lines(startup):
