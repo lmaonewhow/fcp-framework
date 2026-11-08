@@ -12,6 +12,8 @@ on:
       - 'integration/soybean/src/**'
       - 'development-host/src/main/resources/**'
       - 'tests/observability/**'
+      - 'tests/ui-release-assets/**'
+      - 'tools/native.py'
       - 'tests/frontend/package*.json'
       - 'tools/native_trace_frontend.py'
       - 'upstreams.lock.json'
@@ -45,10 +47,15 @@ jobs:
           FCP_TRACE_ADMIN_SOURCE: ${{ github.workspace }}/work/trace-admin
           FCP_TRACE_TEACHER_SOURCE: ${{ github.workspace }}/work/trace-teacher
         run: |
+          set -o pipefail
           mkdir -p reports/observability
           git rev-parse HEAD > reports/observability/frontend-source-commit.txt
           NODE_PATH="$(npm root -g)" node tests/observability/trace-frontend.test.cjs tests/frontend 2>&1 | tee reports/observability/frontend-trace.log
           python3 tests/observability/test_frontend_trace_patch.py -v 2>&1 | tee reports/observability/frontend-patch.log
+      - name: Compiled release modules and DOM trace regression
+        run: |
+          set -o pipefail
+          node --test tests/ui-release-assets/release-session.test.mjs tests/ui-release-assets/ui-launcher.test.mjs tests/ui-release-assets/release-trace.test.mjs 2>&1 | tee reports/observability/release-trace.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:

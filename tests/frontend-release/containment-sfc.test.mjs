@@ -1,0 +1,21 @@
+/** Actual compiled ReleaseConsole SFC and Vue lifecycle; endpoint doubles, not native browser acceptance. */
+import test from 'node:test';import assert from 'node:assert/strict';import {createRequire} from 'node:module';import {mkdtemp,writeFile,rm,readFile} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join,resolve} from 'node:path';import {pathToFileURL} from 'node:url';
+const modules=process.env.FCP_VUE_TOOLS;if(!modules)throw new Error('FCP_VUE_TOOLS must name real Vue/compiler-sfc/TypeScript node_modules');
+const require=createRequire(resolve(modules,'../package.json'));const {parse,compileScript}=require('@vue/compiler-sfc');const ts=require('typescript');const {JSDOM}=require('jsdom');const dom=new JSDOM('<html><body></body></html>');for(const name of ['window','document','Element','HTMLElement','SVGElement','Node','Event'])globalThis[name]=dom.window[name];const vue=require('vue');
+const root=resolve('integration/frontend-release'),temp=await mkdtemp(join(tmpdir(),'fcp-containment-sfc-'));
+const descriptor=parse(await readFile(join(root,'ReleaseConsole.vue'),'utf8')).descriptor;
+let code=compileScript(descriptor,{id:'containment-test',inlineTemplate:true}).content;
+code=code.replace(/import PluginReleaseManager[^;]*;/,"const PluginReleaseManager={render:()=>null};").replace(/import ReleaseObservation[^;]*;/,"const ReleaseObservation={render:()=>null};");
+code=code.replace(/from ['"]vue['"]/g,`from '${pathToFileURL(require.resolve('vue/dist/vue.runtime.esm-bundler.js')).href}'`).replace(/from '\.\/controller'/g,`from '${pathToFileURL(join(root,'controller.ts')).href}'`).replace(/from '\.\/permission-host'/g,`from '${pathToFileURL(join(root,'permission-host.ts')).href}'`);
+await writeFile(join(temp,'console.mjs'),ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);const {default:Component}=await import(pathToFileURL(join(temp,'console.mjs')).href);
+const flush=async()=>{await new Promise(r=>setImmediate(r));await vue.nextTick()};
+const plan={environment:'test',stableRelease:'v1',candidateRelease:'v2',stableDigest:'a'.repeat(64),candidateDigest:'b'.repeat(64),schemaVersion:1,stableSchemaMin:0,stableSchemaMax:2,candidateSchemaMin:1,candidateSchemaMax:3};
+test('compiled SFC isolates confirmed emergency closure and invalidates stale CAS confirmation',async()=>{
+ let revision=3,posts=[],lost=false;const host={shell:'admin',identityKey:()=> 'user',permissions:()=>[],observeIdentity:()=>()=>{},async request(path,method,body){if(path==='/fcp/ui/session')return {code:200,data:{releasePermissions:['fcp:release:view','fcp:release:manage']}};if(method==='POST'){posts.push(body);if(lost)throw new Error('lost')};return {code:200,data:path.endsWith('/versions')?{provider:'test'}:{revision,phase:'CANARY',basisPoints:1000,plan,pending:{operationId:'original',action:'EXPAND'},supportsFencedContainment:true,capabilities:['ABORT','EXPAND']}}}};
+ const container=document.createElement('div'),app=vue.createApp(Component,{host});document.body.append(container);app.mount(container);await flush();await flush();const button=label=>[...container.querySelectorAll('button')].find(n=>n.textContent===label);
+ assert.equal(button('执行并查看结果').disabled,true);await button('读取待决操作并预览封禁').click();await flush();assert.equal(button('确认紧急封禁入口').disabled,true);
+ const section=container.querySelector('[aria-label="紧急封禁全部受管新入口"]');let box=section.querySelector('input');box.checked=true;box.dispatchEvent(new Event('change'));await flush();assert.equal(button('确认紧急封禁入口').disabled,false);
+ revision=4;await button('确认紧急封禁入口').click();await flush();assert.equal(posts.length,0);assert.equal(button('确认紧急封禁入口'),undefined);
+ await button('读取待决操作并预览封禁').click();await flush();box=section.querySelector('input');box.checked=true;box.dispatchEvent(new Event('change'));await flush();lost=true;await button('确认紧急封禁入口').click();await flush();assert.equal(posts.length,1);assert.equal(posts[0].action,'ABORT');assert.equal(posts[0].basisPoints,0);assert.equal(button('确认紧急封禁入口'),undefined);assert.equal(button('执行并查看结果').disabled,true);app.unmount();
+});
+test.after(async()=>rm(temp,{recursive:true,force:true}));

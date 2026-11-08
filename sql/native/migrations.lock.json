@@ -6,6 +6,8 @@
     "V003__persistent_plugin_state.sql": "f18c459efb0c0b203a53d56e4c3b01cb0dd5abfdc67a2798051ba106713e6392",
     "V004__ingestion_permissions.sql": "1bc8309b9838eec1f23769585583fcae6b7c6c542f1e0ff868fe7f25182b139f",
     "V005__runtime_plugins.sql": "a5440785dbf7c070675c6f78f597593fa75266e0af3828279d1476de7b2563eb",
-    "V006__runtime_plugin_permissions.sql": "ae1e82696a215ef730a8dbe77921956656051f77ee4673477e9900dadcf65478"
+    "V006__runtime_plugin_permissions.sql": "ae1e82696a215ef730a8dbe77921956656051f77ee4673477e9900dadcf65478",
+    "V007__system_release_permissions.sql": "721b0b6bc0a4b067ffb86565224d9fd5ebbbcf43d743464c15af7436c60ce890",
+    "V008__plugin_version_grants.sql": "c06dd23688f2a2c5ef4f5130cf6ac38adc627e164ee4a01866a3385f211f9b95"
   }
 }

@@ -169,49 +169,180 @@ test('actual development run clears raw API/download rejection but retains trace
 });
 
 // Supply exact source repositories to execute patched native interceptor functions.
+let nativeSequence=0;
 function native(name) {
  const repository=process.env[name==='admin'?'FCP_TRACE_ADMIN_SOURCE':'FCP_TRACE_TEACHER_SOURCE'];
  const manifest=JSON.parse(fs.readFileSync(path.join(root,'integration/request-trace/manifest.json'))).upstreams[name];
  const original=execFileSync('git',['show',`${manifest.commit}:${manifest.path}`],{cwd:repository,encoding:'utf8'});
- const dir=path.join(temp,name);fs.mkdirSync(path.dirname(path.join(dir,manifest.path)),{recursive:true});
+ const dir=path.join(temp,name+(++nativeSequence));fs.mkdirSync(path.dirname(path.join(dir,manifest.path)),{recursive:true});
  fs.writeFileSync(path.join(dir,manifest.path),original);
  if(!process.env.TRACE_BASELINE)execFileSync('git',['apply',path.join(root,`integration/request-trace/${name}.patch`)],{cwd:dir});
- let hooks, responseHooks, messages=[];
+ let hooks, responseHooks, requestHooks, messages=[], pending=[];
  const noop=()=>{};
- const axios={defaults:{headers:{}},create:()=>({interceptors:{request:{use:noop},response:{use:(...h)=>responseHooks=h}}})};
+ const vue=tools('vue');
+ const user=vue.reactive({token:'unit-identity-a',userId:'unit-a',tenantId:'unit-tenant',userInfo:{user:{userId:'unit-a',tenantId:'unit-tenant'}}});
+ const actualAxios=tools('axios-'+name);
+ const packagePath=name==='admin'?'package.json':'packages/axios/package.json';
+ const pinnedPackage=JSON.parse(execFileSync('git',['show',`${manifest.commit}:${packagePath}`],{cwd:repository,encoding:'utf8'}));
+ assert.equal(actualAxios.VERSION,pinnedPackage.dependencies.axios);
+ let readBlob;class NativeBlob extends Blob {text(){return readBlob?readBlob():super.text();}}
+ const axios={...actualAxios,default:undefined,create:options=>{
+  const instance=actualAxios.create({...options,adapter:config=>new Promise((resolve,reject)=>pending.push({config,resolve,reject}))});
+  for(const kind of ['request','response']) {
+   const use=instance.interceptors[kind].use.bind(instance.interceptors[kind]);
+   instance.interceptors[kind].use=(...h)=>{if(kind==='request')requestHooks=h;else responseHooks=h;return use(...h);};
+  }
+  return instance;
+ }};
  const env={VITE_SERVICE_SUCCESS_CODE:'200'};
  const imports={
-  '@/fcp/trace':trace,axios:{default:axios},'@sa/axios':{REQUEST_CANCELED_CODE:'CANCELED',BACKEND_ERROR_CODE:'BACKEND',createFlatRequest:(_,h)=>{hooks=h;return {state:{errMsgStack:[]},cancelAllRequest:noop};}},
+  '@/fcp/trace':trace,vue,axios:{...actualAxios,default:axios},
+  '@/store/modules/user':{useUserStore:()=>user},'@/utils/auth':{getToken:()=>user.token},
+  '@/plugins/cache':{default:{session:{getJSON:()=>null,setJSON:noop}}},'@/lang':{getLanguage:()=> 'en'},'@/utils/ruoyi':{tansParams:()=>'',blobValidate:()=>false},
   '@/enums/RespEnum':{HttpStatus:{SUCCESS:200,SERVER_ERROR:500,WARN:601}},'@/utils/errorCode':{errorCode:{default:'Failure'}},
-  '@/utils/service':{getServiceBaseURL:()=>({baseURL:'/api'})},'@/store/modules/auth':{useAuthStore:()=>({resetStore:noop})},
-  '@/utils/storage':{localStg:{get:()=>null}},'./shared':{showErrorMsg:(_,message)=>messages.push(message)}
+  '@/utils/service':{getServiceBaseURL:()=>({baseURL:'/api'})},'@/store/modules/auth':{useAuthStore:()=>Object.assign(user,{resetStore:noop})},
+  '@/utils/storage':{localStg:{get:key=>key==='token'?user.token:null},sessionStg:{get:()=>null,set:noop}},
+  './shared':{getAuthorization:()=> 'Bearer '+user.token,showErrorMsg:(_,message)=>messages.push(message)}
  };
+ const packageCache={};let sequence=0;
+ function packageModule(file) {
+  if(packageCache[file])return packageCache[file];
+  const source=execFileSync('git',['show',`${manifest.commit}:packages/axios/src/${file}.ts`],{cwd:repository,encoding:'utf8'});
+  const module={exports:{}};packageCache[file]=module.exports;
+  const code=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+  vm.runInNewContext(code,{exports:module.exports,AbortController,require:key=>key==='axios'?{...actualAxios,default:axios}:key==='axios-retry'?tools('axios-retry'):key==='qs'?tools('qs'):key==='@sa/utils'?{nanoid:()=>String(++sequence)}:packageModule(key.slice(2))});
+  return module.exports;
+ }
+ if(name==='teacher') {
+  const real=packageModule('index');
+  imports['@sa/axios']={...real,createFlatRequest:(config,h)=>{hooks=h;return real.createFlatRequest(config,h);}};
+ }
  const code=ts.transpileModule(fs.readFileSync(path.join(dir,manifest.path),'utf8').replaceAll('import.meta.env','__env'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
- const sandbox={exports:{},__env:env,require:key=>imports[key]||{},ElMessage:opts=>messages.push(opts.message),ElNotification:{error:noop},ElMessageBox:{confirm:()=>Promise.reject()},window:{location:{pathname:'/login'},removeEventListener:noop},console};
+ const message=opts=>messages.push(opts.message);message.error=value=>messages.push(value);
+ const sandbox={exports:{},Error,FormData,Blob:NativeBlob,AbortController,__env:env,require:key=>imports[key]||{},ElMessage:message,ElLoading:{service:()=>({close:noop})},ElNotification:{error:noop},ElMessageBox:{confirm:()=>Promise.reject()},window:{location:{pathname:'/login'},removeEventListener:noop},console};
  vm.runInNewContext(code,sandbox);
- return {hooks,responseHooks,messages};
+ return {hooks,responseHooks,messages,user,pending,request:name==='admin'?sandbox.exports.default:sandbox.exports.request,
+  download:sandbox.exports.download,axios:actualAxios,controlBlobRead:fn=>readBlob=fn,
+  prepare:async(signal)=>{const config={headers:{repeatSubmit:false},method:'get',signal};await (name==='admin'?requestHooks[0](config):hooks.onRequest(config));return config;}};
 }
 for(const name of ['admin','teacher'])test(`${name}: actual pinned native error interceptors retain response trace`,{skip:!process.env[name==='admin'?'FCP_TRACE_ADMIN_SOURCE':'FCP_TRACE_TEACHER_SOURCE']},async()=>{
  trace.clearTraceNotice();const n=native(name);
- const logical=response();logical.request={responseType:'json'};
+ const config=await n.prepare();
+ const logical=response();logical.request={responseType:'json'};logical.config=config;
  if(name==='admin') {
   await assert.rejects(()=>n.responseHooks[0](logical),e=>e.traceId===id&&e.message.includes(id));
-  const failure=Object.assign(new Error('Request failed with status code 403'),{response:response({code:403,msg:'Denied'})});
+  const failure=Object.assign(new Error('Request failed with status code 403'),{config,response:response({code:403,msg:'Denied'})});
   await assert.rejects(()=>n.responseHooks[1](failure),e=>e.traceId===id);
   assert.match(n.messages.at(-1),new RegExp(id));
-  const offline=new Error('Network Error');
+  const offline=Object.assign(new Error('Network Error'),{config});
   await assert.rejects(()=>n.responseHooks[1](offline),error=>error===offline&&error.traceId===undefined);
   assert.equal(text(),'');assert.equal(offline.message,'Network Error');
   const success=response({code:200,data:'ok'});success.request={responseType:'json'};
   trace.clearTraceNotice();assert.equal((await n.responseHooks[0](success)).data,'ok');assert.equal(text(),'');
  } else {
   await n.hooks.onBackendFail(logical,{});assert.match(text(),new RegExp(id));assert.equal(logical.data.msg,'Denied');
-  const failure=Object.assign(new Error('HTTP failure'),{response:response(),code:'HTTP'});
+  const failure=Object.assign(new Error('HTTP failure'),{config,response:response(),code:'HTTP'});
   n.hooks.onError(failure);assert.equal(failure.traceId,id);assert.equal(n.messages.at(-1),'HTTP failure');assert.match(text(),new RegExp(id));
-  const offline=Object.assign(new Error('Network Error'),{code:'HTTP'});
+  const offline=Object.assign(new Error('Network Error'),{config,code:'HTTP'});
   n.hooks.onError(offline);assert.equal(offline.traceId,undefined);assert.equal(text(),'');assert.equal(n.messages.at(-1),'Network Error');
   trace.showTraceNotice(id);const notice=document.querySelector('[data-testid="request-trace"]');
   n.hooks.onError(Object.assign(new Error('cancelled'),{code:'CANCELED',response:response()}));
   assert.equal(document.querySelector('[data-testid="request-trace"]'),notice);trace.clearTraceNotice();
  }
+});
+
+async function pendingRequest(n,signal) {
+ const promise=n.request({url:'/unit-readonly',method:'get',signal,headers:{repeatSubmit:false}});
+ const settled=promise.then(value=>({value}),error=>({error}));
+ for(let i=0;i<20&&!n.pending.length;i++)await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(n.pending.length,1);
+ return {settled,transport:n.pending.shift()};
+}
+for(const name of ['admin','teacher'])test(`${name}: real pinned Axios config scopes defer stale, aborted and unstamped Trace effects`,{skip:!process.env[name==='admin'?'FCP_TRACE_ADMIN_SOURCE':'FCP_TRACE_TEACHER_SOURCE']},async()=>{
+ for(const scenario of ['identity-http','identity-backend','identity-user','identity-tenant','identity-network','abort-http','identity-success']) {
+  trace.clearTraceNotice();const n=native(name),abort=new AbortController();
+  const {settled,transport}=await pendingRequest(n,abort.signal);
+  // A stamp must not appear in the actual adapter's transmitted config or headers.
+  assert(!Object.keys(transport.config).some(k=>/traceScope|traceIdentity/i.test(k)));
+  assert(!Object.keys(transport.config.headers).some(k=>/traceScope|traceIdentity/i.test(k)));
+  trace.responseError('Previous identity error',response());
+  if(scenario.startsWith('identity')) {
+   if(scenario==='identity-user') {if(name==='admin')n.user.userId='unit-b';else n.user.userInfo.user.userId='unit-b';}
+   else if(scenario==='identity-tenant') {if(name==='admin')n.user.tenantId='unit-other';else n.user.userInfo.user.tenantId='unit-other';}
+   else {n.user.token='unit-identity-b';n.user.userId='unit-b';}
+   assert.equal(text(),'','synchronous identity watcher clears already displayed notice');
+  } else abort.abort();
+  trace.responseError('New current error',response({},other));
+  const reply={...response(scenario.endsWith('success')?{code:200,data:'ok'}:undefined),config:transport.config,status:200,statusText:'OK',request:{responseType:'json'}};
+  if(scenario==='identity-network')transport.reject(new n.axios.AxiosError('Network Error','HTTP',transport.config));
+  else if(scenario.endsWith('http'))transport.reject(new n.axios.AxiosError('HTTP failure','HTTP',transport.config,{},reply));
+  else transport.resolve(reply);
+  const result=await settled;
+  assert.equal(document.querySelector('code').textContent,other);
+  assert(!n.messages.some(message=>String(message).includes(id)));
+  assert(!result.error?.traceId);assert(!result.error?.message.includes(id));
+ }
+ const n=native(name);const {settled,transport}=await pendingRequest(n);
+ transport.reject(new n.axios.AxiosError('HTTP failure','HTTP',transport.config,{}, {...response(),config:transport.config}));
+ await settled;assert.equal(document.querySelector('code').textContent,id);
+ const next=await pendingRequest(n);next.transport.reject(new n.axios.AxiosError('Network Error','HTTP',next.transport.config));
+ await next.settled;assert.equal(text(),'','current untraced failure still clears old notice');
+ trace.responseError('Current identity',response({},other));
+ const unstamped=Object.assign(new Error('No config stamp'),{response:response(),code:'HTTP'});
+ if(name==='admin')await assert.rejects(n.responseHooks[1](unstamped));else n.hooks.onError(unstamped);
+ assert.equal(document.querySelector('code').textContent,other);assert.equal(unstamped.traceId,undefined);
+ trace.clearTraceNotice();
+});
+test('release adapter actual setup ignores deferred old identity and abort without clearing new notice',async()=>{
+ const vue=tools('vue');
+ for(const scenario of ['identity','abort','current']) {
+  trace.clearTraceNotice();const user=vue.reactive({userId:'unit-a',tenantId:'unit-tenant',token:'unit-a',permissions:[]});
+  let reject;const deferred=new Promise((_,no)=>reject=no);
+  const source=fs.readFileSync(path.join(root,'integration/plus-ui/src/views/fcp/releases/index.vue'),'utf8').match(/<script setup lang="ts">([\s\S]*?)<\/script>/)[1]+'\nexport {host};';
+  const compiled=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+  const sandbox={exports:{},require:key=>key==='vue'?vue:key==='@/fcp/trace'?trace:key==='@/store/modules/user'?{useUserStore:()=>user}:key==='@/utils/request'?{default:()=>deferred}: {}};
+  vm.runInNewContext(compiled,sandbox);
+  const host=sandbox.exports.host,stop=host.observeIdentity(()=>{}),abort=new AbortController();
+  const work=host.request('/unit-readonly','GET',undefined,abort.signal);
+  trace.responseError('Earlier scope',response());
+  if(scenario==='identity'){user.userId='unit-b';user.token='unit-b';assert.equal(text(),'');}
+  if(scenario==='abort')abort.abort();
+  trace.responseError('Newer scope',response({},other));
+  const body={code:403,msg:'Denied'};
+  reject({response:{...response(body),data:body}});
+  const result=await work;
+  assert.equal(document.querySelector('code').textContent,scenario==='current'?id:other);
+  if(scenario==='current')assert.match(result.msg,new RegExp(id));else assert.equal(result,body);
+  stop();trace.clearTraceNotice();
+ }
+});
+test('admin download checks scope again after asynchronous Blob decoding', {skip:!process.env.FCP_TRACE_ADMIN_SOURCE}, async()=>{
+ for(const stale of [false,true]) {
+  trace.clearTraceNotice();const n=native('admin');let finish,reading=false;
+  n.controlBlobRead(()=>{reading=true;return new Promise(resolve=>finish=resolve)});
+  const work=n.download('/unit-download',{},'unit.bin');
+  for(let i=0;i<20&&!n.pending.length;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(n.pending.length,1);const transport=n.pending.shift();
+  transport.resolve({...response(new Blob(['unit-error'])),config:transport.config,status:200,statusText:'OK',request:{responseType:'blob'}});
+  for(let i=0;i<20&&!reading;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert(reading);
+  if(stale)n.user.tenantId='unit-other-tenant';
+  trace.responseError('Current newer request',response({},other));
+  finish(JSON.stringify({code:500,msg:'Download denied'}));await work;
+  assert.equal(document.querySelector('code').textContent,stale?other:id);
+  assert.equal(n.messages.at(-1).includes(id),!stale);
+  trace.clearTraceNotice();
+ }
+});
+test('shared identity reset and cross-tab event clear notice before reloading',()=>{
+ let listener,reloadNotice;const values=new Map([['FCP-Host-Token','unit-a']]);
+ const storage={getItem:key=>values.get(key)||'',setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};
+ const source=fs.readFileSync(path.join(root,'integration/frontend-shared/session.ts'),'utf8');
+ const code=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const sandbox={exports:{},localStorage:storage,window:{addEventListener:(_,fn)=>listener=fn,location:{reload:()=>reloadNotice=text()}},require:key=>key==='./trace.js'?trace:{clearReleaseContext:()=>{}}};
+ vm.runInNewContext(code,sandbox);const session=sandbox.exports;
+ trace.responseError('Current',response());session.writeToken('unit-b');assert.equal(text(),'');
+ trace.responseError('Current',response());session.clearToken();assert.equal(text(),'');
+ trace.responseError('Current',response());session.installSessionSync();listener({key:'FCP-Host-Token',storageArea:storage});
+ assert.equal(reloadNotice,'');assert.equal(text(),'');
 });

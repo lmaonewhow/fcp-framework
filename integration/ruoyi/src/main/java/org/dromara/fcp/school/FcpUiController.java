@@ -12,11 +12,11 @@ import java.util.Map;
 public class FcpUiController {
     private final FcpSchoolIdentity identity;
     public FcpUiController(FcpSchoolIdentity identity) { this.identity = identity; }
-    @GetMapping("/session") @SaCheckPermission(value={"fcp:eval:list","fcp:ingest:view","fcp:plugin:view"},mode=SaMode.OR)
+    @GetMapping("/session") @SaCheckPermission(value={"fcp:eval:list","fcp:ingest:view","fcp:plugin:view","fcp:release:view"},mode=SaMode.OR)
     public ResponseEntity<Map<String,Object>> session() {
         return ResponseEntity.ok(Map.of("code",200,"msg","success","data",UiRoutePolicy.session(identity.current())));
     }
-    @GetMapping("/soybean-routes") @SaCheckPermission(value={"fcp:eval:list","fcp:ingest:view","fcp:plugin:view"},mode=SaMode.OR)
+    @GetMapping("/soybean-routes") @SaCheckPermission(value={"fcp:eval:list","fcp:ingest:view","fcp:plugin:view","fcp:release:view"},mode=SaMode.OR)
     public ResponseEntity<Map<String,Object>> routes() {
         return ResponseEntity.ok(Map.of("code",200,"msg","success","data",UiRoutePolicy.soybeanRoutes(identity.current())));
     }

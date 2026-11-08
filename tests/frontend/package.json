@@ -4,7 +4,12 @@
   "description": "Isolated component regressions; none of these dependencies are runtime distribution requirements",
   "devDependencies": {
     "@vue/test-utils": "2.4.6",
+    "axios": "1.10.0",
+    "axios-admin": "npm:axios@1.13.6",
+    "axios-retry": "4.5.0",
+    "axios-teacher": "npm:axios@1.10.0",
     "jsdom": "26.0.0",
+    "qs": "6.14.0",
     "vue": "3.5.13"
   }
 }

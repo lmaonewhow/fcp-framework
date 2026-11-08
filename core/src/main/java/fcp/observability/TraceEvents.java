@@ -21,12 +21,31 @@ public final class TraceEvents {
     public record RpcSummary(PluginIdentity plugin,String capability,String errorCode) {
         public RpcSummary {capability=label(capability,128);errorCode="NONE".equals(errorCode)?"NONE":rpcError(errorCode);}
     }
+    /** Host-selected routing identity/classification only; no affinity or invocation data. */
+    public record ReleaseMetadata(String selectedReleaseId,long routeRevision,boolean technicalFailure,
+                                  String businessOutcome,boolean unknownResult) {
+        public ReleaseMetadata {
+            if(!releaseId(selectedReleaseId)||routeRevision<0||routeRevision>9007199254740991L||
+                !("SUCCESS".equals(businessOutcome)||"FAILURE".equals(businessOutcome)||"UNKNOWN".equals(businessOutcome)))
+                throw new IllegalArgumentException("Invalid release trace metadata");
+        }
+    }
     public record Event(String kind,String operation,String outcome,long durationNanos,
-                        String traceId,String spanId,String parentSpanId,String requestId,RpcSummary rpc) {
+                        String traceId,String spanId,String parentSpanId,String requestId,RpcSummary rpc,ReleaseMetadata release) {
         public Event(String kind,String operation,String outcome,long durationNanos,
                      String traceId,String spanId,String parentSpanId,String requestId) {
-            this(kind,operation,outcome,durationNanos,traceId,spanId,parentSpanId,requestId,null);
+            this(kind,operation,outcome,durationNanos,traceId,spanId,parentSpanId,requestId,null,null);
         }
+        public Event(String kind,String operation,String outcome,long durationNanos,
+                     String traceId,String spanId,String parentSpanId,String requestId,RpcSummary rpc) {
+            this(kind,operation,outcome,durationNanos,traceId,spanId,parentSpanId,requestId,rpc,null);
+        }
+    }
+    private static boolean releaseId(String value){
+        // ReleasePolicy domain, including complete 100-character ReleasePlan IDs. Never truncate.
+        if(value==null||value.length()>256||value.isBlank())return false;
+        for(int i=0;i<value.length();i++)if(Character.isISOControl(value.charAt(i)))return false;
+        return true;
     }
     private static final Set<String> RPC_ERRORS=Set.of("BUSY","DEADLINE","CANCELLED","TRANSPORT","FRAME_LIMIT",
         "PROTOCOL","CLOSED","RUNNER_EXITED","BUSINESS_RULE","INVALID_INPUT","PLUGIN_REJECTED","INTERNAL_ERROR");
@@ -42,6 +61,7 @@ public final class TraceEvents {
             worker.setDaemon(true);worker.start();
         }
         public void record(Event event){if(closed||!queue.offer(event))dropped.increment();else accepted.increment();}
+        private void drop(){dropped.increment();}
         public Map<String,Long> metrics(){return Map.of("accepted",accepted.sum(),"dropped",dropped.sum(),"sinkFailures",failed.sum(),"queued",(long)queue.size());}
         /** Does not await a stalled sink; diagnostic loss at shutdown is observable, not a request failure. */
         public void close(){closed=true;worker.interrupt();}
@@ -52,10 +72,17 @@ public final class TraceEvents {
     private static Map<String,Object> fields(Event event){
         Map<String,Object> fields=Map.of("event",event.kind(),"operation",event.operation(),"outcome",event.outcome(),"durationNanos",event.durationNanos(),
             "traceId",event.traceId(),"spanId",event.spanId(),"parentSpanId",event.parentSpanId(),"requestId",event.requestId());
-        if(event.rpc()==null)return fields; // HTTP/task path keeps its original map and serialization.
-        Map<String,Object> rpcFields=new LinkedHashMap<>(fields);RpcSummary rpc=event.rpc();
-        rpcFields.put("pluginId",rpc.plugin().pluginId());rpcFields.put("pluginVersion",rpc.plugin().pluginVersion());
-        rpcFields.put("capability",rpc.capability());rpcFields.put("errorCode",rpc.errorCode());return rpcFields;
+        if(event.rpc()==null&&event.release()==null)return fields; // HTTP/task keeps its original map and serialization.
+        Map<String,Object> detailed=new LinkedHashMap<>(fields);
+        if(event.rpc()!=null){RpcSummary rpc=event.rpc();
+            detailed.put("pluginId",rpc.plugin().pluginId());detailed.put("pluginVersion",rpc.plugin().pluginVersion());
+            detailed.put("capability",rpc.capability());detailed.put("errorCode",rpc.errorCode());
+        }
+        if(event.release()!=null){ReleaseMetadata release=event.release();
+            detailed.put("release",Map.of("selectedReleaseId",release.selectedReleaseId(),"routeRevision",release.routeRevision(),
+                "technicalFailure",release.technicalFailure(),"businessOutcome",release.businessOutcome(),"unknownResult",release.unknownResult()));
+        }
+        return detailed;
     }
     /** RETURNED only means a JSON-RPC result arrived, not business success or a committed side effect. */
     public static void recordRpc(PluginIdentity plugin,String capability,String operation,boolean returned,String errorCode,long startedNanos){
@@ -63,6 +90,17 @@ public final class TraceEvents {
         var rpc=new RpcSummary(plugin,capability,returned?"NONE":rpcError(errorCode));
         Holder.INSTANCE.record(new Event("plugin.rpc",label(operation),returned?"RETURNED":"ERROR",Math.max(0,System.nanoTime()-startedNanos),
             trace.traceId(),trace.spanId(),trace.parentSpanId(),trace.requestId(),rpc));
+    }
+    /** Best-effort host completion, separate from RPC result arrival and never a business decision. */
+    public static void recordReleaseInvocation(String releaseId,long revision,boolean technicalFailure,String businessOutcome,boolean unknownResult,long startedNanos){
+        var trace=TraceContext.current();if(trace==null)return;
+        try{
+            var release=new ReleaseMetadata(releaseId,revision,technicalFailure,businessOutcome,unknownResult);
+            String outcome=unknownResult||"UNKNOWN".equals(businessOutcome)?"UNKNOWN":
+                technicalFailure||"FAILURE".equals(businessOutcome)?"FAILURE":"SUCCESS";
+            Holder.INSTANCE.record(new Event("release.invocation","invoke",outcome,Math.max(0,System.nanoTime()-startedNanos),
+                trace.traceId(),trace.spanId(),trace.parentSpanId(),trace.requestId(),null,release));
+        }catch(RuntimeException invalid){Holder.INSTANCE.drop();} // Diagnostics cannot replace a business result/exception.
     }
     public static void record(String kind,String operation,String outcome,long startedNanos){
         var trace=TraceContext.current();if(trace==null)return;

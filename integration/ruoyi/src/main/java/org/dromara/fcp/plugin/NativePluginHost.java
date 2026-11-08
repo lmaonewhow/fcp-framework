@@ -43,11 +43,17 @@ public final class NativePluginHost implements HostCapabilities {
                 && Set.of("reconcile","enable","disable","status").contains(grant.operation())
                 && grant.dataScope().equals("tenant:"+context.tenantId());
             if(context.principal().id().equals("fcp-control-recovery"))return new Decision(recovery && tenantActive(context.tenantId()),0);
-            if(grant.capability().equals("plugin.lifecycle")||grant.capability().equals("storage.schema"))return new Decision(false,0);
+            if(grant.capability().equals("system.release")||grant.capability().equals("plugin.lifecycle")||grant.capability().equals("storage.schema"))return new Decision(false,0);
             PluginPolicy.Permission task=policy.permission(context,normalize(grant));
             return new Decision(tenantActive(context.tenantId())&&task!=null&&task.granted(),task==null?0:task.revision());
         }
         UserPolicy user=readUser(context.tenantId(),context.principal().id());
+        if(grant.capability().equals("system.release")) {
+            boolean supported=Set.of("view","manage").contains(grant.operation());
+            boolean platform=context.tenantId().equals("000000");
+            boolean scope=grant.dataScope().equals("tenant:"+context.tenantId());
+            return new Decision(supported&&platform&&scope&&user.permissions().contains("fcp:release:"+grant.operation()),user.revision());
+        }
         if(grant.capability().equals("plugin.lifecycle")) {
             String op=grant.operation();
             String permission=Set.of("status","view").contains(op)?"fcp:plugin:view":
@@ -100,10 +106,10 @@ public final class NativePluginHost implements HostCapabilities {
             try(PreparedStatement q=prepare(c,active,tenant,user);ResultSet rs=q.executeQuery()) {
                 if(!rs.next())throw new FcpException("PERMISSION_DENIED","Account or tenant unavailable");
             }
-            String roles="SELECT DISTINCT m.perms FROM sys_user_role ur JOIN sys_role r ON r.role_id=ur.role_id JOIN sys_role_menu rm ON rm.role_id=r.role_id JOIN sys_menu m ON m.menu_id=rm.menu_id JOIN sys_tenant t ON t.tenant_id=r.tenant_id LEFT JOIN sys_tenant_package p ON p.package_id=t.package_id WHERE r.tenant_id=? AND ur.user_id=? AND r.status='0' AND r.del_flag='0' AND m.status='0' AND m.perms LIKE 'fcp:plugin:%' AND (t.tenant_id='000000' OR (p.status='0' AND p.del_flag='0' AND FIND_IN_SET(CAST(m.menu_id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_bin,p.menu_ids COLLATE utf8mb4_bin)>0)) LIMIT 257";
+            String roles="SELECT DISTINCT m.perms FROM sys_user_role ur JOIN sys_role r ON r.role_id=ur.role_id JOIN sys_role_menu rm ON rm.role_id=r.role_id JOIN sys_menu m ON m.menu_id=rm.menu_id JOIN sys_tenant t ON t.tenant_id=r.tenant_id LEFT JOIN sys_tenant_package p ON p.package_id=t.package_id WHERE r.tenant_id=? AND ur.user_id=? AND r.status='0' AND r.del_flag='0' AND m.status='0' AND (m.perms LIKE 'fcp:plugin:%' OR m.perms IN ('fcp:release:view','fcp:release:manage')) AND (t.tenant_id='000000' OR (p.status='0' AND p.del_flag='0' AND FIND_IN_SET(CAST(m.menu_id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_bin,p.menu_ids COLLATE utf8mb4_bin)>0)) LIMIT 257";
             try(PreparedStatement q=prepare(c,roles,tenant,user);ResultSet rs=q.executeQuery()) {
                 int rows=0;while(rs.next()) { if(++rows>256)throw new FcpException("PERMISSION_DENIED","Permission limit exceeded");
-                    String value=rs.getString(1);if(value!=null)for(String p:value.split(","))if(p.trim().startsWith("fcp:plugin:"))permissions.add(p.trim()); }
+                    String value=rs.getString(1);if(value!=null)for(String p:value.split(","))if(p.trim().startsWith("fcp:plugin:")||Set.of("fcp:release:view","fcp:release:manage").contains(p.trim()))permissions.add(p.trim()); }
             }
             try(PreparedStatement q=prepare(c,"SELECT class_id FROM fcp_eval_assignment WHERE scope_id=? AND subject_id=? ORDER BY class_id LIMIT 257","tenant-"+tenant,user);ResultSet rs=q.executeQuery()) {
                 while(rs.next()){scopes.add("class:"+rs.getString(1));if(scopes.size()>256)throw new FcpException("PERMISSION_DENIED","Scope limit exceeded");}

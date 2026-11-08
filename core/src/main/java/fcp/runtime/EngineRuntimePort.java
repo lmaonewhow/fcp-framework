@@ -58,6 +58,10 @@ public final class EngineRuntimePort implements RuntimePort,AutoCloseable {
         registry.factories.put("host-capability",(document,scope)->{String source=str(obj(document,"config").get("plugin"));return (ctx,cap,op,input)->{
             TrustedContext trusted=trusted(ctx);if(!source.equals(invocationSources.get().peek()))throw new FcpException("DEPENDENCY_NOT_DECLARED","Host capability source binding mismatch");if(callDeadline.get()==null||System.nanoTime()>=callDeadline.get())throw new FcpException("DEADLINE","Parent invocation deadline expired");HostBinding binding=authorizeHost(trusted,source,cap,input);
             if(binding.contract().sideEffects()&&!Boolean.TRUE.equals(journaled.get()))throw new FcpException("SIDE_EFFECT_CONTEXT_REQUIRED","Host write requires a journaled top-level operation");
+            if(host instanceof HostCommitFence fence)return fence.commit(trusted,()->{
+                HostBinding current=authorizeHost(trusted,source,cap,input);
+                return current.handler().invoke(source,trusted,cap,input);
+            });
             return binding.handler().invoke(source,trusted,cap,input);
         };});
         registry.factories.put("managed-stdio",(document,scope)->{String p=str(obj(document,"config").get("plugin"));return (ctx,cap,op,input)->invokeProvider(ctx,p,cap,input);});

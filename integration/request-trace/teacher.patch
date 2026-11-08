@@ -1,23 +1,60 @@
+diff --git a/src/service/request/index.ts b/src/service/request/index.ts
+index da579d3..c4afcbe 100644
 --- a/src/service/request/index.ts
 +++ b/src/service/request/index.ts
-@@ -1,3 +1,4 @@
-+import { responseError, withResponseTrace } from '@/fcp/trace';
+@@ -1,3 +1,5 @@
++import { clearTraceNotice, responseError, withResponseTrace } from '@/fcp/trace';
++import { watch } from 'vue';
  import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
  import { BACKEND_ERROR_CODE, REQUEST_CANCELED_CODE, createFlatRequest } from '@sa/axios';
  import { useAuthStore } from '@/store/modules/auth';
-@@ -51,6 +52,7 @@
+@@ -8,6 +10,25 @@ import { decrypt, encrypt } from '@/utils/jsencrypt';
+ import { getAuthorization, handleExpiredRequest, showErrorMsg } from './shared';
+ import type { RequestInstanceState } from './type';
+
++// Diagnostic scope stays in memory, never in request headers, URLs or serialized config.
++const traceScopes = new WeakMap<object, () => boolean>();
++let traceWatching = false;
++function traceIdentity(): string {
++  const auth = useAuthStore();
++  return JSON.stringify([localStg.get('token'), auth.token, auth.userInfo.user?.userId, auth.userInfo.user?.tenantId]);
++}
++function captureTraceScope(config: InternalAxiosRequestConfig): void {
++  if (!traceWatching) {
++    watch(traceIdentity, () => clearTraceNotice(), { flush: 'sync' });
++    traceWatching = true;
++  }
++  const identity = traceIdentity();
++  traceScopes.set(config, () => !config.signal?.aborted && traceIdentity() === identity);
++}
++function traceCurrent(config?: InternalAxiosRequestConfig): boolean {
++  return Boolean(config && traceScopes.get(config)?.());
++}
++
+ const encryptHeader = 'encrypt-key';
+ const isHttpProxy = import.meta.env.DEV && import.meta.env.VITE_HTTP_PROXY === 'Y';
+ const { baseURL } = getServiceBaseURL(import.meta.env, isHttpProxy);
+@@ -21,6 +42,7 @@ export const request = createFlatRequest<App.Service.Response, RequestInstanceSt
+   },
+   {
+     async onRequest(config) {
++      captureTraceScope(config);
+       const isToken = config.headers?.isToken === false;
+       // set token
+       const token = localStg.get('token');
+@@ -51,6 +73,7 @@ export const request = createFlatRequest<App.Service.Response, RequestInstanceSt
        return String(response.data.code) === import.meta.env.VITE_SERVICE_SUCCESS_CODE;
      },
      async onBackendFail(response, instance) {
-+      responseError(response.data.msg || '宿主请求失败', response);
++      if (traceCurrent(response.config)) responseError(response.data.msg || '宿主请求失败', response);
        const authStore = useAuthStore();
        const responseCode = String(response.data.code);
- 
-@@ -161,6 +163,7 @@
+
+@@ -161,6 +184,7 @@ export const request = createFlatRequest<App.Service.Response, RequestInstanceSt
        }
- 
+
        let message = error.message;
-+      withResponseTrace(error, error.response);
- 
++      if (traceCurrent(error.config ?? error.response?.config)) withResponseTrace(error, error.response);
+
        let backendErrorCode = '';
- 
+

@@ -59,6 +59,7 @@ def redis_get(password: str, key: str):
 
 class Fixture:
     def __init__(self, database, sql, private_dir, redis_password, redis_prefix):
+        self.ui_bootstrap_reason = "DISABLED"
         if os.environ.get('GITHUB_ACTIONS') != 'true' or not re.fullmatch(r'fcp_ci_[a-f0-9]{12}', database):
             raise RuntimeError('This fixture only accepts a freshly created disposable CI database')
         import bcrypt
@@ -155,6 +156,18 @@ class Fixture:
                         self.check(role+' page title and framework health', bool(page.title()) and not page.locator('vite-error-overlay').count())
                         token = native_token(context.storage_state(), base)
                         client = NativeClient(base, token, 'e5cd7e4891bf95d1d19206ce24a7b32e')
+                        status, body = client.request('/fcp/ui/releases/bootstrap?shell='+shell)
+                        self.check(role+' initial UI bootstrap is authenticated explicit embedded success',
+                                   status == 200 and body.get('code') == 200 and body.get('data') ==
+                                   dict(mode='EMBEDDED', shell=shell, reason=self.ui_bootstrap_reason))
+                        if role == 'teacher':
+                            denied_status, denied_body = client.request('/fcp/ui/releases/bootstrap?shell=admin')
+                            self.check('embedded bootstrap cannot grant teacher the admin shell',
+                                       denied_status == 403 and denied_body.get('code') == 403)
+                        if role == 'admin':
+                            denied_status, denied_body = client.request('/fcp/ui/releases/bootstrap?shell=admin', token=False)
+                            self.check('embedded bootstrap still requires native login',
+                                       denied_status in (401, 403) or denied_body.get('code') in (401, 403))
                         def snapshot(): return client.data('/fcp/ingestion/bootstrap')
                         def dataset(entity): return client.data('/fcp/ingestion/data/'+entity+'?classId=class-a')
                         def select(entity):
@@ -166,7 +179,12 @@ class Fixture:
                                 page.get_by_test_id('toggle-'+plugin).click()
                             self.check('UI toggle '+plugin, response.value.json().get('code') == 200)
                             expect(marker).to_have_attribute('aria-busy', 'false')
-                        def import_ui(kind):
+                        trace_evidence = None
+                        def import_ui(kind, correlate=False):
+                            nonlocal trace_evidence
+                            if correlate:
+                                from ci_trace_correlation import begin, verify
+                                trace_cursor = begin(self)
                             before = time.monotonic()
                             with page.expect_response(lambda r: r.url.endswith('/fcp/ingestion/imports'), timeout=20000) as response:
                                 page.get_by_test_id('sync-api' if kind == 'connector' else 'import-csv').click()
@@ -174,7 +192,12 @@ class Fixture:
                             self.check('UI '+kind+' import accepted', result.get('code') == 200)
                             expect(marker).to_have_attribute('aria-busy', 'false')
                             self.report.setdefault('importSeconds', []).append(round(time.monotonic()-before, 3))
-                            return result['data'], response.value.request.post_data_json
+                            original = response.value.request.post_data_json
+                            if correlate:
+                                trace_evidence = verify(self, trace_cursor,
+                                    response.value.header_value('X-Trace-Id') or '',
+                                    response.value.header_value('X-Request-Id') or '', original, result['data'])
+                            return result['data'], original
                         if role == 'admin':
                             admin = client
                             self.check('genuine native MySQL host evidence', client.evidence()['buildId'] == build_id)
@@ -183,10 +206,12 @@ class Fixture:
                                 select(entity)
                                 for kind in ('business', 'connector', 'adapter'): toggle_ui(entity+'.'+kind)
                             select('roster')
-                            receipt, original = import_ui('connector')
+                            receipt, original = import_ui('connector', correlate=True)
                             self.check('paginated native API import', receipt['inserted'] == 3 and len(dataset('roster')['records']) == 3)
                             replay = client.data('/fcp/ingestion/imports', original)
                             self.check('native transaction idempotent replay', replay['replayed'] and replay['version'] == receipt['version'])
+                            from ci_trace_correlation import verify_replay
+                            verify_replay(self, trace_evidence)
                             page.get_by_test_id('csv-file').set_input_files(ROOT/'fixtures/ingestion/roster.csv')
                             receipt, _ = import_ui('adapter')
                             self.check('roster CSV updates and inserts', receipt['inserted'] == 1 and receipt['updated'] == 1 and len(dataset('roster')['records']) == 4)

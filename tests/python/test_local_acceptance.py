@@ -43,6 +43,8 @@ class LocalAcceptanceTests(unittest.TestCase):
    def install(project,name,*args):
     if name=='teacher':raise native.BuildError('Deliberate unit fixture failure')
     (project/'package-lock.json').write_text(lock);(project/'dist').mkdir()
+    (project/'dist/index.html').write_text('<html><head></head><body>unit fixture</body></html>')
+    (project/'.env.production.local').write_text("VITE_APP_CLIENT_ID='unit-client'\n")
     return 'generated-npm-lock'
    with patch.object(native,'install_frontend',side_effect=install),patch.object(native,'run'),patch.object(native,'validate_dist'),self.assertRaises(native.BuildError):
     native.build(projects,root,True)

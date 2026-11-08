@@ -75,7 +75,7 @@ INSERT INTO sys_menu(menu_id,menu_name,parent_id,order_num,path,component,menu_t
 VALUES(950520,'CI runtime echo',942020,99,'',NULL,'F','fcp:plugin:echo','#',1,1,'0','0',1,NOW());
 INSERT INTO sys_role(role_id,tenant_id,role_name,role_key,role_sort,data_scope,status,del_flag,create_by,create_time)
 VALUES(950510,'000000','CI runtime manager','fcp_ci_runtime_manager',90,'5','0','0',1,NOW()),(950511,'000000','CI runtime viewer','fcp_ci_runtime_viewer',91,'5','0','0',1,NOW());
-INSERT INTO sys_role_menu(role_id,menu_id) VALUES(950510,942000),(950510,942020),(950510,942021),(950510,942022),(950510,950520),(950511,942000),(950511,942020),(950511,950520);
+INSERT INTO sys_role_menu(role_id,menu_id) VALUES(950510,942000),(950510,942020),(950510,942021),(950510,942022),(950510,950520),(950510,942030),(950510,942031),(950511,942030),(950511,942000),(950511,942020),(950511,950520);
 INSERT INTO sys_user_role(user_id,role_id) VALUES(1,950510),(950001,950511);
 """)
         self._write()
@@ -192,6 +192,8 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(1,950510),(950001,950511);
                     evidence=admin.evidence();self.check('genuine pinned native Spring MySQL build',evidence.get('buildId')==build_id)
                     self.report['nativeEvidence']={key:evidence.get(key) for key in ('implementation','backendCommit','springBoot','database','databaseName','buildId')}
                     status,body=admin.request('/fcp/plugins',token=False);self.check('runtime API rejects missing native token',status>=400 or str(body.get('code'))!='200')
+                    from system_release_acceptance import verify_system_release
+                    verify_system_release(self,admin,Client(base,self.token(states['teacher'],base),admin.client_id),browser,states,base)
                     revision=admin.data('/fcp/plugins')['revision']
                     packages={}
                     for language in ('python','node'):
@@ -257,10 +259,21 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(1,950510),(950001,950511);
                     self.report['browser']='PASS';self.assert_pid(pid,pid_provider,'after both browser shells')
                     from ui_boundaries import verify_ui_boundaries, make_tenant_relogin
                     viewers={role:Client(base,self.token(states[role],base),'e5cd7e4891bf95d1d19206ce24a7b32e') for role in states}
+                    # Deliberately grant release menus to a synthetic non-platform role. Backend must still reject it.
+                    self.sql(f"USE `{self.database}`; INSERT INTO sys_role_menu(role_id,menu_id) VALUES(960611,942030),(960611,942031); UPDATE sys_tenant_package SET menu_ids=CONCAT(menu_ids,',942030,942031') WHERE package_id=960620;")
+                    tenant_login=make_tenant_relogin(self.login_fixture,base)
+                    def checked_tenant_login(page,shell):
+                        from ui_boundaries import is_rejected
+                        client=tenant_login(page,shell)
+                        status,body=client.request('/fcp/releases/versions')
+                        self.check(shell+' non-platform release viewer denied despite explicit role grant',is_rejected(status,body))
+                        status,body=client.request('/fcp/releases/reconcile',{})
+                        self.check(shell+' non-platform release manager denied despite explicit role grant',is_rejected(status,body))
+                        return client
                     boundaries=verify_ui_boundaries(browser=browser,base=base,database=self.database,
                         storage_states=states,viewer_apis=viewers,admin_api=admin,build_id=build_id,
                         output_dir=self.output/'ui-boundaries',capability_id=exported('ci.python'),
-                        slow_message='fcp-slow:identity-test',tenant_login=make_tenant_relogin(self.login_fixture,base))
+                        slow_message='fcp-slow:identity-test',tenant_login=checked_tenant_login)
                     self.report['uiBoundaries']=boundaries
                     self.check('both real shells pass declared UI and logout boundaries',boundaries.get('status')=='PASS')
                     self.assert_pid(pid,pid_provider,'after cross-browser and logout boundaries')
