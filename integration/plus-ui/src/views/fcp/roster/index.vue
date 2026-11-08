@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import Workspace from '@/fcp/education-roster/Workspace.vue';
+import Workspace from './generated/Workspace.vue';
 const buildId = String(import.meta.env.VITE_FCP_BUILD_ID || '');
 </script>
 <template>

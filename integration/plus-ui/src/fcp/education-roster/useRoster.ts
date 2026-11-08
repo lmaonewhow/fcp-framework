@@ -1,5 +1,7 @@
+import { schema } from '@/api/fcp/education/generated/roster.schema';
+import { generatedOperation } from '@/fcp/education/generatedSchema';
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from 'vue';
-import * as api from './api';
+import * as api from '@/api/fcp/education/generated/roster.api';
 import { detailOperation, listOperation, type Capabilities, type Kind, type ReadOperation, type Relation, type School } from './contracts';
 export function useRoster() {
   const capabilities = ref<Capabilities | null>(null),
@@ -20,6 +22,7 @@ export function useRoster() {
   let generation = 0,
     controller: AbortController | undefined;
   const allowed = (operation: ReadOperation) =>
+    generatedOperation(schema, operation) &&
     identityValid.value &&
     capabilities.value?.status === 'READY' &&
     capabilities.value.operations[operation] === true &&

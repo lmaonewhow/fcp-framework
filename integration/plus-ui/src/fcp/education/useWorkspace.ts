@@ -10,8 +10,19 @@ import {
   type EntityKind,
   type BusinessOperation
 } from './business';
-import { listSchools, listOrganizations, listTerms, listClasses, getEntity, writeEntity, lookupOperation, FoundationError } from './businessApi';
+import {
+  listSchools,
+  listOrganizations,
+  listTerms,
+  listClasses,
+  getEntity,
+  writeEntity,
+  lookupOperation,
+  FoundationError
+} from '@/api/fcp/education/generated/foundation.api';
 import { requiredText } from './scalars';
+import { schema } from '@/api/fcp/education/generated/foundation.schema';
+import { resource, generatedOperation } from './generatedSchema';
 interface Pending {
   intentId: string;
   schoolId: string;
@@ -52,14 +63,26 @@ export function useWorkspace(capabilities: FoundationCapabilities, storageKey: s
     rootSchool = ref(false);
   const pending = ref<Pending | null>(null),
     persistenceError = ref(false);
-  const form = ref({ name: '', code: '', parentId: '', orgKind: 'DEPARTMENT', validFrom: '', gradeCode: '' });
+  const form = ref({
+    name: '',
+    code: '',
+    parentId: '',
+    orgKind: 'DEPARTMENT',
+    validFrom: '',
+    gradeCode: ''
+  });
   const selectedSchool = computed(() => schools.value.find((item) => item.id === schoolId.value));
   const selectedTerm = computed(() => terms.value.find((item) => item.id === termId.value));
   const rows = computed(() => (kind.value === 'organizations' ? organizations.value : classes.value));
   let generation = 0,
     controller: AbortController | undefined;
   function allowed(operation: BusinessOperation): boolean {
-    return authorityValid.value && capabilities.operations[operation] === true && selectedSchool.value?.operations[operation] === true;
+    return (
+      generatedOperation(schema, operation) &&
+      authorityValid.value &&
+      capabilities.operations[operation] === true &&
+      selectedSchool.value?.operations[operation] === true
+    );
   }
   function clearSelection() {
     detail.value = null;
@@ -203,7 +226,7 @@ export function useWorkspace(capabilities: FoundationCapabilities, storageKey: s
     if (!authorityValid.value || busy.value || saving.value || pending.value || persistenceError.value) return;
     if (
       newSchool
-        ? !capabilities.operations.schoolCreate
+        ? !(generatedOperation(schema, 'schoolCreate') && capabilities.operations.schoolCreate)
         : !allowed(kind.value === 'organizations' ? (rename ? 'orgRename' : 'orgCreate') : rename ? 'classRename' : 'classCreate')
     )
       return;
@@ -236,7 +259,7 @@ export function useWorkspace(capabilities: FoundationCapabilities, storageKey: s
     const targetKind = rootSchool.value ? 'organizations' : kind.value;
     if (
       rootSchool.value
-        ? !capabilities.operations.schoolCreate
+        ? !(generatedOperation(schema, 'schoolCreate') && capabilities.operations.schoolCreate)
         : !allowed(targetKind === 'organizations' ? (editing.value ? 'orgRename' : 'orgCreate') : editing.value ? 'classRename' : 'classCreate')
     )
       return;
@@ -249,7 +272,10 @@ export function useWorkspace(capabilities: FoundationCapabilities, storageKey: s
         body = { intentId, name, expectedRowVersion: detail.value.rowVersion };
         path = `/${targetKind}/${detail.value.id}/rename`;
       } else if (targetKind === 'organizations') {
-        const code = requiredText(form.value.code, 64),
+        const code = requiredText(
+            form.value.code,
+            resource(schema, targetKind).create.find((field) => field.name === (targetKind === 'organizations' ? 'orgCode' : 'classCode'))!.maxLength!
+          ),
           instant = form.value.validFrom;
         if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z$/.test(instant)) throw new Error('请输入明确的UTC时刻，例如 2026-11-08T00:00:00Z。');
         if (!rootSchool.value && form.value.parentId !== schoolId.value && !organizations.value.some((item) => item.id === form.value.parentId))
@@ -269,8 +295,8 @@ export function useWorkspace(capabilities: FoundationCapabilities, storageKey: s
           intentId,
           name,
           termId: termId.value,
-          classCode: requiredText(form.value.code, 64),
-          gradeCode: requiredText(form.value.gradeCode, 40)
+          classCode: requiredText(form.value.code, resource(schema, 'classes').create.find((field) => field.name === 'classCode')!.maxLength!),
+          gradeCode: requiredText(form.value.gradeCode, resource(schema, 'classes').create.find((field) => field.name === 'gradeCode')!.maxLength!)
         };
         path = `/schools/${schoolId.value}/classes`;
       }
@@ -294,10 +320,12 @@ export function useWorkspace(capabilities: FoundationCapabilities, storageKey: s
     saving.value = true;
     error.value = '';
     notice.value = '';
+    const mutationGeneration = generation;
     const mutation = new AbortController();
     controller = mutation;
     try {
       const receipt = await writeEntity(targetKind, path!, body!, mutation.signal);
+      if (mutationGeneration !== generation) return;
       const result = receipt.record;
       detailSchool.value = rootSchool.value ? '' : schoolId.value;
       detailKind.value = targetKind;
@@ -308,6 +336,7 @@ export function useWorkspace(capabilities: FoundationCapabilities, storageKey: s
         ? `学校已创建，等待部署许可后可管理基础资料。学校编号：${result.id}。`
         : `已保存。记录编号：${result.id}，版本：${result.rowVersion}。请刷新列表查看最新数据。`;
     } catch (failure) {
+      if (mutationGeneration !== generation) return;
       if (failure instanceof FoundationError && !failure.uncertain) {
         savePending(null);
         formOpen.value = false;

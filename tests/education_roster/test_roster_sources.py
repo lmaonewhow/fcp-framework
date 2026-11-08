@@ -29,7 +29,13 @@ class RosterSourceChecks(unittest.TestCase):
             self.assertNotIn(forbidden,resolver)
             self.assertNotIn(forbidden,(ROOT/'core/src/main/java/fcp/education/RosterStore.java').read_text())
     def test_readonly_closed_http_boundary(self):
-        controller=(ROOT/'integration/ruoyi/src/main/java/org/dromara/fcp/education/RosterController.java').read_text()
+        support=(ROOT/'integration/ruoyi/src/main/java/org/dromara/fcp/education/RosterEndpointSupport.java').read_text()
+        generated=(ROOT/'integration/ruoyi/src/main/java/org/dromara/fcp/education/generated/RosterGeneratedController.java').read_text()
+        self.assertNotIn('@RestController',support)
+        self.assertNotRegex(support,r'@(Get|Post|Put|Delete|Patch|Request)Mapping')
+        self.assertIn('extends RosterEndpointSupport',generated)
+        self.assertEqual(1,generated.count('@RestController'))
+        controller=support+'\n'+generated
         self.assertNotRegex(controller,r'@(Post|Put|Delete|Patch)Mapping')
         self.assertEqual(controller.count('@GetMapping'),4)
         self.assertEqual(controller.count('.header("Cache-Control","no-store")'),2)

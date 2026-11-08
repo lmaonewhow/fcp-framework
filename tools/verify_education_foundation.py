@@ -29,7 +29,7 @@ def main():
         report['gitHead']=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
         report['gitStatus']=subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True)
         paths=[]
-        for glob in ('core/src/main/java/fcp/education/*.java','integration/ruoyi/src/main/java/org/dromara/fcp/education/*.java','tests/education/*','sql/education/*','tools/*education*.py','contracts/education/*.json','docs/education/*.md'):
+        for glob in ('core/src/main/java/fcp/education/*.java','integration/ruoyi/src/main/java/org/dromara/fcp/education/**/*.java','tests/education/*','sql/education/*','tools/*education*.py','contracts/education/*.json','docs/education/*.md'):
             paths.extend(p for p in ROOT.glob(glob) if p.is_file())
         report['sourceSha256']={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(set(paths))}
         save()

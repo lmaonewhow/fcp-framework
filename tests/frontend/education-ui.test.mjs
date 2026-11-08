@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import ElementPlus from 'element-plus';
-import Workspace from '@/fcp/education/Workspace.vue';
+import Workspace from '@/views/fcp/education/generated/Workspace.vue';
 import { operationLabels } from '@/fcp/education/contracts';
 const probe = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('@/utils/request', () => ({ default: probe.request }));

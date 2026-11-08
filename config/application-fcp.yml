@@ -10,6 +10,8 @@ server:
       io: 2
       worker: 32
 spring:
+  application:
+    name: 智慧云校
   lifecycle:
     timeout-per-shutdown-phase: 30s
   config:
@@ -76,6 +78,9 @@ security:
     - /*/api-docs
     - /*/api-docs/**
 springdoc:
+  info:
+    title: 智慧云校接口文档
+    description: 学校教学业务与管理服务接口
   api-docs:
     enabled: false
 management:

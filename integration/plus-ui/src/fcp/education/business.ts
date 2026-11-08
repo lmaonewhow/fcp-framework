@@ -1,3 +1,5 @@
+import { schema } from '@/api/fcp/education/generated/foundation.schema';
+import { resource } from './generatedSchema';
 import { uint64, businessDate, requiredText } from './scalars';
 export type BusinessOperation =
   | 'orgList'
@@ -118,8 +120,11 @@ export function term(value: unknown): Term {
 export function page<T>(value: unknown, parse: (item: unknown) => T): Page<T> {
   const v = object(value);
   if (!Array.isArray(v.items)) throw new Error('无效的列表响应。');
-  return { items: v.items.map(parse), nextAfterId: v.nextAfterId === null ? null : uint64(v.nextAfterId) };
+  return {
+    items: v.items.map(parse),
+    nextAfterId: v.nextAfterId === null ? null : uint64(v.nextAfterId)
+  };
 }
 export function commandName(value: string, kind: EntityKind) {
-  return requiredText(value, kind === 'organizations' ? 190 : 128);
+  return requiredText(value, resource(schema, kind).create.find((field) => field.name === 'name')!.maxLength!);
 }

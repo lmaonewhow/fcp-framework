@@ -35,7 +35,15 @@ class NativeContract(unittest.TestCase):
         self.assertIn('CAST(u.tenant_id AS BINARY)',source)
         self.assertIn('actor.tenant().equals(rows.getString(1))',source)
     def test_no_delete_or_status_endpoint(self):
-        source=(ROOT/'integration/ruoyi/src/main/java/org/dromara/fcp/education/FoundationController.java').read_text()
+        support=(ROOT/'integration/ruoyi/src/main/java/org/dromara/fcp/education/FoundationEndpointSupport.java').read_text()
+        generated=(ROOT/'integration/ruoyi/src/main/java/org/dromara/fcp/education/generated/FoundationGeneratedController.java').read_text()
+        self.assertNotIn('@RestController',support)
+        self.assertNotRegex(support,r'@(Get|Post|Put|Delete|Patch|Request)Mapping')
+        self.assertIn('extends FoundationEndpointSupport',generated)
+        self.assertEqual(1,generated.count('@RestController'))
+        self.assertEqual(3,generated.count('@PostMapping'))
+        self.assertEqual(6,generated.count('@GetMapping'))
+        source=support+'\n'+generated
         for bad in ('@DeleteMapping','@PutMapping','@PatchMapping','privateRef','@RequestHeader'):
             self.assertNotIn(bad,source)
         self.assertIn('identity.current()',source)

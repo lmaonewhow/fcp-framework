@@ -40,9 +40,14 @@ def private(path:Path,content:str):
 
 def parse_args(argv=None):
  parser=argparse.ArgumentParser(description=__doc__)
+ parser.add_argument('--education-generator',action='store_true',help='Verify the actual P042-generated clone and native safe-apply UI; requires --ingestion --education --roster --generator')
  parser.add_argument('--roster',action='store_true',help='School roster acceptance; requires --education and genuine ingestion')
  parser.add_argument('--education',action='store_true',help='Fresh isolated education schema and foundation acceptance; requires --ingestion')
- parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');parser.add_argument('--plugin-releases',action='store_true',help='Real dual-UI and multi-plugin composite release acceptance; requires --ingestion, excludes --exchange');a=parser.parse_args(argv)
+ parser.add_argument('--generator-business',action='store_true',help='Package and run generated synthetic business CRUD in the owned disposable database; requires --generator and --ingestion');parser.add_argument('--generator',action='store_true',help='Real generator source-application acceptance; requires --ingestion');parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');parser.add_argument('--plugin-releases',action='store_true',help='Real dual-UI and multi-plugin composite release acceptance; requires --ingestion, excludes --exchange');a=parser.parse_args(argv)
+ if a.education_generator and not (a.ingestion and a.education and a.roster and a.generator):parser.error('--education-generator requires --ingestion --education --roster --generator')
+ if a.generator_business and not (a.generator and a.ingestion):parser.error('--generator-business requires --generator and --ingestion')
+ if a.generator and not a.ingestion:parser.error('--generator requires genuine --ingestion login fixture')
+ if a.generator_business and (a.education or a.roster):parser.error('--generator-business must run separately from education/roster until the rebuilt JAR digest is rebound')
  if a.exchange and not a.ingestion:parser.error('--exchange requires genuine --ingestion login fixture')
  if a.plugin_releases and not a.ingestion:parser.error('--plugin-releases requires genuine --ingestion login fixture')
  if a.plugin_releases and a.exchange:parser.error('--plugin-releases is isolated from the legacy --exchange execution port')
@@ -51,17 +56,30 @@ def parse_args(argv=None):
  if a.education and (a.exchange or a.plugin_releases):parser.error('--education uses its own isolated composition, not exchange or release mutation scenarios')
  return a
 
+def wait_fused_generator_login_window():
+ # Preserve the native 20/IP/60s limit between roster and generator role batches.
+ started=time.monotonic();time.sleep(60)
+ elapsed=time.monotonic()-started
+ if elapsed<60:raise RuntimeError('The complete native generator login window did not elapse')
+ return {'stage':'generator-apply','waitSeconds':round(elapsed,3),'nativeRateLimitChanged':False}
+
 def run()->int:
  a=parse_args()
- report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeStorageLifecycle':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'runtimeComposition':{'status':'NOT_RUN'},'production':'BLOCKED'}
- process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None;failure_fixture=None;storage_lifecycle_fixture=None;composition_fixture=None;deployment_user=None;deployment_password=None
+ report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeStorageLifecycle':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'runtimeComposition':{'status':'NOT_RUN'},'generatorApply':{'status':'NOT_RUN'},'production':'BLOCKED'}
+ generator_fixture=None;process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None;failure_fixture=None;storage_lifecycle_fixture=None;composition_fixture=None;deployment_user=None;deployment_password=None
  education_plan=None;education_fixture=None;roster_fixture=None;foundation_browser_result=None
  report['educationFoundation']={'status':'NOT_RUN'}
  report['educationRoster']={'status':'NOT_RUN'}
+ report['educationGenerator']={'status':'NOT_RUN'}
  try:
   if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')
+  if a.education_generator:
+   from ci_education_codegen import validate_prebuild_report
+   # Read-only exact-source/receipt verification precedes any database operation.
+   report['educationGenerationInputs']=validate_prebuild_report(ROOT)
   requirements=doctor()
   if requirements['status']!='READY' or not shutil.which('mysql'):raise PrerequisiteError('Build tools/network/mysql CLI missing')
+  if a.generator_business and not shutil.which('mysqldump'):raise PrerequisiteError('Generated business acceptance requires mysqldump for the reviewed menu backup')
   root_password=os.environ.get('FCP_CI_MYSQL_PASSWORD','')
   if not re.fullmatch('[A-Za-z0-9_-]{16,100}',root_password):raise PrerequisiteError('Explicit CI MySQL fixture password is required')
   private_cleanup=OwnedDisposableDirectory.create();private_dir=private_cleanup.path
@@ -158,6 +176,11 @@ def run()->int:
     deployment_user='fcpx_'+secrets.token_hex(6);deployment_password=secrets.token_hex(24)
     sql(f"CREATE USER '{deployment_user}'@'%' IDENTIFIED BY '{deployment_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX ON `{database}`.* TO '{deployment_user}'@'%';")
     props+=exchange_fixture.properties()+'\nfcp.runtime.storage-deployment.enabled=true\nFCP_STORAGE_DEPLOYMENT_JDBC_URL='+url+'\nFCP_STORAGE_DEPLOYMENT_USER='+deployment_user+'\nFCP_STORAGE_DEPLOYMENT_PASSWORD='+deployment_password+'\n'
+  if a.generator:
+   sys.path.insert(0,str(ROOT/'tests/generator'))
+   from native_acceptance import GeneratorFixture
+   generator_fixture=GeneratorFixture(fixture)
+   props+=generator_fixture.properties()
   private(private_dir/'fcp-runtime.properties',props)
   # @SpringBootTest in the pinned upstream initializes FCP and therefore requires the schema first.
   work=ROOT/'work/ci-native'
@@ -174,6 +197,12 @@ def run()->int:
    composition_fixture.ui_versions=prepare_ui_versions(release/'BUILD-EVIDENCE.json',release/'UI-VARIANT-candidate.json',release/'ui-bundles')
    report['uiVariantBuild']=variant
   jar=release/'ruoyi-admin.jar';driver=private_dir/'mysql-driver.jar'
+  if a.education_generator:
+   verified=validate_prebuild_report(ROOT)
+   if verified!=report['educationGenerationInputs']:raise RuntimeError('Education generation evidence changed during native build')
+   report['educationGenerationBuild']={'sourceCommit':verified['sourceCommit'],'buildId':report['build']['buildId'],
+    'jarSha256':hashlib.sha256(jar.read_bytes()).hexdigest(),'outputDigests':verified['outputDigests'],
+    'rendererSourceSha256':verified['rendererSourceSha256'],'receipt':verified['receipt']}
   if education_plan:
    from ci_education import EducationFixture
    education_fixture=EducationFixture(fixture,education_plan,hashlib.sha256(jar.read_bytes()).hexdigest())
@@ -244,8 +273,9 @@ def run()->int:
   log_path=private_dir/'native-startup.log';started=time.monotonic()
   def start_host():
    nonlocal process
+   if process is not None and process.poll() is None:raise RuntimeError('Refusing overlapping native JVMs sharing isolated runtime roots')
    with log_path.open('a') as log:
-    process=subprocess.Popen(['java','-Xms128m','-Xmx1024m','-jar',str(jar),'--spring.profiles.active=prod,fcp'],cwd=private_dir,stdout=log,stderr=subprocess.STDOUT)
+    process=subprocess.Popen(['java','-Duser.timezone=UTC','-Xms128m','-Xmx1024m','-jar',str(jar),'--spring.profiles.active=prod,fcp'],cwd=private_dir,stdout=log,stderr=subprocess.STDOUT)
    ready=False;start=time.monotonic()
    while time.monotonic()-start<120 and process.poll() is None:
     try:
@@ -254,9 +284,9 @@ def run()->int:
     except (OSError,UnicodeError):pass
     time.sleep(.5)
    if not ready:raise RuntimeError('Native JVM/static management frontend did not become ready')
+  from ci_native_host import stop_host,replace_host
   def restart():
-   process.terminate()
-   process.wait(timeout=35)
+   stop_host(process)
    start_host()
   start_host()
   with urllib.request.urlopen('http://127.0.0.1:18787/teacher/',timeout=5) as response:teacher=response.read(2_000_000).decode()
@@ -267,6 +297,7 @@ def run()->int:
    result=fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],restart)
    report.update(scope=result['scope'],browser=result['status'],ingestion=result['status'],nativeChecks=result['totalChecks'])
    def native_pid():return process.pid if process and process.poll() is None else None
+   from ci_branding import verify_branding
    modules=[]
    if composition_fixture:
     modules.append(NativeModule('runtimeComposition',lambda:composition_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
@@ -338,6 +369,46 @@ def run()->int:
      return result
     modules.append(NativeModule('educationRoster',verify_roster,
      lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'scope':value['scope'],'personDisplayPolicy':value.get('personDisplayPolicy','PENDING')}))
+   def generated_business_pipeline(generated):
+    nonlocal jar
+    from business_database import install_generated_menu
+    from business_runtime import verify_business
+    from native_generated_build import build_generated
+    def prepare():
+     generated.report['menuSqlPlan']=install_generated_menu(fixture,generated.root/'generated/sql/probeMenu.sql',generated.output,mysql_file,database,
+      execution_started=lambda:generated.report.update(generatedSqlExecution='RUNNING'))
+     generated.report['generatedSqlExecution']='PASS'
+     evidence=build_generated(work,private_dir/'fcp-runtime.properties',generated.generated_files,source_commit=generated.report['sourceCommit'])
+     generated.report['generatedBusinessBuild']=evidence
+     return evidence
+    def launch(evidence):
+     nonlocal jar
+     jar=Path(evidence['jarPath'])
+     if hashlib.sha256(jar.read_bytes()).hexdigest()!=evidence['jarSha256']:raise RuntimeError('Generated JAR changed before native launch')
+     generated.report['generatedBusinessRuntime']='RUNNING'
+     start_host()
+     generated.report['generatedJavaPid']=process.pid
+    evidence=replace_host(lambda:stop_host(process),prepare,launch)
+    verify_business(generated,'http://127.0.0.1:18787',evidence)
+   if generator_fixture:
+    def verify_generator_apply():
+     if education_fixture:report['generatorLoginWindow']=wait_fused_generator_login_window()
+     return generator_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],generated_business_pipeline if a.generator_business else None)
+    modules.append(NativeModule('generatorApply',verify_generator_apply,
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'generatedBusinessRuntime':value['generatedBusinessRuntime'],'generatedSqlExecution':value['generatedSqlExecution'],'generatedBusinessBuild':value.get('generatedBusinessBuild')}))
+   if a.education_generator:
+    def verify_education_generation():
+     if report['generatorApply'].get('status')!='PASS':raise RuntimeError('Education generation requires successful generic generator acceptance')
+     import importlib.util
+     spec=importlib.util.spec_from_file_location('education_codegen_native_acceptance',ROOT/'tests/education_codegen/native_acceptance.py')
+     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+     return module.verify_education_codegen(generator_fixture,'http://127.0.0.1:18787',report['build']['buildId'])
+    modules.append(NativeModule('educationGenerator',verify_education_generation,
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'sourceCommit':value['sourceCommit'],
+      'buildId':value['buildId'],'screenshots':value['screenshots'],'prebuildWebOutputEquality':value['prebuildWebOutputEquality']}))
+   # Added navigation coverage runs last, after its own untouched native rate window.
+   modules.append(NativeModule('branding',lambda:verify_branding(fixture,'http://127.0.0.1:18787',report['build']['buildId']),
+    lambda value:{'status':value['status'],'totalChecks':value['totalChecks']}))
    run_native_modules(report,modules,prerequisites_passed=result.get('status')=='PASS' and bool(report.get('build',{}).get('buildId')),
     host_alive=lambda:process is not None and process.poll() is None,
     secrets_provider=lambda:[*fixture.diagnostic_secrets,fixture.password])

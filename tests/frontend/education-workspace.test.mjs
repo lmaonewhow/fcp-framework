@@ -85,4 +85,16 @@ describe('education business state: actual Vue and HTTP unit double, not native 
   it('read failure invalidates prior school grants', async () => {
     const { state } = open(); await select(state); probe.request.mockRejectedValue({ response: { status: 403 } }); await state.loadRows(); expect(state.allowed('orgRename')).toBe(false); state.openForm(); expect(state.formOpen.value).toBe(false);
   });
+  it('identity invalidation ignores a late committed write and retains its original recovery receipt', async () => {
+    let resolve;
+    probe.request.mockImplementation(config => config.method === 'post' ? new Promise(done => { resolve = () => done(handler(config)); }) : handler(config));
+    const { state } = open(); await select(state); await state.showDetail(org); state.openForm(true);
+    const saving = state.submit(); const original = state.pending.value;
+    state.invalidateIdentity(); resolve(); await saving;
+    expect(state.detail.value).toBe(null); expect(state.schools.value).toEqual([]); expect(state.notice.value).toBe('');
+    expect(state.pending.value.intentId).toBe(original.intentId);
+    expect(JSON.parse(sessionStorage.getItem('test-education-pending')).intentId).toBe(original.intentId);
+    expect(probe.request.mock.calls.filter(([config]) => config.method === 'post')).toHaveLength(1);
+  });
+
 });

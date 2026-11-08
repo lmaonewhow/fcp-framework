@@ -9,7 +9,7 @@ class InstallLedgerTests(unittest.TestCase):
   paths=sorted((ROOT/'sql/native').glob('V*.sql'))
   return checked_stages(paths,json.loads((ROOT/'sql/native/migrations.lock.json').read_text()))
  def test_all_real_locked_migrations_in_order(self):
-  stages=self.stages();self.assertEqual([s['version'] for s in stages],list(range(1,9)))
+  stages=self.stages();self.assertEqual([s['version'] for s in stages],list(range(1,10)))
   calls=[]
   def query(sql):calls.append(sql);return '0'
   install_stages(query,stages)

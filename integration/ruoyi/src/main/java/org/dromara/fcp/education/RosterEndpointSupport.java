@@ -8,32 +8,27 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
-/** Native session only. There is deliberately no person route or mutation route. */
-@RestController
-@RequestMapping("/fcp/education/roster")
-public final class RosterController {
+/** Hand-maintained non-routed endpoint support. Generated controllers own the route allowlist.
+ * Native session only. There is deliberately no person route or mutation route. */
+public class RosterEndpointSupport {
     private final NativeFoundationIdentity identity;
     private final ObjectProvider<RosterStore> stores;
-    public RosterController(NativeFoundationIdentity identity,ObjectProvider<RosterStore> stores){this.identity=identity;this.stores=stores;}
+    public RosterEndpointSupport(NativeFoundationIdentity identity,ObjectProvider<RosterStore> stores){this.identity=identity;this.stores=stores;}
     private static ResponseEntity<Map<String,Object>> ok(Object data){return ResponseEntity.ok().header("Cache-Control","no-store").body(Map.of("code",200,"msg","","data",data));}
     private RosterStore store(){RosterStore store=stores.getIfAvailable();if(store==null)throw new FcpException("EDUCATION_NOT_READY","Roster is not enabled");return store;}
-    @GetMapping("/capabilities")
     public ResponseEntity<Map<String,Object>> capabilities(@RequestParam MultiValueMap<String,String> parameters) {
         var actor=identity.current();RosterStore.page(parameters,false);RosterStore store=stores.getIfAvailable();
         if(store==null){identity.requireDiscovery("education:roster:view");return ok(RosterStore.blocked());}
         return ok(store.capabilities(actor.tenant(),actor.actor()));
     }
-    @GetMapping("/schools")
     public ResponseEntity<Map<String,Object>> schools(@RequestParam MultiValueMap<String,String> parameters) {
         var actor=identity.current();var page=RosterStore.page(parameters,true);
         return ok(store().schools(actor.tenant(),actor.actor(),page.afterId(),page.limit()));
     }
-    @GetMapping("/schools/{schoolId}/{kind:enrollments|memberships|assignments}")
     public ResponseEntity<Map<String,Object>> list(@PathVariable String schoolId,@PathVariable String kind,@RequestParam MultiValueMap<String,String> parameters) {
         var actor=identity.current();var page=RosterStore.page(parameters,true);
         return ok(store().list(actor.tenant(),actor.actor(),schoolId,kind,page.afterId(),page.limit()));
     }
-    @GetMapping("/schools/{schoolId}/{kind:enrollments|memberships|assignments}/{id}")
     public ResponseEntity<Map<String,Object>> detail(@PathVariable String schoolId,@PathVariable String kind,@PathVariable String id,@RequestParam MultiValueMap<String,String> parameters) {
         var actor=identity.current();RosterStore.page(parameters,false);
         return ok(store().detail(actor.tenant(),actor.actor(),schoolId,kind,id));

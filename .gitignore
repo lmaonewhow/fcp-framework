@@ -17,3 +17,6 @@ SOURCE-MANIFEST.sha256
 dist/
 core/dist/
 DELIVERY.json
+
+# Private generated-source baselines, plans, and rollback journal.
+.fcp-generator/

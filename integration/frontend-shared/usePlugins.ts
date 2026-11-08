@@ -74,7 +74,7 @@ export function usePlugins(host: NativePluginHost, render: (node: UiNode, ownerI
       for (const id of Object.keys(results.value)) if (![...next.pages,...next.slots].some(p => p.id === id)) delete results.value[id];
     },
     currentPath: () => route.path,
-    restoreDeepLink: path => { if (path) document.title = catalog.value.pages.find(p => p.path === path)?.title ?? 'FCP'; },
+    restoreDeepLink: path => { if (path) document.title = catalog.value.pages.find(p => p.path === path)?.title ?? '智慧云校'; },
     request: async (capabilityId,input,options) => {
       const affinity = pending.value ? pending.value.affinity : await getReleaseAffinity();
       return host.request(`/fcp/capabilities/${encodeURIComponent(capabilityId)}/invoke`,'POST',{input,expectedRevision:options.revision,idempotencyKey:options.idempotencyKey},options.signal,{headers: affinity ? {'X-FCP-Release-Affinity':affinity} : {}});

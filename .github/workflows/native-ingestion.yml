@@ -28,7 +28,7 @@ concurrency:
 jobs:
   native:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     services:
       mysql:
         image: mysql:8.4
@@ -75,7 +75,7 @@ jobs:
           python3 tools/verify_components.py
           python3 tools/verify_ingestion.py
           python3 tools/verify_devhost_shell.py
-          python3 tools/ci_native.py --ingestion --exchange 2>&1 | tee reports/native-ci-console.log
+          python3 tools/ci_native.py --ingestion --exchange --generator --generator-business 2>&1 | tee reports/native-ci-console.log
       - uses: actions/cache/save@v4
         if: always() && steps.dependencies.outputs.cache-hit != 'true'
         with:
@@ -97,6 +97,7 @@ jobs:
             reports/components.json
             reports/ingestion.json
             reports/native-ingestion/
+            reports/native-branding/
             reports/runtime-native/
             reports/runtime-failure-boundaries/
             reports/runtime-portability/
@@ -106,6 +107,10 @@ jobs:
             reports/runtime-exchange-native/
             reports/development-business/
             reports/development-host/
+            reports/generator-native/
+            work/ci-native/generated-release/BUILD-EVIDENCE.json
+            work/ci-native/generated-release/SOURCE-FILES.json
+            work/ci-native/generated-release/*.log
             work/ci-native/release/BUILD-EVIDENCE.json
             work/ci-native/release/admin-package-lock.json
             work/ci-native/release/teacher-pnpm-lock.yaml

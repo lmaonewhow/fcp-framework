@@ -9,13 +9,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
 
-/** Native session identity is always resolved server-side; every domain call revalidates authority. */
-@RestController
-@RequestMapping("/fcp/education/foundation")
-public final class FoundationController {
+/** Hand-maintained non-routed endpoint support. Generated controllers own the route allowlist.
+ * Native session identity is always resolved server-side; every domain call revalidates authority. */
+public class FoundationEndpointSupport {
     private final NativeFoundationIdentity identity;
     private final ObjectProvider<FoundationStore> stores;
-    public FoundationController(NativeFoundationIdentity identity,ObjectProvider<FoundationStore> stores) {
+    public FoundationEndpointSupport(NativeFoundationIdentity identity,ObjectProvider<FoundationStore> stores) {
         this.identity=identity;this.stores=stores;
     }
     private static ResponseEntity<Map<String,Object>> ok(Object value) {
@@ -27,7 +26,6 @@ public final class FoundationController {
         return value;
     }
     private static final class Disabled extends RuntimeException {}
-    @GetMapping("/capabilities")
     public ResponseEntity<Map<String,Object>> capabilities(@RequestParam Map<String,String> parameters) {
         var actor=identity.current();
         if (!parameters.isEmpty()) throw new IllegalArgumentException("Unexpected query parameters");
@@ -35,7 +33,6 @@ public final class FoundationController {
         if(value==null){identity.requireDiscovery();return ok(FoundationCapabilities.blocked());}
         return ok(value.capabilities(actor.tenant(),actor.actor()));
     }
-    @GetMapping("/schools")
     public ResponseEntity<Map<String,Object>> schools(@RequestParam Map<String,String> parameters) {
         var actor=identity.current();
         if(!Set.of("afterId","limit").containsAll(parameters.keySet()))throw new IllegalArgumentException("Unexpected query parameters");
@@ -44,7 +41,6 @@ public final class FoundationController {
         int limit=Integer.parseInt(raw);if(limit>100)throw new IllegalArgumentException("Invalid page size");
         return ok(store().schools(actor.tenant(),actor.actor(),parameters.get("afterId"),limit));
     }
-    @GetMapping("/schools/{schoolId}/{kind:organizations|classes|terms}")
     public ResponseEntity<Map<String,Object>> list(@PathVariable String schoolId,@PathVariable String kind,
                                                    @RequestParam Map<String,String> parameters) {
         var actor=identity.current();
@@ -55,37 +51,31 @@ public final class FoundationController {
         if(limit>100)throw new IllegalArgumentException("Invalid page size");
         return ok(store().list(actor.tenant(),actor.actor(),schoolId,kind,parameters.get("afterId"),limit,parameters.get("termId")));
     }
-    @GetMapping("/{kind:organizations|classes}/{id}")
     public ResponseEntity<Map<String,Object>> detail(@PathVariable String kind,@PathVariable String id,
                                                      @RequestParam Map<String,String> parameters) {
         var actor=identity.current();
         if(!parameters.isEmpty())throw new IllegalArgumentException("Unexpected query parameters");
         return ok(store().detail(actor.tenant(),actor.actor(),null,kind,id));
     }
-    @PostMapping("/schools")
     public ResponseEntity<Map<String,Object>> school(@RequestBody String body) {
         var actor=identity.current();
         return ok(store().command(actor.tenant(),actor.actor(),null,"schools","create",body(body)));
     }
-    @PostMapping("/schools/{schoolId}/{kind:organizations|classes}")
     public ResponseEntity<Map<String,Object>> create(@PathVariable String schoolId,@PathVariable String kind,@RequestBody String body) {
         var actor=identity.current();
         return ok(store().command(actor.tenant(),actor.actor(),schoolId,kind,"create",body(body)));
     }
-    @PostMapping("/{kind:organizations|classes}/{id}/rename")
     public ResponseEntity<Map<String,Object>> rename(@PathVariable String kind,@PathVariable String id,@RequestBody String text) {
         var actor=identity.current();var body=new LinkedHashMap<>(body(text));
         if(body.containsKey("id"))throw new IllegalArgumentException("ID comes from route");
         body.put("id",id);
         return ok(store().command(actor.tenant(),actor.actor(),null,kind,"rename",body));
     }
-    @GetMapping("/schools/{schoolId}/operations/{kind:organizations|classes}/{action:create|rename}/{intentId}")
     public ResponseEntity<Map<String,Object>> operation(@PathVariable String schoolId,@PathVariable String kind,
             @PathVariable String action,@PathVariable String intentId,@RequestParam Map<String,String> parameters) {
         var actor=identity.current();if(!parameters.isEmpty())throw new IllegalArgumentException("Unexpected query parameters");
         return ok(store().operation(actor.tenant(),actor.actor(),schoolId,kind,action,intentId));
     }
-    @GetMapping("/operations/schools/create/{intentId}")
     public ResponseEntity<Map<String,Object>> schoolOperation(@PathVariable String intentId,@RequestParam Map<String,String> parameters) {
         var actor=identity.current();if(!parameters.isEmpty())throw new IllegalArgumentException("Unexpected query parameters");
         return ok(store().operation(actor.tenant(),actor.actor(),null,"schools","create",intentId));

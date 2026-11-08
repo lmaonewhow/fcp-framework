@@ -1,0 +1,188 @@
+{
+  "format": 1,
+  "applicationName": "智慧云校",
+  "upstreams": {
+    "backend": {
+      "commit": "8136a0191a2258c0e1b36a8146a1c5ebc070c139",
+      "patchSha256": "cb2ea2d6ce14edff095eafd18f6abf07c6d55a39668e8a441096c8d04017b5e8",
+      "files": {
+        "ruoyi-admin/src/main/resources/banner.txt": {
+          "before": "6a5c64f3a506a5e2aa0244139d7022b9d4ef59c7e9b9aba1c2949f6e05b92b08",
+          "after": "5d61318757f1014a10e066e01f0795e94ba0fd91c0fd6e3a9c122920e016ce6b"
+        },
+        "ruoyi-admin/src/main/java/org/dromara/DromaraApplication.java": {
+          "before": "4bca99cef960193f46c3987d94fc1bf678d5f05adcdabe11279ff6b6183790e6",
+          "after": "6a1f07d9fb0e01cf365ca919d9fae12baf3b1e8cf73680945f4b364a02f8cec5"
+        }
+      }
+    },
+    "admin": {
+      "commit": "d0d451967676707021b9857df529c395b27e90a7",
+      "patchSha256": "fd3b94f5e44798ae5115bb35b6f45240f3e48f637359f857fc21161c0ffb9b3d",
+      "files": {
+        ".env.development": {
+          "before": "b534af14b7c09a39cbe1c1a1546b82adf2785f26b23845924de256b13f598579",
+          "after": "411cb93cc9d987fe0066c3a48e14419c8724a9bc65b48829e3a157d14af74bf8"
+        },
+        ".env.production": {
+          "before": "f2444448beb44532dc5785c95ebf2c0b1958e248a67e921215037f888febebcf",
+          "after": "2eb90da1b3e6b91fa785219380ae70702fe2b9ddf2eec6e9931dce86b87dcdf8"
+        },
+        "index.html": {
+          "before": "c4e2243533bfa5c4d1bffc0969c7bad186656532de16acb89a5b957caec3136d",
+          "after": "3a6d0bbf580a0fc0233f7d3de437c4d92db39dc8046857fd58e8d0f5ada1b36c"
+        },
+        "public/favicon.ico": {
+          "before": "04032b7524d319db3e2a1c8e493ada1fb84d65eedd72b3f73fa4ae07fcb9854c",
+          "after": null
+        },
+        "public/smart-school.svg": {
+          "before": null,
+          "after": "6323862053f307d71a28bc134f7c8c9d09b6eee5b9203e221fd529794b7939f4"
+        },
+        "public/third-party-notices.txt": {
+          "before": null,
+          "after": "e51fbab02067e8ab5e42b9a68809bad9ec8642c8973e457f388e8981a9c6a08c"
+        },
+        "src/assets/logo/smart-school.svg": {
+          "before": null,
+          "after": "6323862053f307d71a28bc134f7c8c9d09b6eee5b9203e221fd529794b7939f4"
+        },
+        "src/assets/smart-school-avatar.svg": {
+          "before": null,
+          "after": "d5efeb3275722eaa0c61fc12aec244cde3b9452c1b4890ebcde74bbbe97b7d96"
+        },
+        "src/layout/components/Navbar.vue": {
+          "before": "fa554e838bb4970313c53a25d9e69a1c0c050f7feb1adfa579fe2d4a71c0b679",
+          "after": "1cc63e5adffec3c6dd3cbd9e7df7f54e980f30b4b0dec61f37c1c6fbb05875d1"
+        },
+        "src/layout/components/Sidebar/Logo.vue": {
+          "before": "9079bd780f2a2d0b36a5646d030794e76624d26dae6f05f6dfd66b7c1661bfd6",
+          "after": "7dc80f03eef263977be0e86d423167901d87ec50ed9880e93d84291d5c09f10c"
+        },
+        "src/layout/components/notice/index.vue": {
+          "before": "bdc2c1c1337272592b709daa27062af9ee282a3128e7d73953f1caa01e86cc6e",
+          "after": "a4c304b4a924322b0a7da665fa879d132979f937f854e9fd51d0c9542a7d3263"
+        },
+        "src/store/modules/user.ts": {
+          "before": "451eb630cc97c3cf7645f521aae1fc2da29f231539fa7740e3732eb93c836a56",
+          "after": "d253dfc72cdb2d0c447937bb5e7ea0c0aa98cbc0ca6f0268f139fc3124d309c8"
+        },
+        "src/views/index.vue": {
+          "before": "7a52640442ebe34e4671668403308921d52b16976e451fc5854a48c7b8e80745",
+          "after": "e0454c328b72af05c1b26d53feeabf059a4f1dc0d74b2e6f511c5d9ce15c0983"
+        },
+        "src/views/login.vue": {
+          "before": "09a67adc46ab749f5ec334762ce7ecaca54947c58ca04b21085341e4ccc9eddb",
+          "after": "97173d80d3343e12be3b9a17190f8a393ae1c771cf22742bc3fef2aaec795b4b"
+        },
+        "src/views/register.vue": {
+          "before": "55d7cee4327ad1180c9e3e99936575b13b2cdf3cb7574148d93ce935b74cb84f",
+          "after": "16e4946b8e8d96228c15af6310ee27969b9611e822c92aa77fbcfd0de90beaaf"
+        },
+        "src/views/tool/gen/genInfoForm.vue": {
+          "before": "7783da336502da8830afbedfe45455893dc9138336a403c4ef0b79fe2e34c57a",
+          "after": "7e096ab44fae4a57ef37b932c9cb4a06c74fdede9e84be495641af3c1bc8853c"
+        }
+      }
+    },
+    "teacher": {
+      "commit": "4e625111ce173e5c2f40dbfc47475f2849c58feb",
+      "patchSha256": "dacc94a9315582b61c9cd96a3e6fc3b79f9f1b19c11bc172c3f5c97da9b484b8",
+      "files": {
+        ".env": {
+          "before": "4146512d550a96e0474542f90d85b3489697464ef51c388a16d16895eb1322c0",
+          "after": "2d6329f125a51d59c85b09a22b212fa050328fdb18d5bcbb7df518219183c86d"
+        },
+        "index.html": {
+          "before": "cbdb478cd92d0b04ac3de13d55755c425016671c2e034e16dc93a5f7bc3b96d8",
+          "after": "06479eea6d0b935da0eb8008688263d1b7ef744f66586e6a1dcfde247c43632a"
+        },
+        "public/favicon.svg": {
+          "before": "a1442ff17aa57f47f246d290a18991f96d23da53c0b2afb064d8b73db9b8f307",
+          "after": null
+        },
+        "public/smart-school.svg": {
+          "before": null,
+          "after": "6323862053f307d71a28bc134f7c8c9d09b6eee5b9203e221fd529794b7939f4"
+        },
+        "public/third-party-notices.txt": {
+          "before": null,
+          "after": "e51fbab02067e8ab5e42b9a68809bad9ec8642c8973e457f388e8981a9c6a08c"
+        },
+        "src/App.vue": {
+          "before": "af6756f22c8428fd43189468a32513ea847553f6dd6a404570b50992ac4d82df",
+          "after": "ad2d0df2c4891d73309fbef991d70e8301dc0466c3eeb0245ceeb65079baf1fa"
+        },
+        "src/assets/smart-school-avatar.svg": {
+          "before": null,
+          "after": "d5efeb3275722eaa0c61fc12aec244cde3b9452c1b4890ebcde74bbbe97b7d96"
+        },
+        "src/assets/svg-icon/logo.svg": {
+          "before": "a1442ff17aa57f47f246d290a18991f96d23da53c0b2afb064d8b73db9b8f307",
+          "after": "6323862053f307d71a28bc134f7c8c9d09b6eee5b9203e221fd529794b7939f4"
+        },
+        "src/layouts/modules/global-footer/index.vue": {
+          "before": "2926764f8b8ba3ed942df26e5e5da8048d59dc1cd329e644e93a7ffc22ea33b7",
+          "after": "3c1761968870eb1e5bdf66dfb1fe7ac9429a876c4706ac71a9ed9ea3ade2d2b7"
+        },
+        "src/layouts/modules/global-header/components/message-button.vue": {
+          "before": "896c125b75c09ce55a2e9e3175fc5c4b06608fb9e6c6a01a87ee5db3f8ff8aad",
+          "after": "0d6a704832f23fb5b3954a88f2309f9898d11ac10a0c3ffc121600b9b4a0b614"
+        },
+        "src/layouts/modules/global-header/components/user-avatar.vue": {
+          "before": "006b1fea7f8b938d3e269c113b345a96861d2d14d75948964eaaa5e31c88c6ab",
+          "after": "93f3535b3dbd0f66ec6889a6ef96a05094db8a8e2011905c552f37f6ea5f1c83"
+        },
+        "src/layouts/modules/theme-drawer/modules/page-fun.vue": {
+          "before": "03ad21b925a9bab4f97f127d11b3a78ae291862f38c573de019006336b428e03",
+          "after": "574061dc6a8f86665631a511504b7b6488a0d71f7d56eba375a7aef153963ef5"
+        },
+        "src/locales/langs/en-us.ts": {
+          "before": "41d51ba99068d4164d2a83f6f61f32cf3594bc5b16b91e52575a83a027a842ac",
+          "after": "1f82df4774c2da5146d8544b12769ab6ee5f123a30f83b5b8b3e5ab98122d67c"
+        },
+        "src/locales/langs/zh-cn.ts": {
+          "before": "dadf6c997966ac378de6126b07a6b36b8473b4ccdb39a527f1627344f6a89398",
+          "after": "de4416a7c23dd078f7c528e49f6e19fa780af69bcfcf7a0360d38e5a7a54446d"
+        },
+        "src/store/modules/theme/shared.ts": {
+          "before": "9a822d087fccd6313abf40058061ba8b656aa7921fbb2ade6c0ef7d0dd711b81",
+          "after": "c5cd8cd0f89e71506f89aa13083456d3fb0854226c1fec665c41c9103bd99258"
+        },
+        "src/theme/settings.ts": {
+          "before": "08d2c717fa3ef7c7006cd68b3e7c52dea92becda6f4dbaa3977ce86a829d4aaf",
+          "after": "bc2bc9b40ae878add6f05bee1badc62ec9ccedf25f0ab85fef61c5a4f1cb9c06"
+        },
+        "src/views/_builtin/login/modules/pwd-login.vue": {
+          "before": "0a2ba37499a77a909143fc7c66bedb70005de86451ce3d4f56abe4f5794e7053",
+          "after": "4932107e90417e13c80414458987be69d75f3c6f8dd9a0ae2691dbdc5fac1618"
+        },
+        "src/views/_builtin/user-center/modules/user-avatar.vue": {
+          "before": "800752b9eb85695e2bf2f2c729361e8937b431307adbf6a4d58a52787f4ad8c2",
+          "after": "8c7f74d76a7200a4d34f44538401cb4002d57024ce1521c0d059344906ebe6c7"
+        },
+        "src/views/home/index.vue": {
+          "before": "857751b26ef93491ded5f1f266abba4cbc374658979ba29802b4736445430a21",
+          "after": "b359402897a6dc34991a1fecf7dcd4871fa98e2910e26d6d38f1c60511e30217"
+        },
+        "src/views/tool/gen/index.vue": {
+          "before": "9af43756b3f8f3a4f6be0fcf57a8131927da6235455fd5e6e1d23cb26a671961",
+          "after": "2128f92bec61617edee841ffa5a7616e1ce1cb47b41416d9184a91a88558baa3"
+        },
+        "src/views/tool/gen/modules/gen-table-operate-drawer.vue": {
+          "before": "b29fba67c2370f0fc3e27f5432985db2f09cc214a1cfa2d914bf374e345fa074",
+          "after": "283ec8fc1bb586bff4dafda2e6dc01e2bb4d077d5d53104ca98e8f098b41126a"
+        },
+        "src/router/guard/title.ts": {
+          "before": "a1516596a8b99f20e63b89ed066269183b0830b48785c1ce5448a357fb3535c0",
+          "after": "547c27d39649eae735729981b6172201f844219130107269e82d9b787e32c164"
+        },
+        "src/store/modules/app/index.ts": {
+          "before": "369bf4355b1990b784db1a7c2487c4b97c1b8ff35565094d323e470419bd6809",
+          "after": "3b6ea89ddd7f09d0940586ce810688bc318702254a961dd6e33d80a46155e556"
+        }
+      }
+    }
+  }
+}

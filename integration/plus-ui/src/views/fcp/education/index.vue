@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import Workspace from '@/fcp/education/Workspace.vue';
+import Workspace from './generated/Workspace.vue';
 import { operationLabels } from '@/fcp/education/contracts';
 import { useFoundation } from '@/fcp/education/useFoundation';
 const buildId = String(import.meta.env.VITE_FCP_BUILD_ID || '');

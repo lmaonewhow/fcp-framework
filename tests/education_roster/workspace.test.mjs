@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { reactive, h, ref, KeepAlive, defineComponent } from 'vue';
 import { mount, flushPromises } from '@vue/test-utils';
 import ElementPlus from 'element-plus';
-import Workspace from '@/fcp/education-roster/Workspace.vue';
+import Workspace from '@/views/fcp/roster/generated/Workspace.vue';
 import { caps, operations, row, school, page, ok, deferred } from './fixtures.mjs';
 const probe = vi.hoisted(() => ({ request: vi.fn(), identity: undefined }));
 vi.mock('@/utils/request', () => ({ default: probe.request }));

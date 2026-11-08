@@ -17,7 +17,7 @@ const columns=[{title:'学生代号',key:'student',render:(r:RecordRow)=>h('span
     <NAlert v-if="savedRecord" type="success" data-testid="save-confirmation">已保存评价：{{savedRecord.body.student}}。记录编号：{{savedRecord.id}}。列表按记录编号分页，可在后续页面查看。</NAlert>
     <template v-if="state">
       <NCard title="今天，也记录一点成长。">
-        <NSpace><NButton :loading="busy" @click="reload">刷新记录</NButton><NButton v-if="state.operations.includes('analyze')" :disabled="busy" data-testid="analyze" @click="analyze">Python 统计摘要</NButton></NSpace>
+        <NSpace><NButton :loading="busy" @click="reload">刷新记录</NButton><NButton v-if="state.operations.includes('analyze')" :disabled="busy" data-testid="analyze" @click="analyze">统计摘要</NButton></NSpace>
         <p data-testid="analysis-result">{{summary}}</p><a v-if="state.allowedShells.includes('admin')" href="/admin/fcp/school">返回管理端</a><NDataTable :columns="columns" :data="rows" :scroll-x="700" :row-key="(r:RecordRow)=>r.id"/>
         <NButton v-if="nextCursor" :disabled="busy" @click="next">下一页</NButton>
       </NCard>
