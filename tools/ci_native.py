@@ -40,11 +40,13 @@ def private(path:Path,content:str):
 
 def parse_args(argv=None):
  parser=argparse.ArgumentParser(description=__doc__)
+ parser.add_argument('--roster',action='store_true',help='School roster acceptance; requires --education and genuine ingestion')
  parser.add_argument('--education',action='store_true',help='Fresh isolated education schema and foundation acceptance; requires --ingestion')
  parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');parser.add_argument('--plugin-releases',action='store_true',help='Real dual-UI and multi-plugin composite release acceptance; requires --ingestion, excludes --exchange');a=parser.parse_args(argv)
  if a.exchange and not a.ingestion:parser.error('--exchange requires genuine --ingestion login fixture')
  if a.plugin_releases and not a.ingestion:parser.error('--plugin-releases requires genuine --ingestion login fixture')
  if a.plugin_releases and a.exchange:parser.error('--plugin-releases is isolated from the legacy --exchange execution port')
+ if a.roster and not a.education:parser.error('--roster requires --education isolated schema and native foundation regression')
  if a.education and not a.ingestion:parser.error('--education requires genuine --ingestion login fixture')
  if a.education and (a.exchange or a.plugin_releases):parser.error('--education uses its own isolated composition, not exchange or release mutation scenarios')
  return a
@@ -53,8 +55,9 @@ def run()->int:
  a=parse_args()
  report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeStorageLifecycle':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'runtimeComposition':{'status':'NOT_RUN'},'production':'BLOCKED'}
  process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None;failure_fixture=None;storage_lifecycle_fixture=None;composition_fixture=None;deployment_user=None;deployment_password=None
- education_plan=None;education_fixture=None
+ education_plan=None;education_fixture=None;roster_fixture=None;foundation_browser_result=None
  report['educationFoundation']={'status':'NOT_RUN'}
+ report['educationRoster']={'status':'NOT_RUN'}
  try:
   if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')
   requirements=doctor()
@@ -76,7 +79,7 @@ def run()->int:
    from ci_education import prepare_schema
    from ci_education_integration import verified_host_plan
    host_plan=verified_host_plan(sources/'upstream/backend')
-   education_plan=prepare_schema(database,sql,private_dir,ROOT/'reports/education-native')
+   education_plan=prepare_schema(database,sql,private_dir,ROOT/'reports/education-native',roster=a.roster)
    (education_plan.output/'host-plan.json').write_text(json.dumps(host_plan,indent=2)+'\n')
   command([sys.executable,ROOT/'tools/mysql_install.py','--backend',sources/'upstream/backend','--database',database,'--defaults-file',mysql_file,'--apply'])
   sql(f"CREATE USER '{runtime_user}'@'%' IDENTIFIED BY '{runtime_password}'; GRANT SELECT,INSERT,UPDATE,DELETE ON `{database}`.* TO '{runtime_user}'@'%';")
@@ -177,6 +180,10 @@ def run()->int:
    # Maven tests used the disabled default. Only the newly packaged native host
    # receives its exact artifact binding; no build identifier supplied by the UI.
    props+=education_fixture.properties()
+   if a.roster:
+    from ci_roster import RosterFixture
+    roster_fixture=RosterFixture(education_fixture)
+    props+=roster_fixture.properties()
    private(private_dir/'fcp-runtime.properties',props)
   if a.plugin_releases:command([sys.executable,ROOT/'tests/runtime-native/verify_plugin_advice.py',jar])
   with zipfile.ZipFile(jar) as archive:
@@ -230,6 +237,10 @@ def run()->int:
    crash_result=json.loads((ROOT/'reports/runtime-crash-mysql/acceptance.json').read_text())
    if crash_result.get('result')!='PASS' or crash_result.get('journalBackend')!='MYSQL' or crash_result.get('mysqlJournalCrashRecovery')!='PASS' or crash_result.get('crashCases')!=12 or crash_result.get('failedCases')!=0 or crash_result.get('databasePreflight',{}).get('emptyAtStart') is not True:raise RuntimeError('MySQL crash matrix did not produce the required genuine database evidence')
    report['runtimeCrashRecovery']={'status':'PASS','crashCases':crash_result['crashCases'],'databaseIsolation':'separate freshly-created CI database','permissions':'SELECT,INSERT,UPDATE on own state table only'}
+  if roster_fixture:
+   from ci_roster_integration import verify_artifact_mismatch
+   report['educationRosterArtifactBinding']=verify_artifact_mismatch(jar=jar,private_dir=private_dir,
+    output=roster_fixture.output.parent/'artifact-binding',manifest=roster_fixture.digest)
   log_path=private_dir/'native-startup.log';started=time.monotonic()
   def start_host():
    nonlocal process
@@ -279,6 +290,7 @@ def run()->int:
      lambda value:{'status':value['status'],'sameNativeRows':value['sameNativeRows'],'jvmRestartPersistence':value['jvmRestartPersistence']}))
    if education_fixture:
     def verify_education():
+     nonlocal foundation_browser_result
      # Synthetic education roles are installed only after existing role checks,
      # and education authenticates afresh; do not change those tests' identities.
      education_fixture.seed()
@@ -292,12 +304,38 @@ def run()->int:
      sys.path.insert(0,str(ROOT/'tests/education'))
      from native_browser import verify_browser
      browser_result=verify_browser(education_fixture,'http://127.0.0.1:18787',report['build']['buildId'])
+     foundation_browser_result=browser_result
      report['educationBrowser']={'status':browser_result['status'],'totalChecks':browser_result['totalChecks'],
       'screenshots':browser_result['screenshots'],'unknownCommitFaultInjection':browser_result['unknownCommitFaultInjection']}
      if native_pid() is None:raise RuntimeError('Native JVM exited during education browser verification')
      return result
     modules.append(NativeModule('educationFoundation',verify_education,
      lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'scope':value['scope'],'concurrentRevocation':value.get('concurrentRevocation','NOT_RUN'),'unknownCommitFaultInjection':value.get('unknownCommitFaultInjection','NOT_RUN')}))
+   if roster_fixture:
+    def verify_roster():
+     if not foundation_browser_result or foundation_browser_result.get('status')!='PASS' or education_fixture.report.get('status')!='PASS':
+      raise RuntimeError('Roster acceptance requires completed real foundation HTTP and browser acceptance')
+     # Preserve the genuine tenantList 20/IP/60s limit. New role logins start only
+     # after a complete quiet window, never by clearing Redis or weakening limits.
+     wait_started=time.monotonic();time.sleep(60)
+     report['educationRosterLoginWindow']={'waitSeconds':round(time.monotonic()-wait_started,3),'nativeRateLimitChanged':False}
+     roster_fixture.verify_foundation_only('http://127.0.0.1:18787',report['build']['buildId'])
+     roster_fixture.seed(foundation_browser_report=foundation_browser_result)
+     from ci_roster_integration import run_roster_native_probe
+     report['educationRosterJdbc']=run_roster_native_probe(database=database,url=url,user=runtime_user,password=runtime_password,
+      manifest=roster_fixture.digest,driver=driver,output=roster_fixture.output.parent/'jdbc-probe')
+     result=roster_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid)
+     # Do not reuse the cached foundation module named native_browser.
+     import importlib.util
+     spec=importlib.util.spec_from_file_location('education_roster_native_browser',ROOT/'tests/education_roster/native_browser.py')
+     browser_module=importlib.util.module_from_spec(spec);spec.loader.exec_module(browser_module)
+     browser_result=browser_module.verify_browser(roster_fixture,'http://127.0.0.1:18787',report['build']['buildId'])
+     report['educationRosterBrowser']={'status':browser_result['status'],'totalChecks':browser_result['totalChecks'],
+      'screenshots':browser_result['screenshots']}
+     if native_pid() is None:raise RuntimeError('Native JVM exited during roster verification')
+     return result
+    modules.append(NativeModule('educationRoster',verify_roster,
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'scope':value['scope'],'personDisplayPolicy':value.get('personDisplayPolicy','PENDING')}))
    run_native_modules(report,modules,prerequisites_passed=result.get('status')=='PASS' and bool(report.get('build',{}).get('buildId')),
     host_alive=lambda:process is not None and process.poll() is None,
     secrets_provider=lambda:[*fixture.diagnostic_secrets,fixture.password])

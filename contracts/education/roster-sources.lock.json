@@ -1,0 +1,59 @@
+{
+  "format": 2,
+  "objects": [
+    {
+      "name": "ed_host_roster_role",
+      "columns": [
+        "tenant_id",
+        "native_role_id",
+        "admin_kind",
+        "school_id",
+        "operation_key",
+        "purpose_key",
+        "enabled",
+        "source_approval_id",
+        "created_at",
+        "row_version"
+      ],
+      "checkCount": 4
+    }
+  ],
+  "sha256": {
+    "sql/education/003__roster_authority.sql": "8822502e88b9195b041b3740838e02517e8c3383826bfe681fffecaa1ef5f338",
+    "sql/education/004__roster_menu.sql": "a34b57b2d4cfd401d60acba2e053cc41729259c45270968480d135aa86edf27c"
+  },
+  "menus": [
+    {
+      "id": 986120,
+      "parentId": 942000,
+      "component": "fcp/roster/index",
+      "permission": "education:roster:view",
+      "isCache": 1,
+      "status": "0"
+    },
+    {
+      "id": 986100,
+      "parentId": 986120,
+      "component": "",
+      "permission": "education:roster:view",
+      "isCache": 1,
+      "status": "0"
+    },
+    {
+      "id": 986101,
+      "parentId": 986120,
+      "component": "",
+      "permission": "education:roster:student:read",
+      "isCache": 1,
+      "status": "0"
+    },
+    {
+      "id": 986102,
+      "parentId": 986120,
+      "component": "",
+      "permission": "education:roster:teacher:read",
+      "isCache": 1,
+      "status": "0"
+    }
+  ]
+}

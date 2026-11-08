@@ -25,7 +25,10 @@ public final class NativeFoundationIdentity {
                 EducationScalars.text(LoginHelper.getUserIdStr(),100));
         } catch (IllegalArgumentException invalid) { throw new AuthorityFailure(false); }
     }
-    public Actor requireDiscovery() {
+    public Actor requireDiscovery() { return requireDiscovery(FoundationCapabilities.VIEW_PERMISSION); }
+    /** Exact server-owned module permission. Never pass a request parameter here. */
+    public Actor requireDiscovery(String permission) {
+        if (!java.util.Set.of(FoundationCapabilities.VIEW_PERMISSION,"education:roster:view").contains(permission)) throw new AuthorityFailure(false);
         StpUtil.checkLogin();
         final Actor actor;
         try {
@@ -55,11 +58,11 @@ public final class NativeFoundationIdentity {
             try (PreparedStatement q=c.prepareStatement(sql)) {
                 q.setQueryTimeout(5);
                 q.setString(1,actor.tenant());q.setString(2,actor.tenant());q.setString(3,actor.tenant());
-                q.setString(4,actor.actor());q.setString(5,FoundationCapabilities.VIEW_PERMISSION);
+                q.setString(4,actor.actor());q.setString(5,permission);
                 try (ResultSet rows=q.executeQuery()) {
                     if (!rows.next() || !actor.tenant().equals(rows.getString(1))
                         || !actor.actor().equals(rows.getString(2))
-                        || !FoundationCapabilities.VIEW_PERMISSION.equals(rows.getString(3))) throw new AuthorityFailure(false);
+                        || !permission.equals(rows.getString(3))) throw new AuthorityFailure(false);
                 }
             }
         } catch (SQLException failed) { throw new AuthorityFailure(true); }

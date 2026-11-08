@@ -1,0 +1,8 @@
+export const readKeys = ['schoolList', 'enrollmentList', 'enrollmentDetail', 'membershipList', 'membershipDetail', 'assignmentList', 'assignmentDetail'];
+export const operations = { ...Object.fromEntries(readKeys.map(key => [key, true])), personDisplay: false, enrollmentWrite: false, membershipWrite: false, assignmentWrite: false, personRename: false, termWrite: false };
+export const caps = { schemaVersion: 'education-roster-v1', status: 'READY', readiness: { schoolAuthorization: 'READY', transactionProtocol: 'READY', nativeAcceptance: 'NOT_RUN', personDisplayPolicy: 'PENDING' }, operations, blockers: ['PERSON_DISPLAY_POLICY_PENDING', 'ROSTER_WRITE_POLICY_PENDING'], securityEventFailures: 0 };
+export const school = (id, overrides = {}) => ({ id, name: `合成学校${id}`, rowVersion: '0', readiness: 'READY', operations: { ...operations }, ...overrides });
+export const row = (id, schoolId = '10', kind = 'enrollments', overrides = {}) => ({ id, schoolId, validFrom: '2026-11-08T00:00:00.123456Z', validTo: null, createdAt: '2026-11-08T01:02:03.654321Z', rowVersion: '9007199254740993', personDisplay: { status: 'PENDING', reason: 'PERSON_DISPLAY_POLICY_PENDING' }, ...(kind === 'enrollments' ? { admissionKey: '2026-001', status: 'ACTIVE' } : { classId: '91', className: '合成班级', termId: '92', termCode: '2026-01', termStatus: 'OPEN', ...(kind === 'memberships' ? { enrollmentId: '93' } : { roleCode: 'HEAD' }) }), ...overrides });
+export const page = (items, nextAfterId = null) => ({ items, nextAfterId });
+export const ok = data => ({ code: 200, data });
+export function deferred() { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
