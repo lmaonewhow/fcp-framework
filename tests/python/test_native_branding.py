@@ -78,8 +78,8 @@ class BrandingTests(unittest.TestCase):
                 if not value:raise AssertionError(name)
                 events.append('check')
             self_test=self
-            session={'subject':'1' if shell=='admin' else '950001','scope':'tenant-000000',
-                     'defaultShell':shell,'allowedShells':[shell]}
+            session={'subject':'1' if shell=='admin' else '950003','scope':'tenant-000000',
+                     'defaultShell':shell,'allowedShells':['admin','teacher'] if shell=='admin' else ['teacher']}
             module=SimpleNamespace(expect=Expect,TimeoutError=Timeout)
             with patch.dict(sys.modules,{'playwright.sync_api':module}):
                 if missing:
@@ -94,6 +94,99 @@ class BrandingTests(unittest.TestCase):
                     verify_login_notice(Page(),session,base,shell,Path('/synthetic-output'),check)
                     self.assertEqual(events,['check','wait','screenshot','check'])
             self.assertEqual(events.count('wait'),1)
+
+    def test_brand_teacher_seed_is_isolated_and_grants_only_existing_teacher_role(self):
+        # SQL callable doubles verify the plan, not a MySQL run or a native login.
+        import ci_ingestion
+        from unittest.mock import Mock
+        fixture=ci_ingestion.Fixture.__new__(ci_ingestion.Fixture)
+        fixture.database=fixture._owned_database='fcp_ci_012345abcdef'
+        fixture.password='component-fixture-only'
+        fixture.sql=Mock(side_effect=['0', '1', '0', ''])
+        from types import SimpleNamespace
+        bcrypt=SimpleNamespace(hashpw=lambda *_:b'component-hash-not-a-login',gensalt=lambda **_:b'component-salt')
+        with patch.dict('os.environ', {'GITHUB_ACTIONS':'true'}),patch.dict(sys.modules,{'bcrypt':bcrypt}):
+            metadata=fixture.seed_branding_teacher()
+        self.assertEqual(metadata, {'subject':'950003','scope':'tenant-000000',
+                                   'roleId':942102,'defaultShell':'teacher','allowedShells':['teacher']})
+        statements=[call.args[0] for call in fixture.sql.call_args_list]
+        self.assertEqual(len(statements),4)
+        self.assertTrue(all(statement.startswith('USE `fcp_ci_012345abcdef`;') for statement in statements))
+        self.assertIn("user_id=950003 OR user_name='fcp_brand_teacher_ci'", statements[0])
+        self.assertIn('FROM sys_user_role WHERE user_id=950003', statements[0])
+        self.assertIn("FROM fcp_eval_assignment WHERE subject_id='950003'", statements[0])
+        self.assertIn("role_key='fcp_teacher'", statements[1])
+        self.assertIn("perms REGEXP '(^|,)[[:space:]]*(fcp:ui:admin|[*]:[*]:[*])[[:space:]]*(,|$)'", statements[2])
+        seed=statements[3]
+        self.assertIn("VALUES(950003,'000000',103,'fcp_brand_teacher_ci'", seed)
+        self.assertIn('INSERT INTO sys_user_role VALUES(950003,942102)', seed)
+        self.assertIn("INSERT INTO fcp_eval_assignment VALUES('tenant-000000','950003','class-a')", seed)
+        for forbidden in ('950001','950002','INSERT INTO sys_role(', 'INSERT INTO sys_role_menu',
+                          'UPDATE ', 'DELETE ', 'REPLACE ', 'IGNORE ', 'ON DUPLICATE'):
+            self.assertNotIn(forbidden,seed)
+        self.assertEqual(ci_ingestion.NATIVE_LOGIN_ACCOUNTS,
+                         {'admin':('1','admin'),'teacher':('950001','fcp_teacher_ci'),
+                          'viewer':('950002','fcp_viewer_ci'),'branding_teacher':('950003','fcp_brand_teacher_ci')})
+        source=(ROOT/'tools/ci_branding.py').read_text()
+        self.assertIn("('teacher','branding_teacher')",source)
+        self.assertIn("report['teacherFixture']=fixture.seed_branding_teacher()",source)
+
+    def test_brand_teacher_seed_refuses_unowned_database_before_any_sql(self):
+        import ci_ingestion
+        from unittest.mock import Mock
+        for actions,database,owned in [('false','fcp_ci_012345abcdef','fcp_ci_012345abcdef'),
+                                       ('true','production','production'),
+                                       ('true','fcp_ci_012345abcdef','fcp_ci_abcdef012345'),
+                                       ('true','fcp_ci_012345abcdef',None)]:
+            fixture=ci_ingestion.Fixture.__new__(ci_ingestion.Fixture)
+            fixture.database=database;fixture._owned_database=owned;fixture.sql=Mock()
+            with self.subTest(actions=actions,database=database,owned=owned),patch.dict('os.environ',{'GITHUB_ACTIONS':actions}):
+                with self.assertRaisesRegex(RuntimeError,'owned disposable'):
+                    fixture.seed_branding_teacher()
+                fixture.sql.assert_not_called()
+
+    def test_brand_teacher_seed_refuses_collisions_or_role_drift_without_writes(self):
+        import ci_ingestion
+        from unittest.mock import Mock
+        for replies,reason in [(['1'],'reserved'),(['0','0'],'existing teacher role'),
+                               (['0','1','1'],'admin permission')]:
+            fixture=ci_ingestion.Fixture.__new__(ci_ingestion.Fixture)
+            fixture.database=fixture._owned_database='fcp_ci_012345abcdef'
+            fixture.sql=Mock(side_effect=replies)
+            with self.subTest(replies=replies),patch.dict('os.environ',{'GITHUB_ACTIONS':'true'}):
+                with self.assertRaisesRegex(RuntimeError,reason):fixture.seed_branding_teacher()
+            self.assertEqual(fixture.sql.call_count,len(replies))
+            self.assertTrue(all('INSERT' not in call.args[0] for call in fixture.sql.call_args_list))
+
+    def test_brand_teacher_notice_rejects_wrong_identity_tenant_or_expanded_shell(self):
+        from ci_branding import verify_login_notice
+        from types import SimpleNamespace
+        # No browser action may occur before strict session acceptance.
+        valid={'subject':'950003','scope':'tenant-000000','defaultShell':'teacher','allowedShells':['teacher']}
+        for changed in [{'subject':'950001'},{'subject':'1'},{'scope':'tenant-other'},
+                        {'defaultShell':'admin'},{'allowedShells':['admin','teacher']},
+                        {'allowedShells':[]},{'allowedShells':'teacher'}]:
+            with self.subTest(changed=changed),patch.dict(sys.modules,{'playwright.sync_api':SimpleNamespace(expect=None,TimeoutError=TimeoutError)}):
+                def check(name,value):
+                    if not value:raise AssertionError(name)
+                with self.assertRaisesRegex(AssertionError,'expected identity and shell'):
+                    verify_login_notice(object(),valid|changed,'http://127.0.0.1:8080','teacher',Path('/synthetic-output'),check)
+
+    def test_brand_teacher_notice_cannot_capture_admin_shell_as_teacher(self):
+        from ci_branding import verify_login_notice
+        from types import SimpleNamespace
+        base='http://127.0.0.1:8080'
+        session={'subject':'950003','scope':'tenant-000000','defaultShell':'teacher','allowedShells':['teacher']}
+        class Expect:
+            def __init__(self,page):self.page=page
+            def to_have_url(self,pattern,**kwargs):
+                if not pattern.fullmatch(self.page.url):raise AssertionError('wrong native route')
+        def check(name,value):
+            if not value:raise AssertionError(name)
+        # A locator/screenshot is deliberately absent: route failure must precede either.
+        with patch.dict(sys.modules,{'playwright.sync_api':SimpleNamespace(expect=Expect,TimeoutError=TimeoutError)}):
+            with self.assertRaisesRegex(AssertionError,'wrong native route'):
+                verify_login_notice(SimpleNamespace(url=base+'/admin/index'),session,base,'teacher',Path('/synthetic-output'),check)
 
     def test_reviewed_manifest_and_patch_integrity(self):
         bundle = ROOT/'integration/branding'

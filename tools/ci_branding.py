@@ -42,10 +42,11 @@ def verify_login_notice(page, session, base, shell, output, check):
     Both pinned clients show the shared server welcome for only three seconds.
     """
     from playwright.sync_api import expect, TimeoutError as PlaywrightTimeoutError
-    expected_user = {'admin': '1', 'teacher': '950001'}[shell]
+    expected_user = {'admin': '1', 'teacher': '950003'}[shell]
+    expected_shells = ['admin', 'teacher'] if shell == 'admin' else ['teacher']
     check(shell+' native login notice session has the expected identity and shell',
           str(session.get('subject')) == expected_user and session.get('scope') == 'tenant-000000'
-          and session.get('defaultShell') == shell and shell in session.get('allowedShells', []))
+          and session.get('defaultShell') == shell and session.get('allowedShells') == expected_shells)
     destination = re.compile(re.escape(base)+r'/'+shell+r'/(?!login(?:[/;?#]|$))[^?#]+(?:[?#].*)?$')
     expect(page).to_have_url(destination, timeout=30000)
     selector = '.el-notification' if shell == 'admin' else '.n-notification'
@@ -71,6 +72,7 @@ def verify_branding(fixture, base, build_id):
         if not value:raise AssertionError(name)
         report['checks'].append({'name':name,'status':'PASS'})
     try:
+        report['teacherFixture']=fixture.seed_branding_teacher()
         wait_for_native_tenant_window(report)
         remaining=fixture.sql(f"USE `{fixture.database}`; SELECT COUNT(*) FROM sys_menu WHERE menu_id IN (4,1500,1501,1502,1503,1504,1505,1506,1507,1508,1509,1510,1511);").strip()
         check('fresh MySQL has no upstream demo pages or website menu seeds',remaining=='0')
@@ -80,7 +82,7 @@ def verify_branding(fixture, base, build_id):
         with sync_playwright() as playwright:
             browser=playwright.chromium.launch()
             try:
-                for shell,role in [('admin','admin'),('teacher','teacher')]:
+                for shell,role in [('admin','admin'),('teacher','branding_teacher')]:
                     # Capture only empty login forms, never credentials or tokens.
                     context=browser.new_context(viewport={'width':1440,'height':960})
                     try:
