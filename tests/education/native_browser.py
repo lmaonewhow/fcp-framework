@@ -19,6 +19,38 @@ sys.path.insert(0, str(ROOT / 'tools'))
 PREFIX = '/fcp/education/foundation'
 
 
+
+def wait_stable_layout(page):
+    """Wait for actual finite layout transitions and consecutive equal geometry frames.
+
+    Does not resize the viewport, disable animations or alter application styles.
+    """
+    return page.evaluate("""async () => {
+      const start = performance.now();
+      let previous = '', stable = 0;
+      return await new Promise((resolve, reject) => {
+        const sample = () => {
+          const nodes = ['.main-container', '.sidebar-container', '.app-main',
+            '[data-testid="education-foundation"]'].map(s => document.querySelector(s)).filter(Boolean);
+          const values = [innerWidth, innerHeight, scrollX, scrollY];
+          for (const node of nodes) {
+            const r = node.getBoundingClientRect();
+            values.push(r.x, r.y, r.width, r.height, node.scrollLeft);
+          }
+          const snapshot = JSON.stringify(values);
+          const moving = nodes.some(node => node.getAnimations().some(animation =>
+            animation.playState === 'running' && animation.effect?.getTiming().iterations !== Infinity));
+          stable = !moving && snapshot === previous ? stable + 1 : 0;
+          previous = snapshot;
+          if (stable >= 4) return resolve({ stableFrames: stable, geometry: values });
+          if (performance.now() - start > 10000) return reject(new Error('Native layout did not reach stable geometry'));
+          requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+    }""")
+
+
 def verify_browser(education_fixture, base: str, build_id: str) -> dict:
     from playwright.sync_api import sync_playwright, expect
     from native_client import NativeClient, require_loopback
@@ -113,16 +145,43 @@ def verify_browser(education_fixture, base: str, build_id: str) -> dict:
         return metrics
 
     def screenshot(page, name):
-        # Login runs in a separate context owned by host.login; never photographed.
+        # Fixed viewport frames: fullPage capture can transiently resize Chromium
+        # and trigger the native responsive sidebar watcher. Never stitch/crop it
+        # away or disable native CSS; scroll the real page and retain geometry.
         check(name + ' screenshot is business page only', urlsplit(page.url).path == '/admin/fcp/education')
-        path = output / (name + '.png')
-        before = layout_metrics(page)
-        page.screenshot(path=str(path), full_page=True)
-        after = layout_metrics(page)
-        report['screenshots'].append(dict(path=str(path.relative_to(ROOT)), sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
-        report.setdefault('layoutDiagnostics', []).extend([dict(name=name + '-before-capture', metrics=before), dict(name=name + '-after-capture', metrics=after)])
-        check_layout(before, name + '-before-capture')
-        check_layout(after, name + '-after-capture')
+        page.keyboard.press('Escape')
+        expect(page.locator('.el-select-dropdown:visible')).to_have_count(0)
+        wait_stable_layout(page)
+        original = layout_metrics(page)
+        report.setdefault('layoutDiagnostics', []).append(dict(name=name + '-original', metrics=original))
+        check_layout(original, name + '-original')
+        viewport = page.viewport_size
+        check(name + ' uses the explicit fixed desktop viewport', viewport == dict(width=1440, height=1080))
+        bottom = page.evaluate('Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) - innerHeight')
+        positions = [('top', 0)] + ([('bottom', bottom)] if bottom > 1 else [])
+        try:
+            for position, y in positions:
+                page.evaluate('(y) => window.scrollTo({left: window.scrollX, top: y, behavior: "instant"})', y)
+                wait_stable_layout(page)
+                frame = name if position == 'top' else name + '-bottom'
+                before = layout_metrics(page)
+                path = output / (frame + '.png')
+                page.screenshot(path=str(path), full_page=False)
+                immediate = layout_metrics(page)
+                wait_stable_layout(page)
+                after = layout_metrics(page)
+                report['screenshots'].append(dict(path=str(path.relative_to(ROOT)), sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                                                  capture='FIXED_VIEWPORT', position=position, scrollY=before['scrollY']))
+                report.setdefault('layoutDiagnostics', []).extend([dict(name=frame + '-before-capture', metrics=before), dict(name=frame + '-immediately-after-capture', metrics=immediate), dict(name=frame + '-after-capture', metrics=after)])
+                check(frame + ' capture preserves viewport dimensions',
+                      before['innerWidth'] == after['innerWidth'] == viewport['width'] and
+                      before['innerHeight'] == after['innerHeight'] == viewport['height'])
+                check_layout(before, frame + '-before-capture')
+                check_layout(immediate, frame + '-immediately-after-capture')
+                check_layout(after, frame + '-after-capture')
+        finally:
+            page.evaluate('(position) => window.scrollTo({left: position.x, top: position.y, behavior: "instant"})', dict(x=original['scrollX'], y=original['scrollY']))
+            wait_stable_layout(page)
 
     def is_response(response, path, method='GET'):
         return urlsplit(response.url).path == PREFIX + path and response.request.method == method

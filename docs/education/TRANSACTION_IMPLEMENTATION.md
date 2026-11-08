@@ -1,5 +1,7 @@
 # FoundationStore 实现说明与验收边界
 
+> 阶段记录：本文保留各子模块首次交付时的本地验证与 NOT_RUN 边界。后续集成的真实运行记录以 [ACCEPTANCE_STATUS.md](ACCEPTANCE_STATUS.md) 和 PR14 的精确提交产物为准；子模块初始状态不是当前集成结论，也不把源码存在当作验收通过。
+
 本文件记录真实 JDBC 源码，不把源码存在视为原生验收通过。P042 的54表保持不变，新增 `sql/education/001__host_education_authority.sql` 是明确的宿主教育授权扩展，只允许本次新建、持有所有权的隔离测试库。没有注册到任何既有库自动迁移，没有默认授权。
 
 ## 已实现代码与身份边界
