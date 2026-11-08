@@ -63,12 +63,66 @@ def verify_browser(education_fixture, base: str, build_id: str) -> dict:
             raise ValueError('Unexpected fixture lookup')
         return sql(f"SELECT COUNT(*) FROM {table} WHERE tenant_id='000000' AND {code_column}='{code}'")
 
+    def layout_metrics(page):
+        # Geometry only: no DOM text, form values, credentials or account metadata.
+        return page.evaluate("""() => {
+          const rect = el => {
+            if (!el) return null;
+            const r = el.getBoundingClientRect(), css = getComputedStyle(el);
+            return { x: r.x, y: r.y, width: r.width, height: r.height, right: r.right,
+              display: css.display, visibility: css.visibility, position: css.position,
+              marginLeft: css.marginLeft, transform: css.transform,
+              scrollLeft: el.scrollLeft, scrollTop: el.scrollTop,
+              scrollWidth: el.scrollWidth, clientWidth: el.clientWidth };
+          };
+          const root = document.querySelector('[data-testid="education-foundation"]');
+          const active = document.activeElement;
+          const ancestors = [];
+          for (let node = active, depth = 0; node && depth < 12; node = node.parentElement, depth++) {
+            ancestors.push({ tag: node.tagName, geometry: rect(node) });
+          }
+          return { scrollX, scrollY, innerWidth, innerHeight,
+            document: rect(document.documentElement), body: rect(document.body),
+            main: rect(document.querySelector('.main-container')),
+            appMain: rect(document.querySelector('.app-main')),
+            sidebar: rect(document.querySelector('.sidebar-container')),
+            root: rect(root), heading: rect(root?.querySelector('h1')),
+            labels: Array.from(root?.querySelectorAll('.el-form-item__label') || []).slice(0, 20).map(rect),
+            activeAncestors: ancestors };
+        }""")
+
+    def visual_check(name, condition):
+        # Only independent geometry checks are aggregated. Authorization, HTTP,
+        # database and interaction failures still stop immediately via check().
+        report['checks'].append(dict(name=name, status='PASS' if condition else 'FAIL', category='visual'))
+        if not condition:
+            report.setdefault('layoutFailures', []).append(name)
+            report['visualStatus'] = 'FAIL'
+
+    def check_layout(metrics, name):
+        visual_check(name + ' document has no horizontal overflow or scroll',
+              abs(metrics['scrollX']) <= 1 and metrics['document']['scrollWidth'] <= metrics['document']['clientWidth'] + 1)
+        visual_check(name + ' focused control ancestors have no horizontal scroll',
+              all(abs(item['geometry']['scrollLeft']) <= 1 for item in metrics['activeAncestors']))
+        sidebar = metrics['sidebar']
+        if metrics['innerWidth'] >= 992 and sidebar and sidebar['display'] != 'none' and sidebar['visibility'] != 'hidden' and sidebar['right'] > 1:
+            edge = sidebar['right']
+            targets = [metrics['heading'], *metrics['labels']]
+            visual_check(name + ' title and form labels are outside fixed sidebar',
+                  all(item and item['x'] >= edge - 1 for item in targets))
+        return metrics
+
     def screenshot(page, name):
         # Login runs in a separate context owned by host.login; never photographed.
         check(name + ' screenshot is business page only', urlsplit(page.url).path == '/admin/fcp/education')
         path = output / (name + '.png')
+        before = layout_metrics(page)
         page.screenshot(path=str(path), full_page=True)
+        after = layout_metrics(page)
         report['screenshots'].append(dict(path=str(path.relative_to(ROOT)), sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
+        report.setdefault('layoutDiagnostics', []).extend([dict(name=name + '-before-capture', metrics=before), dict(name=name + '-after-capture', metrics=after)])
+        check_layout(before, name + '-before-capture')
+        check_layout(after, name + '-after-capture')
 
     def is_response(response, path, method='GET'):
         return urlsplit(response.url).path == PREFIX + path and response.request.method == method
@@ -131,7 +185,14 @@ def verify_browser(education_fixture, base: str, build_id: str) -> dict:
         table = page.get_by_test_id('education-records')
         for _ in range(100):
             wait_idle(page)
-            row = table.locator('tr').filter(has_text=re.compile(r'\b' + re.escape(ident) + r'\b'))
+            # Adjacent cells concatenate as ID + ASCII name in textContent;
+            # word-boundary matching over the whole row rejects a correct ID.
+            id_cell = page.locator('td:first-child .cell').filter(has_text=re.compile(r'^\s*' + re.escape(ident) + r'\s*$'))
+            row = table.locator('tbody tr').filter(has=id_cell)
+            rendered = table.locator('tbody tr td:first-child .cell').all_text_contents()
+            report.setdefault('listDiagnostics', []).append(dict(
+                targetId=identifier(ident), renderedIds=[identifier(value.strip()) for value in rendered[:200]],
+                renderedCount=len(rendered), hasMore=page.get_by_role('button', name='加载更多记录', exact=True).count() > 0))
             if row.count() == 1:
                 return row
             more = page.get_by_role('button', name='加载更多记录', exact=True)
@@ -145,7 +206,10 @@ def verify_browser(education_fixture, base: str, build_id: str) -> dict:
     def refresh_detail(page, kind, ident):
         with page.expect_response(lambda response: response.request.method == 'GET' and urlsplit(response.url).path.endswith('/' + kind)) as listed:
             page.get_by_role('button', name='刷新列表', exact=True).click()
-        response_data(listed.value)
+        values = response_data(listed.value)
+        report.setdefault('listResponses', []).append(dict(
+            kind=kind, ids=[identifier(item['id']) for item in values['items'][:100]],
+            count=len(values['items']), nextAfterId=values.get('nextAfterId')))
         with page.expect_response(lambda response: is_response(response, f'/{kind}/{ident}')) as detail:
             find_row(page, ident).get_by_role('button', name='查看', exact=True).click()
         value = response_data(detail.value)
@@ -296,7 +360,10 @@ def verify_browser(education_fixture, base: str, build_id: str) -> dict:
                 check('pending school has no child creation controls', admin_page.get_by_role('button', name='新建组织', exact=True).count() == 0 and admin_page.get_by_role('button', name='新建班级', exact=True).count() == 0)
                 screenshot(admin_page, 'admin-school-awaiting-activation')
                 check('all role business pages have no uncaught JavaScript errors', not (admin_errors or teacher_errors or viewer_errors))
-                report.update(status='PASS', organizationId=org_id, classId=class_id, pendingSchoolId=school_id)
+                report.update(businessStatus='PASS', organizationId=org_id, classId=class_id, pendingSchoolId=school_id)
+                if report.get('layoutFailures'):
+                    raise AssertionError('Independent visual checks failed: ' + str(len(report['layoutFailures'])))
+                report.update(status='PASS', visualStatus='PASS')
             finally:
                 for context in contexts:
                     context.close()

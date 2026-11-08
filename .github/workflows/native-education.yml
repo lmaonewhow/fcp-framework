@@ -63,6 +63,7 @@ jobs:
         run: |
           npm install --global pnpm@10.5.2 typescript@5.8.3
           test "$(pnpm --version)" = '10.5.2'
+          npm ci --prefix tests/frontend --no-audit --no-fund
           python3 -m pip install --break-system-packages -r e2e/requirements.txt bcrypt==4.3.0
           python3 -m playwright install --with-deps chromium
       - name: Verify the committed and accepted dependency lock
@@ -78,6 +79,19 @@ jobs:
           python3 tools/verify_education_contracts.py
           python3 tools/verify_education_foundation.py --java-home "$JAVA_HOME"
           python3 tools/ci_native.py --ingestion --education 2>&1 | tee reports/native-ci-console.log
+      - name: Education components against the actual assembled admin
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p reports/education-frontend
+          git rev-parse HEAD > reports/education-frontend/source-commit.txt
+          if [ ! -f work/ci-native/upstream/admin/node_modules/vitest/vitest.mjs ]; then
+            printf '%s\n' '{"status":"NOT_RUN","reason":"Native admin dependencies were not assembled"}' > reports/education-frontend/result.json
+            exit 1
+          fi
+          export FCP_ADMIN_PROJECT="$GITHUB_WORKSPACE/work/ci-native/upstream/admin"
+          export FCP_COMPONENT_TOOLS="$GITHUB_WORKSPACE/tests/frontend"
+          node "$FCP_ADMIN_PROJECT/node_modules/vitest/vitest.mjs" run --config "$PWD/tests/education/vitest.config.mjs" education --reporter=default --reporter=json --outputFile.json="$PWD/reports/education-frontend/result.json" 2>&1 | tee reports/education-frontend/test.log
       - uses: actions/cache/save@v4
         if: always() && steps.dependencies.outputs.cache-hit != 'true'
         with:
@@ -101,6 +115,7 @@ jobs:
             reports/native-ingestion/
             reports/education-contracts/
             reports/education-foundation/
+            reports/education-frontend/
             reports/education-native/
             reports/runtime-native/
             reports/runtime-failure-boundaries/
