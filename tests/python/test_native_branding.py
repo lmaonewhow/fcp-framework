@@ -76,6 +76,25 @@ class BrandingTests(unittest.TestCase):
         self.assertNotIn('NativeClient(',source)
         self.assertNotIn('page.route(',source)
         self.assertNotIn('route.fulfill(',source)
+        self.assertIn('toolbar has no GitHub or Gitee shortcut icons',source)
+        self.assertIn("page.locator('a[href]')",source)
+        self.assertIn("shell+'-toolbar.png'",source)
+
+    def test_branding_navigation_waits_full_native_window_and_runs_last(self):
+        from ci_branding import wait_for_native_tenant_window
+        for elapsed in (59.999,60.0):
+            with self.subTest(elapsed=elapsed):
+                report={};times=iter((100,100+elapsed));sleeps=[]
+                if elapsed < 60:
+                    with self.assertRaises(RuntimeError):
+                        wait_for_native_tenant_window(report,clock=lambda:next(times),sleep=sleeps.append)
+                else:
+                    wait_for_native_tenant_window(report,clock=lambda:next(times),sleep=sleeps.append)
+                self.assertEqual(sleeps,[60])
+                self.assertEqual(report['nativeTenantWindow']['requiredSeconds'],60)
+        source=(ROOT/'tools/ci_native.py').read_text()
+        self.assertGreater(source.index("NativeModule('branding'"),source.index("NativeModule('developmentBusiness'"))
+        self.assertLess(source.index("NativeModule('branding'"),source.index('   run_native_modules('))
 
     def test_real_authentication_not_replaced(self):
         changes=(ROOT/'integration/branding/admin.patch').read_text()+(ROOT/'integration/branding/teacher.patch').read_text()

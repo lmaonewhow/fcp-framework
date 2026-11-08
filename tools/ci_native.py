@@ -220,8 +220,7 @@ def run()->int:
    report.update(scope=result['scope'],browser=result['status'],ingestion=result['status'],nativeChecks=result['totalChecks'])
    def native_pid():return process.pid if process and process.poll() is None else None
    from ci_branding import verify_branding
-   modules=[NativeModule('branding',lambda:verify_branding(fixture,'http://127.0.0.1:18787',report['build']['buildId']),
-    lambda value:{'status':value['status'],'totalChecks':value['totalChecks']})]
+   modules=[]
    if composition_fixture:
     modules.append(NativeModule('runtimeComposition',lambda:composition_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
      lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'browser':value['browser'],'backendPidUnchanged':value['backendPidUnchanged'],'observation':value['observation']}))
@@ -242,6 +241,9 @@ def run()->int:
     from development_business import verify_development_business
     modules.append(NativeModule('developmentBusiness',lambda:verify_development_business(private_dir,url,runtime_user,runtime_password,driver,exchange_fixture.endpoint,exchange_fixture.report.get('sharedBusinessContract',{})),
      lambda value:{'status':value['status'],'sameNativeRows':value['sameNativeRows'],'jvmRestartPersistence':value['jvmRestartPersistence']}))
+   # Added navigation coverage runs last, after its own untouched native rate window.
+   modules.append(NativeModule('branding',lambda:verify_branding(fixture,'http://127.0.0.1:18787',report['build']['buildId']),
+    lambda value:{'status':value['status'],'totalChecks':value['totalChecks']}))
    run_native_modules(report,modules,prerequisites_passed=result.get('status')=='PASS' and bool(report.get('build',{}).get('buildId')),
     host_alive=lambda:process is not None and process.poll() is None,
     secrets_provider=lambda:[*fixture.diagnostic_secrets,fixture.password])

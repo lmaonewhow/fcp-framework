@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import os
 import re
+import time
 from ci_ingestion import safe_diagnostic
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -16,6 +17,20 @@ def menu_response_data(response):
     return body['data']
 
 
+def wait_for_native_tenant_window(report, *, clock=time.monotonic, sleep=time.sleep):
+    """Keep this added navigation suite out of prior modules' native IP budget.
+
+    Pinned AuthController.tenantList allows 20 requests per IP per 60 seconds.
+    Do not reset Redis, alter server limits, retry assertions or swallow errors.
+    """
+    started=clock()
+    sleep(60)
+    waited=clock()-started
+    report['nativeTenantWindow']={'requiredSeconds':60,'waitedSeconds':round(waited,3)}
+    if waited < 60:
+        raise RuntimeError('Branding navigation requires a complete native tenant-list window')
+
+
 def verify_branding(fixture, base, build_id):
     if os.environ.get('GITHUB_ACTIONS')!='true' or not re.fullmatch(r'fcp_ci_[a-f0-9]{12}',fixture.database):
         raise RuntimeError('Branding acceptance requires the disposable native fixture')
@@ -26,6 +41,7 @@ def verify_branding(fixture, base, build_id):
         if not value:raise AssertionError(name)
         report['checks'].append({'name':name,'status':'PASS'})
     try:
+        wait_for_native_tenant_window(report)
         remaining=fixture.sql(f"USE `{fixture.database}`; SELECT COUNT(*) FROM sys_menu WHERE menu_id IN (4,1500,1501,1502,1503,1504,1505,1506,1507,1508,1509,1510,1511);").strip()
         check('fresh MySQL has no upstream demo pages or website menu seeds',remaining=='0')
         check('untouched leave workflow remains under daily affairs without route or permission changes',fixture.sql(f"USE `{fixture.database}`; SELECT COUNT(*) FROM sys_menu root JOIN sys_menu entry ON entry.parent_id=root.menu_id WHERE root.menu_id=5 AND root.menu_name='日常事务' AND root.path='demo' AND entry.menu_id=11638 AND entry.path='leave' AND entry.perms='workflow:leave:list';").strip()=='1')
@@ -60,7 +76,13 @@ def verify_branding(fixture, base, build_id):
                         check(shell+' authenticated title uses product name','智慧云校' in page.title())
                         text=page.locator('body').inner_text()
                         check(shell+' no upstream brand, website or demo menu in authenticated UI',not re.search(r'RuoYi|若依|Soybean|PLUS官网|测试菜单|测试单表|测试树表',text,re.I))
-                        check(shell+' server route tree excludes demo/website',not re.search(r'demo/demo|demo/tree|gitee.com/dromara|测试菜单',json.dumps(menus,ensure_ascii=False)))
+                        check(shell+' server route tree excludes demo/website shortcuts',not re.search(r'demo/demo|demo/tree|github\.com|gitee\.com|测试菜单',json.dumps(menus,ensure_ascii=False),re.I))
+                        header=page.locator('.navbar' if shell=='admin' else '.shadow-header').first
+                        expect(header).to_be_visible()
+                        check(shell+' toolbar has no GitHub or Gitee shortcut icons',not re.search(r'github|gitee|ruoyi-git',header.inner_html(),re.I))
+                        links=page.locator('a[href]').evaluate_all('(links) => links.map(link => link.href)')
+                        check(shell+' active page has no GitHub or Gitee external links',not any(re.search(r'^https?://(?:[^/]+\.)?(?:github|gitee)\.com(?:/|$)',href,re.I) for href in links))
+                        header.screenshot(path=str(output/(shell+'-toolbar.png')))
                         page.screenshot(path=str(output/(shell+'-workspace.png')),full_page=True)
                         page.reload(wait_until='domcontentloaded');expect(page.get_by_test_id('fcp-ingestion')).to_be_visible(timeout=30000)
                         check(shell+' deep link refresh remains native', '智慧云校' in page.title())
