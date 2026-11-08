@@ -3,7 +3,7 @@ import copy
 import json
 from types import SimpleNamespace
 import unittest
-from ui_navigation_evidence import NavigationEvidence, message_category, numeric_code
+from ui_navigation_evidence import NavigationEvidence, message_category, numeric_code, error_evidence, safe_stack_positions
 
 BASE = 'http://127.0.0.1:18787'
 SECRET = 'private-token-must-never-appear'
@@ -20,11 +20,13 @@ class Page:
     url = BASE+'/admin/login?token='+SECRET
     def __init__(self):self.handlers={}
     def on(self, name, fn):self.handlers[name]=fn
+    def wait_for_timeout(self, milliseconds):pass
 
 
 class Response:
     def __init__(self, path='/system/user/getInfo', body=None, status=200):
         self.url=BASE+path+'?token='+SECRET;self.status=status;self.body=body
+        self.request=SimpleNamespace(resource_type='fetch')
     def header_value(self, name):
         return 'a'*32 if name=='x-trace-id' else SECRET
     def json(self):
@@ -62,7 +64,7 @@ class NavigationEvidenceTests(unittest.TestCase):
     def test_unknown_paths_and_origins_are_omitted(self):
         c,f,p=self.collector()
         for url in (BASE+'/'+SECRET, 'https://example.com/system/user/getInfo',BASE+'.evil/system/user/getInfo'):
-            r=Response();r.url=url;c.response(r)
+            r=Response();r.url=url;r.request.resource_type='image';c.response(r)
         self.assertEqual(c.current['events'],[])
         p.url=BASE+'/'+SECRET;c.persist()
         self.assertEqual(c.current['location'],'other-redacted')
@@ -107,5 +109,43 @@ class NavigationEvidenceTests(unittest.TestCase):
         for message in (None,{},[],SECRET,'访问过于频繁，请稍候再试 '+SECRET):
             self.assertEqual(message_category(message),'unclassified-redacted')
         self.assertEqual(message_category('Request failed with status code 403'),'http-403')
+
+    def test_trace_suffix_is_exact_and_message_hash_reproducible(self):
+        import hashlib
+        from urllib.parse import urlsplit
+        trace='b'*32
+        message='访问过于频繁，请稍候再试 (Trace ID: '+trace+')'
+        result=error_evidence(SimpleNamespace(message=message))
+        self.assertEqual(result['category'],'native-rate-limit')
+        self.assertEqual(result['traceId'],trace)
+        self.assertEqual(result['messageSha256'],hashlib.sha256(message.encode()).hexdigest())
+        for bad in (message+' '+SECRET,message+'\n',message.replace(trace,'0'*32),message.replace(trace,'x'*32)):
+            self.assertNotIn('traceId',error_evidence(SimpleNamespace(message=bad)))
+        path='/fcp/ui/assets/'+'a'*64+'/admin/assets/index-private.js'
+        frames=safe_stack_positions('Error: '+SECRET+'\n    at fn ('+BASE+path+'?token='+SECRET+':12:34)',urlsplit(BASE))
+        self.assertEqual(frames,[dict(sourcePathSha256=hashlib.sha256(path.encode()).hexdigest(),line=12,column=34)])
+        self.assertNotIn(SECRET,json.dumps(frames))
+
+    def test_registers_before_any_yield_and_never_mutates_closed_navigation(self):
+        c,f,p=self.collector()
+        response=Response(body={'code':500,'msg':'访问过于频繁，请稍候再试'})
+        def yielded_header(name):
+            self.assertEqual(f.saved[-1]['uiNavigations'][0]['events'][0]['bodyRead'],'pending')
+            c.finish()
+            return 'a'*32
+        response.header_value=yielded_header
+        c.response(response)
+        self.assertEqual(f.report,f.saved[-1])
+        self.assertEqual(f.report['uiNavigations'][0]['events'][0]['bodyRead'],'pending')
+
+    def test_unknown_api_keeps_only_structural_evidence(self):
+        c,f,p=self.collector()
+        c.response(Response(path='/'+SECRET,body={'code':500,'msg':SECRET,'data':SECRET}))
+        event=c.current['events'][0]
+        self.assertEqual(event['endpoint'],'other-same-origin-api')
+        self.assertEqual(event['businessCode'],500)
+        c.request_failed(SimpleNamespace(url=BASE+'/'+SECRET,resource_type='xhr',failure=SECRET))
+        self.assertEqual(c.current['events'][-1]['endpoint'],'other-same-origin-api')
+        self.assertNotIn(SECRET,json.dumps(f.report))
 
 if __name__=='__main__':unittest.main()

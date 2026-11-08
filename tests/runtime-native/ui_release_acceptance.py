@@ -9,6 +9,8 @@ ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'tools'))
 from ui_release_bundle import verify_bundle
 from ui_navigation_evidence import NavigationEvidence
+from ui_tenant_navigation_recovery import (NativeTenantNavigationLimited,
+    is_proved_tenant_limit, run_with_tenant_limit_recovery)
 
 def prepare_ui_versions(evidence_path,variant_path,bundle_root):
     if os.environ.get('GITHUB_ACTIONS')!='true':raise RuntimeError('Native release versions only run on disposable CI')
@@ -43,27 +45,34 @@ def verify_ui_current(fixture,browser,states,base,clients,release_id,bundles,sta
             with client.opener.open(forged,timeout=20):raise AssertionError('Forged release affinity accepted')
         except urllib.error.HTTPError as failure:
             fixture.check(shell+' forged release selection denied',failure.code in (400,401,403,409))
-        context=browser.new_context(storage_state=states[role],viewport={'width':1440,'height':960})
-        evidence=None
-        try:
-            page=context.new_page()
-            evidence=NavigationEvidence(page,fixture,base,shell,stage)
-            evidence.begin('navigate')
-            page.goto(base+'/'+shell+'/fcp/plugins',wait_until='domcontentloaded')
-            expect(page.get_by_role('heading',name='配置插件工作台',exact=True)).to_be_visible(timeout=30000)
-            expect(page.locator('meta[name="fcp-ui-bundle"]')).to_have_attribute('content',bundles[shell])
-            evidence.persist()
-            fixture.check(shell+' '+stage+' actual Vue shell retained deep link',page.url.split('?',1)[0]==base+'/'+shell+'/fcp/plugins')
-            evidence.check_clean(shell+' '+stage+' actual Vue shell no uncaught errors')
-            evidence.begin('refresh')
-            page.reload(wait_until='domcontentloaded')
-            expect(page.get_by_role('heading',name='配置插件工作台',exact=True)).to_be_visible(timeout=30000)
-            expect(page.locator('meta[name="fcp-ui-bundle"]')).to_have_attribute('content',bundles[shell])
-            evidence.check_clean(shell+' '+stage+' refreshed Vue shell no uncaught errors')
-            fixture.check(shell+' '+stage+' deep-link refresh selects same bundle',True)
-            target=fixture.output/(shell+'-ui-release-'+stage+'.png');page.screenshot(path=str(target),full_page=True)
-            fixture.report.setdefault('screenshots',[]).append(str(target.relative_to(ROOT)))
-        finally:
-            # Includes goto/expect failures; record before closing causes abort events.
-            if evidence is not None:evidence.finish()
-            context.close()
+        def navigate(attempt):
+            context=browser.new_context(storage_state=states[role],viewport={'width':1440,'height':960})
+            evidence=None
+            try:
+                page=context.new_page()
+                evidence=NavigationEvidence(page,fixture,base,shell,stage)
+                evidence.begin('navigate' if attempt==0 else 'retry-navigate')
+                page.goto(base+'/'+shell+'/fcp/plugins',wait_until='domcontentloaded')
+                expect(page.get_by_role('heading',name='配置插件工作台',exact=True)).to_be_visible(timeout=30000)
+                expect(page.locator('meta[name="fcp-ui-bundle"]')).to_have_attribute('content',bundles[shell])
+                evidence.persist()
+                fixture.check(shell+' '+stage+' actual Vue shell retained deep link',page.url.split('?',1)[0]==base+'/'+shell+'/fcp/plugins')
+                evidence.settle()
+                if attempt==0 and is_proved_tenant_limit(evidence.current):
+                    # Preserve the first failure; finally closes this context before waiting.
+                    evidence.persist()
+                    raise NativeTenantNavigationLimited(evidence.current)
+                evidence.check_clean(shell+' '+stage+' actual Vue shell no uncaught errors')
+                evidence.begin('refresh')
+                page.reload(wait_until='domcontentloaded')
+                expect(page.get_by_role('heading',name='配置插件工作台',exact=True)).to_be_visible(timeout=30000)
+                expect(page.locator('meta[name="fcp-ui-bundle"]')).to_have_attribute('content',bundles[shell])
+                evidence.check_clean(shell+' '+stage+' refreshed Vue shell no uncaught errors')
+                fixture.check(shell+' '+stage+' deep-link refresh selects same bundle',True)
+                target=fixture.output/(shell+'-ui-release-'+stage+'.png');page.screenshot(path=str(target),full_page=True)
+                fixture.report.setdefault('screenshots',[]).append(str(target.relative_to(ROOT)))
+            finally:
+                # Includes goto/expect failures; record before closing causes abort events.
+                if evidence is not None:evidence.finish()
+                context.close()
+        run_with_tenant_limit_recovery(navigate,fixture)
