@@ -13,10 +13,11 @@ import re
 import sys
 import time
 import uuid
+from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from native_client import require_loopback
-from native_login import authenticated_storage_state, require_encrypted_login, verify_native_identity, native_token, open_native_login
+from native_login import wait_native_logout, open_native_tenant_login, NativeLoginPreparationError, authenticated_storage_state, require_encrypted_login, verify_native_identity, native_token
 
 
 def require_fixture(base, database, fixture_plugins, plugin_id):
@@ -42,13 +43,16 @@ def is_rejected(status, body):
     return (400 <= status < 500) or (status == 200 and code in {'400', '401', '403', '404', '409', '410', '422'})
 
 
-def native_logout(page, shell):
-    """Execute locked native logout UI and observe HTTP completion only.
+def native_logout(page, shell, *, events=None):
+    """Execute locked native logout UI and wait for its native cleanup.
 
     This helper does not prove logout success: the caller must still check that
     the workspace disappears and the old token is rejected by the actual API.
     Do not read the response body, which Chromium may discard during redirect.
     """
+    initial = urlsplit(page.url)
+    origin = initial.scheme+'://'+initial.netloc
+    require_loopback(origin)
     label = re.compile(r'^(退出登录|退出|注销|Log out|Logout)$', re.I)
     if shell == 'admin':
         page.locator('.avatar-wrapper').click()
@@ -61,11 +65,12 @@ def native_logout(page, shell):
         positive = page.locator('.n-dialog').get_by_role('button', name=re.compile(r'^(确认|Confirm)$'))
     else:
         raise ValueError('Unsupported native shell')
-    with page.expect_response(lambda response: response.url.split('?',1)[0].endswith('/auth/logout'), timeout=20000) as logged_out:
+    with page.expect_response(lambda response: response.url.split('?',1)[0] == origin+'/auth/logout', timeout=20000) as logged_out:
         positive.click()
     response = logged_out.value
     if response.status != 200:
         raise AssertionError('Native logout HTTP request did not complete with status 200')
+    wait_native_logout(page, response, origin, events=events)
 
 
 def make_tenant_relogin(login_fixture, base):
@@ -81,12 +86,15 @@ def make_tenant_relogin(login_fixture, base):
         from ci_ingestion import redis_get
         from native_client import NativeClient
         # No new browser context: native logout and T2 login share the prior storage.
-        captcha = open_native_login(page, base, 'plugins', wait_events=login_fixture.report.setdefault('captchaRateLimitWaits', []))
+        captcha = open_native_tenant_login(page, base, events=relogin.diagnostics)
         if not captcha.get('captchaEnabled', True) or not captcha.get('uuid'):
             raise AssertionError('Genuine native captcha must remain enabled')
         select = page.locator('.login-form .el-select')
-        expect(select).to_be_visible(timeout=30000); select.click()
-        page.get_by_role('option', name='Synthetic CI tenant', exact=True).click()
+        try:
+            expect(select).to_be_visible(timeout=30000); select.click()
+            page.get_by_role('option', name='Synthetic CI tenant', exact=True).click()
+        except Exception:
+            raise NativeLoginPreparationError('/auth/tenant/list', 'option-not-selectable', 200, '200') from None
         answer = json.loads(redis_get(login_fixture.redis_password, login_fixture.redis_prefix+':global:captcha_codes:'+captcha['uuid']))
         if not isinstance(answer,str): raise RuntimeError('Unexpected native captcha codec')
         page.get_by_placeholder(re.compile(r'^(用户名|Username)$')).fill('fcp_tenant_manager_ci')
@@ -102,6 +110,7 @@ def make_tenant_relogin(login_fixture, base):
         if shell not in session.get('allowedShells',[]):
             raise AssertionError('Synthetic T2 lacks required native shell permission; never bypass route guard')
         return client
+    relogin.diagnostics = []
     return relogin
 
 
@@ -275,10 +284,17 @@ def verify_ui_boundaries(*, browser, base, database, storage_states, viewer_apis
         if tenant_login is not None:
             report['tenantSwitch']='PASS' if all(s.get('tenantSwitch','').startswith('PASS:') for s in report['shells'].values()) else 'NOT_RUN'
 
+        if tenant_login is not None:
+            report['loginPreparation'] = getattr(tenant_login, 'diagnostics', [])
         report['status'] = 'PASS' if all(s['logout']=='PASS' for s in report['shells'].values()) and report['tenantSwitch']=='PASS' else 'PARTIAL'
         save(); return report
     except Exception as error:
         # Never include request headers, storage state, native token or raw exception details.
-        report.update(status='FAIL', failureType=type(error).__name__); save(); raise
+        report.update(status='FAIL', failureType=type(error).__name__)
+        if isinstance(error, NativeLoginPreparationError):
+            report['loginFailure'] = error.diagnostic
+        if tenant_login is not None:
+            report['loginPreparation'] = getattr(tenant_login, 'diagnostics', [])
+        save(); raise
     finally:
         for context in contexts: context.close()

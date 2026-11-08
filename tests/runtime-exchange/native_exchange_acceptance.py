@@ -25,8 +25,8 @@ def package_bytes(plugin):
     if plugin not in ('roster','mock-exam'):raise ValueError('Unknown fixed fixture package')
     root=ROOT/'runtime/runtime-plugins'/plugin;manifest=json.loads((root/'plugin.json').read_text());output=io.BytesIO()
     with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as archive:
-        for name in ('plugin.json','worker.py'):
-            info=zipfile.ZipInfo(name,(2026,1,1,0,0,0));info.compress_type=zipfile.ZIP_DEFLATED;info.external_attr=0o100644<<16;archive.writestr(info,(root/name).read_bytes())
+        for name in ('plugin.json','worker.py','fcp_trace.py'):
+            info=zipfile.ZipInfo(name,(2026,1,1,0,0,0));info.compress_type=zipfile.ZIP_DEFLATED;info.external_attr=0o100644<<16;archive.writestr(info,(ROOT/'runtime/observability'/name if name=='fcp_trace.py' else root/name).read_bytes())
     return output.getvalue(),manifest
 
 

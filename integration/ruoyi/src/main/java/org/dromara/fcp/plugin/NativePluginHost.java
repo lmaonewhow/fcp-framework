@@ -28,7 +28,8 @@ public final class NativePluginHost implements HostCapabilities {
         StpUtil.checkLogin();
         String tenant=LoginHelper.getTenantId(), user=LoginHelper.getUserIdStr();
         UserPolicy fresh=readUser(tenant,user);
-        return new TrustedContext(UUID.randomUUID().toString(),UUID.randomUUID().toString(),tenant,
+        var trace=fcp.observability.TraceContext.ensure();
+        return new TrustedContext(trace.requestId(),trace.traceId(),tenant,
             new TrustedContext.Principal(TrustedContext.Kind.USER,user),fresh.revision(),fresh.scopes(),clock.instant().plusSeconds(60));
     }
     public Set<String> permissions(TrustedContext context) {
@@ -84,7 +85,8 @@ public final class NativePluginHost implements HostCapabilities {
         return effective;
     }
     public TrustedContext recoveryContext(String tenant) {
-        return new TrustedContext(UUID.randomUUID().toString(),UUID.randomUUID().toString(),tenant,
+        var trace=fcp.observability.TraceContext.ensure();
+        return new TrustedContext(trace.requestId(),trace.traceId(),tenant,
             new TrustedContext.Principal(TrustedContext.Kind.TASK,"fcp-control-recovery"),0,Set.of(),clock.instant().plusSeconds(60));
     }
     private boolean tenantActive(String tenant) {

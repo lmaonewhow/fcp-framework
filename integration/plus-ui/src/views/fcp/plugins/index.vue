@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { watch } from 'vue';
+import { responseError } from '@/fcp/trace';
 import { ElButton, ElInput } from 'element-plus';
 import PluginWorkspace from '@/fcp/PluginWorkspace.vue';
 import type { NativePluginHost } from '@/fcp/usePlugins';
@@ -17,7 +18,11 @@ const host: NativePluginHost = {
     try { return await request({url,method,data,signal,headers:{repeatSubmit:false,...options?.headers}}); }
     catch (failure) {
       const body = (failure as {response?:{data?:unknown}} | null)?.response?.data;
-      if (body) return body;
+      if (body && typeof body === 'object') {
+        const response = (failure as {response?:{headers?:unknown;data?:unknown}}).response;
+        const message = (body as {msg?:string}).msg || '宿主请求失败';
+        return {...body,msg:responseError(message,response).message};
+      }
       throw failure;
     }
   }

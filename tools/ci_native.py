@@ -250,6 +250,13 @@ def run()->int:
    process.terminate()
    try:process.wait(timeout=35);report['processShutdown']='GRACEFUL_EXIT'
    except subprocess.TimeoutExpired:process.kill();process.wait();report.update(status='FAIL',processShutdown='FORCED_KILL')
+  if composition_fixture and private_dir:
+   from ui_native_trace_evidence import project_native_trace_evidence
+   try:
+    composition_fixture.report['nativeNavigationTraceEvidence']=project_native_trace_evidence(private_dir,composition_fixture.report)
+   except Exception:
+    composition_fixture.report['nativeNavigationTraceEvidence']={'available':False,'projectionFailed':True}
+   composition_fixture._write()
   if exchange_fixture:exchange_fixture.close()
   if fixture:fixture.close()
   output=ROOT/'reports';output.mkdir(exist_ok=True)

@@ -15,12 +15,15 @@ class DevHostTest(unittest.TestCase):
    with socket.socket() as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
    log=(work/'server.log').open('w')
    process=subprocess.Popen(['java','-cp',str(ROOT/'build/runtime-http'),'dev.fcp.dev.DevHost','--development',str(private),str(work/'state'),str(port)],stdout=log,stderr=log)
+   last_trace=[]
    def request(path,body=None,headers=None,auth=True):
     h={'Authorization':'Bearer '+token} if auth else {}
     h.update(headers or {})
     if isinstance(body,dict):body=json.dumps(body).encode();h['Content-Type']='application/json'
     req=urllib.request.Request(f'http://127.0.0.1:{port}'+path,data=body,headers=h)
-    with urllib.request.urlopen(req,timeout=15) as r:return json.load(r)['data']
+    with urllib.request.urlopen(req,timeout=15) as r:
+     self.assertRegex(r.headers.get('X-Trace-Id',''),r'^[0-9a-f]{32}$');last_trace[:]=[r.headers['X-Trace-Id']]
+     return json.load(r)['data']
    succeeded=False
    try:
     for _ in range(100):
@@ -31,8 +34,17 @@ class DevHostTest(unittest.TestCase):
     else:self.fail('Development server start timeout')
     with self.assertRaises(urllib.error.HTTPError) as e:request('/fcp/ui/catalog',auth=False)
     self.assertEqual(e.exception.code,401)
+    failure_trace=e.exception.headers.get('X-Trace-Id','');self.assertRegex(failure_trace,r'^[0-9a-f]{32}$')
+    self.assertEqual(json.load(e.exception)['data']['traceId'],failure_trace)
+    # Public headers never pick a host trace, including valid-looking W3C IDs.
+    spoof='00-'+'1'*32+'-'+'2'*16+'-01'
+    req=urllib.request.Request(f'http://127.0.0.1:{port}/fcp/session',headers={'Authorization':'Bearer '+token,'traceparent':spoof})
+    with urllib.request.urlopen(req) as r:
+     self.assertRegex(r.headers['X-Trace-Id'],r'^[0-9a-f]{32}$');self.assertNotEqual(r.headers['X-Trace-Id'],'1'*32)
     data=package.read_bytes();headers={'Content-Type':'application/octet-stream','X-Fcp-Digest':hashlib.sha256(data).hexdigest(),'Idempotency-Key':'install-one','X-Fcp-Revision':'0'}
     installed=request('/fcp/packages',data,headers);self.assertEqual(installed['state'],'INSTALLED')
+    audit_rows=[json.loads(line) for line in (work/'state/audit.jsonl').read_text().splitlines()]
+    self.assertTrue(any(row.get('traceId')==last_trace[0] for row in audit_rows),'installation audit must use HTTP trace')
     replay=request('/fcp/packages',data,headers);self.assertTrue(replay['replayed'])
     self.assertEqual(request('/fcp/ui/catalog')['catalog']['pages'],[])
     status=request('/fcp/plugins/test.echo')
@@ -43,6 +55,7 @@ class DevHostTest(unittest.TestCase):
     export=catalog['pages'][0]['capabilities'][0]
     response=request('/fcp/capabilities/'+export+'/invoke',{'input':{'message':'hello','tenantId':'forged'},'expectedRevision':catalog['revision'],'idempotencyKey':'read-one'})
     self.assertEqual(response['tenant'],'t1')
+    self.assertEqual(response['traceId'],last_trace[0]);self.assertEqual(response['traceparent'][3:35],last_trace[0])
     # Live config revocation is enforced on both the old endpoint and the next catalog.
     granted=config['identities'][0]['grants'];config['identities'][0]['grants']=[];private.write_text(json.dumps(config))
     with self.assertRaises(urllib.error.HTTPError) as revoked:request('/fcp/capabilities/'+export+'/invoke',{'input':{},'expectedRevision':catalog['revision']})

@@ -1,6 +1,8 @@
 package fcp.release.observation;
 
 import fcp.release.routing.DurableReleaseRouter;
+import fcp.observability.TraceContext;
+import fcp.observability.TraceEvents;
 import java.io.IOException;
 import java.util.Objects;
 
@@ -15,6 +17,14 @@ public final class ObservedInvocation {
         boolean technical=true,unknown=false;RequestObserver.BusinessOutcome business=RequestObserver.BusinessOutcome.UNKNOWN;
         try{T result=call.invoke();technical=false;if(classifier!=null){RequestObserver.BusinessOutcome classified=classifier.classify(result);if(classified!=null)business=classified;}return result;}
         catch(IOException|RuntimeException failure){unknown=mayWrite;throw failure;}
-        finally{ticket.complete(technical,business,unknown,System.nanoTime()-started);}
+        finally{
+            try{ticket.complete(technical,business,unknown,System.nanoTime()-started);}
+            finally{
+                // Preserve original ticket, classifier, and unknown-result semantics even if diagnostics fail.
+                if(TraceContext.current()!=null)try{
+                    TraceEvents.recordReleaseInvocation(decision.releaseId(),decision.revision(),technical,business.name(),unknown,started);
+                }catch(RuntimeException ignored){/* Best-effort telemetry must not replace the invocation result/exception. */}
+            }
+        }
     }
 }

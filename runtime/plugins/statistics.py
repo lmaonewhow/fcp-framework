@@ -3,6 +3,9 @@
 import json
 import os
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "observability"))
+from fcp_trace import scope
 MAX_FRAME=1_048_576
 
 def summarize(params):
@@ -27,12 +30,13 @@ def main():
         request_id=None
         try:
             request=json.loads(raw)
-            if not isinstance(request,dict) or set(request)!={'jsonrpc','id','method','params'}:
+            if not isinstance(request,dict) or set(request) not in ({'jsonrpc','id','method','params'}, {'jsonrpc','id','method','params','traceparent'}):
                 raise ValueError('Invalid request envelope')
             request_id=request['id']
             if request['jsonrpc']!='2.0' or not isinstance(request_id,str) or request['method']!='stats.analyze':
                 raise ValueError('Unknown method or protocol')
-            result=summarize(request['params'])
+            with scope(request.get('traceparent')):
+                result=summarize(request['params'])
             reply=dict(jsonrpc='2.0',id=request_id,result=result)
         except (ValueError,TypeError,KeyError,UnicodeDecodeError) as error:
             reply=dict(jsonrpc='2.0',id=request_id,error=dict(code=-32602,message=str(error),data={'code':'INVALID_INPUT'}))

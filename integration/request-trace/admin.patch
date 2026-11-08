@@ -1,0 +1,98 @@
+diff --git a/src/utils/request.ts b/src/utils/request.ts
+index cd16fb1..f01725e 100644
+--- a/src/utils/request.ts
++++ b/src/utils/request.ts
+@@ -1,3 +1,5 @@
++import { clearTraceNotice, responseError, withResponseTrace, rememberResponseTrace } from '@/fcp/trace';
++import { watch } from 'vue';
+ import axios, { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+ import { useUserStore } from '@/store/modules/user';
+ import { getToken } from '@/utils/auth';
+@@ -12,6 +14,26 @@ import { encryptBase64, encryptWithAes, generateAesKey, decryptWithAes, decryptB
+ import { encrypt, decrypt } from '@/utils/jsencrypt';
+ import router from '@/router';
+
++// Diagnostic scope stays in memory, never in request headers, URLs or serialized config.
++const downloadTraceScopes = new WeakMap<object, () => boolean>();
++const traceScopes = new WeakMap<object, () => boolean>();
++let traceWatching = false;
++function traceIdentity(): string {
++  const user = useUserStore();
++  return JSON.stringify([getToken(), user.token, user.userId, user.tenantId]);
++}
++function captureTraceScope(config: InternalAxiosRequestConfig): void {
++  if (!traceWatching) {
++    watch(traceIdentity, () => clearTraceNotice(), { flush: 'sync' });
++    traceWatching = true;
++  }
++  const identity = traceIdentity();
++  traceScopes.set(config, () => !config.signal?.aborted && traceIdentity() === identity);
++}
++function traceCurrent(config?: InternalAxiosRequestConfig): boolean {
++  return Boolean(config && traceScopes.get(config)?.());
++}
++
+ const encryptHeader = 'encrypt-key';
+ let downloadLoadingInstance: LoadingInstance;
+ // 是否显示重新登录
+@@ -38,6 +60,7 @@ const service = axios.create({
+ // 请求拦截器
+ service.interceptors.request.use(
+   (config: InternalAxiosRequestConfig) => {
++    captureTraceScope(config);
+     // 对应国际化资源文件后缀
+     config.headers['Content-Language'] = getLanguage();
+
+@@ -126,8 +149,10 @@ service.interceptors.response.use(
+     const msg = errorCode[code] || res.data.msg || errorCode['default'];
+     // 二进制数据则直接返回
+     if (res.request.responseType === 'blob' || res.request.responseType === 'arraybuffer') {
+-      return res.data;
++      downloadTraceScopes.set(res.data, () => traceCurrent(res.config));
++      return traceCurrent(res.config) ? rememberResponseTrace(res.data, res) : res.data;
+     }
++    const failure = code !== HttpStatus.SUCCESS ? (traceCurrent(res.config) ? responseError(msg, res) : new Error(msg)) : undefined;
+     if (code === 401) {
+       // prettier-ignore
+       if (!isRelogin.show) {
+@@ -150,16 +175,16 @@ service.interceptors.response.use(
+           isRelogin.show = false;
+         });
+       }
+-      return Promise.reject('无效的会话，或者会话已过期，请重新登录。');
++      return Promise.reject(failure);
+     } else if (code === HttpStatus.SERVER_ERROR) {
+       ElMessage({ message: msg, type: 'error' });
+-      return Promise.reject(new Error(msg));
++      return Promise.reject(failure);
+     } else if (code === HttpStatus.WARN) {
+       ElMessage({ message: msg, type: 'warning' });
+-      return Promise.reject(new Error(msg));
++      return Promise.reject(failure);
+     } else if (code !== HttpStatus.SUCCESS) {
+       ElNotification.error({ title: msg });
+-      return Promise.reject('error');
++      return Promise.reject(failure);
+     } else {
+       return Promise.resolve(res.data);
+     }
+@@ -173,6 +198,10 @@ service.interceptors.response.use(
+     } else if (message.includes('Request failed with status code')) {
+       message = '系统接口' + message.substr(message.length - 3) + '异常';
+     }
++    if (traceCurrent(error.config ?? error.response?.config)) {
++      withResponseTrace(error, error.response);
++      message = responseError(message, error.response).message;
++    }
+     ElMessage({ message: message, type: 'error', duration: 5 * 1000 });
+     return Promise.reject(error);
+   }
+@@ -199,7 +228,7 @@ export function download(url: string, params: any, fileName: string) {
+         const resText = await blob.text();
+         const rspObj = JSON.parse(resText);
+         const errMsg = errorCode[rspObj.code] || rspObj.msg || errorCode['default'];
+-        ElMessage.error(errMsg);
++        ElMessage.error(downloadTraceScopes.get(resp)?.() ? responseError(errMsg, {data: resp}).message : errMsg);
+       }
+       downloadLoadingInstance.close();
+     }).catch((r: any) => {

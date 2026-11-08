@@ -6,7 +6,8 @@ globalThis.localStorage=memory();globalThis.sessionStorage=memory();Object.defin
 const listeners={};let bundle='embedded',reloads=0,confirmed=false,calls=[];
 globalThis.document={querySelector:()=>({content:bundle}),addEventListener:(name,fn)=>listeners[name]=fn};
 globalThis.window={addEventListener:(name,fn)=>listeners[name]=fn,confirm:()=>confirmed,location:{reload:()=>reloads++}};
-const module=await import('../../integration/frontend-shared/release-session.ts');
+const {compiledUrl}=await import('./compiled-modules.mjs');
+const module=await import(compiledUrl('release-session.js'));
 const value=()=>({mode:'RELEASE',releaseId:'r1',affinity:'signed',bundleDigest:'a'.repeat(64),shell:'admin'});
 beforeEach(()=>{localStorage.clear();sessionStorage.clear();localStorage.setItem('FCP-Host-Token','token-one');bundle='embedded';reloads=0;confirmed=false;calls=[];module.markUiSaved();globalThis.fetch=async(url,options)=>{calls.push({url,options});return {ok:true,status:200,json:async()=>({code:200,data:value()})}};});
 test('per-tab context is token-hash bound without duplicate raw token',async()=>{await module.rememberReleaseContext(value());assert.equal(await module.getReleaseAffinity(),'signed');assert(!sessionStorage.getItem('FCP-Release-Context-v1').includes('token-one'));localStorage.setItem('FCP-Host-Token','token-two');assert.equal(await module.getReleaseAffinity(),null);});

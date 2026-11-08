@@ -5,6 +5,9 @@ import csv
 import http.client
 import os
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "observability"))
+from fcp_trace import scope
 import attendance
 import roster
 from inputs import MAX_ROWS, from_api, from_csv, strict_json
@@ -42,12 +45,13 @@ def main():
         request_id = None
         try:
             request = strict_json(raw)
-            if not isinstance(request, dict) or set(request) != {'jsonrpc', 'id', 'method', 'params'}:
+            if not isinstance(request, dict) or set(request) not in ({'jsonrpc', 'id', 'method', 'params'}, {'jsonrpc', 'id', 'method', 'params', 'traceparent'}):
                 raise ValueError('Invalid JSON-RPC envelope')
             request_id = request['id']
             if request['jsonrpc'] != '2.0' or not isinstance(request_id, str) or request['method'] != 'run':
                 raise ValueError('Unknown protocol or operation')
-            result = dispatch(entity, kind, request['params'])
+            with scope(request.get('traceparent')):
+                result = dispatch(entity, kind, request['params'])
             reply = dict(jsonrpc='2.0', id=request_id, result=result)
         except (ValueError, TypeError, KeyError, OSError, http.client.HTTPException, csv.Error) as error:
             # Never echo source rows, URLs or credentials into an error response.

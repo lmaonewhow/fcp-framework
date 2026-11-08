@@ -1,3 +1,4 @@
+import { clearUntracedErrorNotice, readResponseJson, responseError } from './trace.js';
 import {computed,onBeforeUnmount,onMounted,ref} from 'vue';
 import {readToken} from './session';
 
@@ -23,7 +24,7 @@ export function useIngestion(){
     const response=await fetch('/fcp/ingestion'+path,{method:input===undefined?'GET':'POST',cache:'no-store',credentials:'same-origin',redirect:'error',signal:controller.signal,
       headers:{Authorization:`Bearer ${token}`,clientid:clientId,'Content-Type':'application/json'},body:input===undefined?undefined:JSON.stringify(input)});
     if(token!==readToken())throw new Error('登录身份已经变化，请重新打开页面');
-    const body=await response.json();if(!response.ok||body.code!==200)throw new Error(typeof body.msg==='string'?body.msg:'宿主请求失败');
+    const body=await readResponseJson(response);if(!response.ok||body?.code!==200)throw responseError(typeof body?.msg==='string'?body.msg:'宿主请求失败',{headers:response.headers,data:body});
     return body.data as T;
   }
   function envelope(input:unknown){if(!state.value)throw new Error('请先加载插件状态');return {input,instance:state.value.instance,generation:state.value.generation,expectedCaller:state.value.caller};}
@@ -41,7 +42,7 @@ export function useIngestion(){
     if(pending.value&&pendingCaller!==JSON.stringify(next.caller)){pending.value=null;throw new Error('当前身份与待重试导入不一致，已清除待重试请求');}
     await data();
   }
-  async function run(action:()=>Promise<void>){if(busy.value)return;busy.value=true;error.value='';try{await action();}catch(e){if(alive)error.value=e instanceof Error?e.message:'操作失败';}finally{if(alive)busy.value=false;}}
+  async function run(action:()=>Promise<void>){if(busy.value)return;busy.value=true;error.value='';try{await action();}catch(e){if(alive){clearUntracedErrorNotice(e);error.value=e instanceof Error?e.message:'操作失败';}}finally{if(alive)busy.value=false;}}
   function toggle(plugin:Plugin){return run(async()=>{state.value=await request<Catalog>('/state',envelope({plugin:plugin.id,enabled:!plugin.enabled,revision:plugin.revision}));await data();});}
   async function commit(input:ImportInput){
     const result=await request<Receipt>('/imports',envelope(input));pending.value=null;

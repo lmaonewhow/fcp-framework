@@ -12,7 +12,7 @@ class FixtureTests(unittest.TestCase):
             data,manifest=package_bytes(plugin)
             self.assertEqual(data,package_bytes(plugin)[0])
             with zipfile.ZipFile(io.BytesIO(data)) as archive:
-                self.assertEqual(set(archive.namelist()),{'plugin.json','worker.py'})
+                self.assertEqual(set(archive.namelist()),{'plugin.json','worker.py','fcp_trace.py'})
                 self.assertEqual(json.loads(archive.read('plugin.json')),manifest)
             self.assertEqual(manifest['pluginId'],plugin)
             self.assertEqual(manifest['publisher'],'fcp-fixtures')

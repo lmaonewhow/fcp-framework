@@ -16,6 +16,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -33,6 +34,13 @@ jobs:
         run: FCP_VUE_TOOLS="$RUNNER_TEMP/fcp-vue-contracts/node_modules" node --experimental-strip-types --test tests/frontend-release/containment-sfc.test.mjs tests/frontend-release/observation-safety-sfc.test.mjs
       - name: Archive exact source before tests
         run: mkdir -p evidence && git archive --format=zip --output=evidence/source.zip HEAD && git rev-parse HEAD > evidence/commit.txt
+      - name: Trace context, bounded logging and actual cross-language verification
+        run: python3 tools/verify_observability.py
+      - name: Retain same-runner HTTP trace overhead evidence
+        if: github.event_name == 'pull_request'
+        env:
+          BASELINE_COMMIT: ${{ github.event.pull_request.base.sha }}
+        run: python3 tools/measure_trace_overhead.py --baseline-ref "$BASELINE_COMMIT"
       - name: System version and release component verification
         run: python3 tools/verify_system_release.py
       - name: Runtime contract and package verification
@@ -61,6 +69,7 @@ jobs:
           path: |
             evidence/source.zip
             evidence/commit.txt
+            reports/observability/
             reports/system-release/
             reports/runtime-contracts/
             reports/runtime-lifecycle/

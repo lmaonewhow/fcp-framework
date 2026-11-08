@@ -42,7 +42,8 @@ public class FcpExchangeConfiguration {
         for(String kind:List.of("roster","exam")){String api=env.getProperty("FCP_EXCHANGE_"+(kind.equals("roster")?"CAMPUS":"EXAM")+"_FIXTURE_API");if(api!=null&&!api.isBlank())schedules.add(new FixedTaskScheduler.Schedule(tenant,kind+"-fixture-sync",kind+"-fixture",Duration.ofSeconds(interval)));}
         if(schedules.isEmpty())throw new IllegalArgumentException("Scheduled fixture requires an explicitly configured loopback API");
         return new FixedTaskScheduler(exchange,(t,task)->{
-            var context=new TrustedContext(UUID.randomUUID().toString(),UUID.randomUUID().toString(),t,new TrustedContext.Principal(TrustedContext.Kind.TASK,task),0,Set.of(scope),host.clock().instant().plusSeconds(60));
+            var trace=fcp.observability.TraceContext.ensure();
+            var context=new TrustedContext(trace.requestId(),trace.traceId(),t,new TrustedContext.Principal(TrustedContext.Kind.TASK,task),0,Set.of(scope),host.clock().instant().plusSeconds(60));
             String plugin=task.equals("roster-fixture-sync")?"roster":"mock-exam";
             host.require(context,new HostCapabilities.Grant(plugin,"exchange","task",scope));return context;
         },schedules,(schedule,error)->LoggerFactory.getLogger(FcpExchangeConfiguration.class).warn("FCP fixture task {} failed ({}); cursor retained",schedule.config(),error.getClass().getSimpleName()));

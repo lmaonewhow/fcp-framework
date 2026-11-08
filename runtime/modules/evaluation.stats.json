@@ -12,6 +12,7 @@
     "launcher": "stats.python",
     "timeout": 3,
     "idleTimeoutMs": 3000,
+    "traceContext": "w3c",
     "methods": {
       "api.analyze": "stats.analyze"
     }

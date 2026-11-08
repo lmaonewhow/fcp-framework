@@ -1,0 +1,12 @@
+{
+  "workflowRun": 42442941809,
+  "artifactId": 13602443930,
+  "inputZipSha256": "3ac775b09add9c9a46e621d4d1105b4adee3c1ed5589482238e51543cc91b30b",
+  "acceptanceSha256": "71fcdd2d68e3df8700ab31e4ca63e4f1d223ec7a85f74d3ad46336ff57a1815d",
+  "sourceTree": "1b2a1bda08d8516c21b8a124e43969b1c74541d1",
+  "status": "FAIL",
+  "errorType": "NativeLoginPreparationError",
+  "error": "Native login preparation failed: /auth/tenant/list invalid-json",
+  "totalChecks": 158,
+  "diagnosticBoundary": "Original report lacks HTTP status, response Trace, content-type, body-read/parse distinction and relogin callback events; actual cause remains UNKNOWN."
+}

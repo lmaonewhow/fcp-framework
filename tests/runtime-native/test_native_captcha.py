@@ -1,5 +1,6 @@
 """Control-flow fake-clock tests only; they do not establish native login acceptance."""
 import contextlib
+import json
 import io
 from pathlib import Path
 import sys
@@ -14,6 +15,13 @@ CHALLENGE = dict(captchaEnabled=True, uuid='a'*32, img='synthetic-unit-image')
 class Response:
     def __init__(self, payload, status=200, url=BASE+'/auth/code'):
         self.payload, self.status, self.url = payload, status, url
+        self.headers = {'content-type': 'application/json'}
+        self.body_reads = 0
+    def body(self):
+        self.body_reads += 1
+        if isinstance(self.payload, Exception):
+            raise self.payload
+        return json.dumps(self.payload).encode()
     def json(self):
         if isinstance(self.payload, Exception):
             raise self.payload
@@ -158,7 +166,8 @@ class NativeCaptchaTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         for file in ('tools/ci_ingestion.py', 'tests/runtime-native/failure_boundaries.py', 'tests/runtime-native/ui_boundaries.py'):
             text = (root/file).read_text()
-            self.assertIn('captcha = open_native_login(', text)
+            helper = 'open_native_tenant_login' if file.endswith('/ui_boundaries.py') else 'open_native_login'
+            self.assertIn('captcha = '+helper+'(', text)
             self.assertNotIn("captcha = code_response.value.json()['data']", text)
             self.assertNotIn("captcha = response.value.json()['data']", text)
         source = (root/'tools/native_login.py').read_text()

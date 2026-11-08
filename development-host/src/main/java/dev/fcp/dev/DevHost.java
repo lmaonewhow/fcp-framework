@@ -3,6 +3,8 @@ package dev.fcp.dev;
 import com.sun.net.httpserver.*;
 import dev.fcp.host.*;
 import fcp.*;
+import fcp.observability.TraceContext;
+import fcp.observability.TraceEvents;
 import fcp.control.*;
 import fcp.host.*;
 import fcp.runtime.*;
@@ -61,6 +63,10 @@ public final class DevHost implements AutoCloseable {
     public void start(){server.start();}
     public int port(){return server.getAddress().getPort();}
     private void handle(HttpExchange x)throws IOException {
+        try(var traceScope=TraceContext.open(TraceContext.start(null,false))) {
+        long started=System.nanoTime();
+        x.getResponseHeaders().set("X-Trace-Id",TraceContext.current().traceId());
+        x.getResponseHeaders().set("X-Request-Id",TraceContext.current().requestId());
         try {
             TrustedContext context=authority.authenticate(x.getRequestHeaders().getFirst("Authorization"));
             String path=x.getRequestURI().getRawPath();String method=x.getRequestMethod();Object result;
@@ -121,10 +127,11 @@ public final class DevHost implements AutoCloseable {
                 case "DEADLINE_EXCEEDED","DEADLINE"->504;
                 default->503;
             };
-            send(x,status,Json.obj("code",status,"msg",status>=500?"Plugin operation unavailable; inspect operation receipt":e.getMessage(),"data",Json.obj("fcpCode",e.code)));
+            send(x,status,Json.obj("code",status,"msg",status>=500?"Plugin operation unavailable; inspect operation receipt":e.getMessage(),"data",Json.obj("fcpCode",e.code,"traceId",TraceContext.current().traceId())));
         } catch(IllegalArgumentException|ClassCastException e){send(x,400,Json.obj("code",400,"msg","Invalid request"));}
         catch(Exception e){send(x,503,Json.obj("code",503,"msg","Plugin host unavailable"));}
-        finally{x.close();}
+        finally{TraceEvents.record("http.request",x.getRequestMethod(),Integer.toString(x.getResponseCode()),started);x.close();}
+        }
     }
     private ExchangeService createExchange(Map<String,Object> config,Path root)throws IOException {
         if(!config.containsKey("exchangeFixture"))return null;
@@ -168,7 +175,7 @@ public final class DevHost implements AutoCloseable {
     private static void fields(Map<String,Object> body,Set<String> fields){if(!fields.containsAll(body.keySet()))throw new FcpException("INVALID_ARGUMENT","Unknown request field");}
     private void staticResource(HttpExchange x)throws IOException {
         try {
-            String path=x.getRequestURI().getRawPath();String name=switch(path){case "/dev/","/dev/index.html"->"index.html";case "/dev/app.js"->"app.js";case "/dev/runtime.js"->"runtime.js";case "/dev/style.css"->"style.css";default->null;};
+            String path=x.getRequestURI().getRawPath();String name=switch(path){case "/dev/","/dev/index.html"->"index.html";case "/dev/app.js"->"app.js";case "/dev/runtime.js"->"runtime.js";case "/dev/trace.js"->"trace.js";case "/dev/style.css"->"style.css";default->null;};
             if(!"GET".equals(x.getRequestMethod())||name==null){send(x,404,Map.of("code",404));return;}
             try(InputStream input=DevHost.class.getResourceAsStream("/dev-ui/"+name)){
                 if(input==null){send(x,404,Map.of("code",404));return;}
@@ -196,7 +203,7 @@ public final class DevHost implements AutoCloseable {
         Authority(Path privateConfig,Path root)throws IOException{this.privateConfig=privateConfig;Files.createDirectories(root);audit=root.resolve("audit.jsonl");}
         private Map<String,Object> configuration(){try{Map<String,Object> config=readPrivateConfiguration(privateConfig);if(!Boolean.TRUE.equals(config.get("development")))throw new FcpException("PERMISSION_DENIED","Development authentication disabled");return config;}catch(IOException e){throw new FcpException("PERMISSION_DENIED","Development identity unavailable");}}
         private long revision(){return java.nio.ByteBuffer.wrap(java.util.HexFormat.of().parseHex(VerifiedPackageRepository.hash(Json.write(configuration()).getBytes(StandardCharsets.UTF_8)))).getLong()&0x1fffffffffffffL;}
-        TrustedContext recoveryContext(String tenant){return new TrustedContext(UUID.randomUUID().toString(),UUID.randomUUID().toString(),tenant,new TrustedContext.Principal(TrustedContext.Kind.TASK,"fcp-control-recovery"),revision(),Set.of(),clock().instant().plusSeconds(60));}
+        TrustedContext recoveryContext(String tenant){return new TrustedContext(TraceContext.ensure().requestId(),TraceContext.ensure().traceId(),tenant,new TrustedContext.Principal(TrustedContext.Kind.TASK,"fcp-control-recovery"),revision(),Set.of(),clock().instant().plusSeconds(60));}
         String verifyEnablement(TrustedContext context,fcp.plugin.PluginManifest manifest,String digest,Map<String,fcp.plugin.PluginManifest> closure) {
             List<Object> approvals=new ArrayList<>();approvals.add(digest);
             for(var required:manifest.requires()) {
@@ -217,7 +224,7 @@ public final class DevHost implements AutoCloseable {
             for(Object value:arr(configuration(),"identities")){var id=map(value);String expected=str(id.get("token"));if(expected.length()<32)throw new FcpException("UNAUTHENTICATED","Development token configuration invalid");
                 if(java.security.MessageDigest.isEqual(raw.getBytes(StandardCharsets.UTF_8),expected.getBytes(StandardCharsets.UTF_8))) {
                     Set<String> scopes=new HashSet<>();for(Object s:arr(id,"scopes"))scopes.add(str(s));
-                    return new TrustedContext(UUID.randomUUID().toString(),UUID.randomUUID().toString(),str(id.get("tenantId")),new TrustedContext.Principal(TrustedContext.Kind.USER,str(id.get("userId"))),revision(),scopes,clock().instant().plusSeconds(60));
+                    return new TrustedContext(TraceContext.ensure().requestId(),TraceContext.ensure().traceId(),str(id.get("tenantId")),new TrustedContext.Principal(TrustedContext.Kind.USER,str(id.get("userId"))),revision(),scopes,clock().instant().plusSeconds(60));
                 }}throw new FcpException("UNAUTHENTICATED","Development authorization invalid");
         }
         private Map<String,Object> identity(TrustedContext c){for(Object v:arr(configuration(),"identities")){var id=map(v);if(id.get("tenantId").equals(c.tenantId())&&id.get("userId").equals(c.principal().id())&&c.principal().kind()==TrustedContext.Kind.USER)return id;}throw new FcpException("PERMISSION_DENIED","Unknown development principal");}
@@ -233,6 +240,6 @@ public final class DevHost implements AutoCloseable {
             for(Object value:arr(id,"grants")){var grant=map(value);if(g.pluginId().equals(grant.get("plugin"))&&g.capability().equals(grant.get("capability"))&&g.operation().equals(grant.get("operation"))&&g.dataScope().equals(grant.get("dataScope"))&&permissions.contains(grant.get("permission")))return new Decision(true,revision());}
             return new Decision(false,revision());
         }
-        public synchronized void audit(Audit e){try{Files.writeString(audit,Json.write(Json.obj("requestId",e.requestId(),"tenantId",e.tenantId(),"principal",e.principalId(),"pluginId",e.pluginId(),"action",e.action(),"outcome",e.outcome(),"at",e.occurredAt().toString()))+"\n",StandardOpenOption.CREATE,StandardOpenOption.APPEND);}catch(IOException error){throw new FcpException("AUDIT_UNAVAILABLE","Development audit failed",error);}}
+        public synchronized void audit(Audit e){try{Files.writeString(audit,Json.write(Json.obj("requestId",e.requestId(),"traceId",e.traceId(),"tenantId",e.tenantId(),"principal",e.principalId(),"pluginId",e.pluginId(),"action",e.action(),"outcome",e.outcome(),"at",e.occurredAt().toString()))+"\n",StandardOpenOption.CREATE,StandardOpenOption.APPEND);}catch(IOException error){throw new FcpException("AUDIT_UNAVAILABLE","Development audit failed",error);}}
     }
 }

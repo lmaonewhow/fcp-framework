@@ -15,7 +15,7 @@ public final class FcpPluginAdvice {
         int status=switch(e.code){case "UNAUTHENTICATED"->401;case "PERMISSION_DENIED","FORBIDDEN","STALE_RELEASE_AFFINITY","RELEASE_DISABLED"->403;case "INVALID_ARGUMENT","MANIFEST","SCHEMA","TYPE","HOST_IMPLEMENTATION_DEPENDENCY","PLUGIN_DEPENDENCY_METADATA"->400;
             case "MODE_CONFLICT","VERSION_CONFLICT","STALE_COMPOSITION","IDEMPOTENCY_CONFLICT","PLAN_EXPIRED","CONFIRMATION_REQUIRED","PLUGIN_DISABLED"->409;
             case "DEADLINE_EXCEEDED","DEADLINE"->504;case "BUSY","PACKAGE_LIMIT"->429;default->503;};
-        String trace=UUID.randomUUID().toString();
+        String trace=fcp.observability.TraceContext.ensure().traceId();
         return ResponseEntity.status(status).body(Map.of("code",status,"msg",status>=500?"Plugin operation unavailable; use the operation receipt to reconcile":e.getMessage(),"data",Map.of("fcpCode",e.code,"traceId",trace)));
     }
     @ExceptionHandler(java.io.IOException.class)
@@ -24,6 +24,6 @@ public final class FcpPluginAdvice {
     }
     @ExceptionHandler({IllegalArgumentException.class,ClassCastException.class})
     public ResponseEntity<Map<String,Object>> invalid(Exception ignored) {
-        return ResponseEntity.badRequest().body(Map.of("code",400,"msg","Invalid plugin request","data",Map.of("fcpCode","INVALID_ARGUMENT")));
+        return ResponseEntity.badRequest().body(Map.of("code",400,"msg","Invalid plugin request","data",Map.of("fcpCode","INVALID_ARGUMENT","traceId",fcp.observability.TraceContext.ensure().traceId())));
     }
 }

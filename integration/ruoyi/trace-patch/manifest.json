@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "upstreamCommit": "8136a0191a2258c0e1b36a8146a1c5ebc070c139",
+  "patchFile": "native.patch",
+  "sha256": "76fc174f952d2954b515e723cd89bb7c2e55e1543fb8cb7baed7b57d413936df",
+  "preimages": {
+    "ruoyi-admin/src/main/resources/logback-plus.xml": "e864ce34177b7722dd6df5af1ad346654f562a812b4b3142bd095f930cddb73f",
+    "ruoyi-modules/ruoyi-system/src/main/java/org/dromara/system/service/impl/SysLogininforServiceImpl.java": "03070d4710c0e5c7912de7f5a9754456f735f1b49155a78698967ad3af3274fa",
+    "ruoyi-modules/ruoyi-system/src/main/java/org/dromara/system/service/impl/SysOperLogServiceImpl.java": "0977feadbd3ada6ca00efd569e8cdb638c2130f4620c1576249fc984014e93c6"
+  },
+  "postimages": {
+    "ruoyi-admin/src/main/resources/logback-plus.xml": "af0e672e633616dc9a62d094dc7c64c7d871d6d8436d3d8a8e20cf8dd5ece638",
+    "ruoyi-modules/ruoyi-system/src/main/java/org/dromara/system/service/impl/SysLogininforServiceImpl.java": "7ed29fee4144036cda1aac8d5675321674511fd7d678a38a38725864eda76879",
+    "ruoyi-modules/ruoyi-system/src/main/java/org/dromara/system/service/impl/SysOperLogServiceImpl.java": "6b0d143dc558bb23630eeb4066c42fd9a3c2c5b87ccf994b2b34d58a2e1e8631"
+  }
+}

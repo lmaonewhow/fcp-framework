@@ -1,6 +1,7 @@
 package fcp.runtime;
 
 import fcp.*;
+import fcp.observability.TraceContext;
 import fcp.control.*;
 import fcp.host.*;
 import fcp.plugin.*;
@@ -91,7 +92,7 @@ public final class EngineRuntimePort implements RuntimePort,AutoCloseable {
             if(prior!=null){if("COMPLETE".equals(prior.get("outcome")))return prior.get("result");throw new FcpException("OUTCOME_UNKNOWN","Prior request may have committed; reconcile rather than replay");}
         }
         context.set(trusted);journaled.set(request!=null);callDeadline.set(System.nanoTime()+java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(Math.min(spec.timeoutMillis(),Math.max(1,java.time.Duration.between(host.clock().instant(),trusted.deadline()).toMillis()))));
-        try{Object result=engine.invoke(scope(trusted.tenantId()),export(plugin,capability),"invoke",input,Map.of(),expectedGeneration);if(request!=null)journal.complete(request,result);return result;}
+        try(var traceScope=TraceContext.open(TraceContext.fromTrusted(trusted.traceId(),trusted.requestId()))){Object result=engine.invoke(scope(trusted.tenantId()),export(plugin,capability),"invoke",input,Map.of(),expectedGeneration);if(request!=null)journal.complete(request,result);return result;}
         catch(FcpException e){if(request!=null)throw new FcpException("OUTCOME_UNKNOWN","Side-effect outcome requires reconciliation; original code="+e.code,e);throw e;}
         finally{context.remove();journaled.remove();callDeadline.remove();invocationSources.remove();}
     }
@@ -127,7 +128,7 @@ public final class EngineRuntimePort implements RuntimePort,AutoCloseable {
         var pkg=resolve(plugin,version,digest);String entry=pkg.manifest().runtime().entry();String kind=entry.endsWith(".py")?"python":entry.endsWith(".js")||entry.endsWith(".mjs")?"node":"";String exe=executables.get(kind);if(exe==null)throw new FcpException("RUNTIME_MISSING","No approved interpreter for entry");
         List<Object> argv=new ArrayList<>();argv.add(exe);argv.add(pkg.directory().resolve(entry).toString());argv.addAll(pkg.manifest().runtime().argv());
         Map<String,Object> launcher=Json.obj("argv",argv,"cwd",".","env",Map.of(),"requires",List.of());
-        Map<String,Object> document=Json.obj("runtime",Json.obj("launcher","plugin","timeout",60,"keepAlive",true,"autoRestart",false,"methods",Map.of()));
+        Map<String,Object> document=Json.obj("id",pkg.manifest().pluginId(),"version",pkg.manifest().version(),"runtime",Json.obj("launcher","plugin","timeout",60,"keepAlive",true,"runtimeContext",true,"autoRestart",false,"methods",Map.of()));
         Runner runner=new Runner(pkg,new ProcessProvider(document,pkg.directory(),Map.of("plugin",launcher)));journal.reserveRestart(plugin,now,restartBudget);runner.restartAttempt=now;
         try{Object handshake=control(runner,"handshake",Json.obj("protocol","fcp.runtime/1","pluginId",plugin,"version",version,"nonce",runner.nonce));Map<String,Object> response=map(handshake);
             if(!response.equals(Json.obj("protocol","fcp.runtime/1","pluginId",plugin,"version",version,"nonce",runner.nonce)))throw new FcpException("HANDSHAKE","Runner identity handshake mismatch");
@@ -185,7 +186,7 @@ public final class EngineRuntimePort implements RuntimePort,AutoCloseable {
         TrustedContext trusted=trusted(engineContext);authorizeDependency(trusted,plugin,capability);authorize(trusted,plugin,capability);if(capability(plugin,capability).sideEffects()&&!Boolean.TRUE.equals(journaled.get()))throw new FcpException("SIDE_EFFECT_CONTEXT_REQUIRED","A write dependency requires a journaled top-level operation");String key=key(trusted.tenantId(),plugin);if(cancelRequested.contains(key)||!enabled.getOrDefault(trusted.tenantId(),Set.of()).contains(plugin))throw new FcpException("ADMISSION_CLOSED","Plugin admission is closed");
         Runner r=runners.get(plugin);if(r==null||!sameIdentity(r))throw new FcpException("RUNNER_UNAVAILABLE","Runner identity is not ready");AtomicInteger count=calls.computeIfAbsent(key,k->new AtomicInteger());synchronized(this){if(cancelRequested.contains(key)||!enabled.getOrDefault(trusted.tenantId(),Set.of()).contains(plugin))throw new FcpException("ADMISSION_CLOSED","Plugin admission changed");count.incrementAndGet();}
         invocationSources.get().push(plugin);
-        try{authorize(trusted,plugin,capability);if(cancelRequested.contains(key))throw new FcpException("ADMISSION_CLOSED","Plugin admission changed");Map<String,Object> identity=Json.obj("requestId",trusted.requestId(),"traceId",trusted.traceId(),"tenantId",trusted.tenantId(),"principal",Json.obj("kind",trusted.principal().kind().name(),"id",trusted.principal().id()),"authorizationRevision",trusted.authorizationRevision(),"deadline",trusted.deadline().toString());long remaining=Math.min(capability(plugin,capability).timeoutMillis(),Math.min(java.time.Duration.between(host.clock().instant(),trusted.deadline()).toMillis(),java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(callDeadline.get()-System.nanoTime())));return r.transport.invokeBounded(engineContext,capability,"invoke",Json.obj("capability",capability,"input",input,"context",identity),remaining);}
+        try{authorize(trusted,plugin,capability);if(cancelRequested.contains(key))throw new FcpException("ADMISSION_CLOSED","Plugin admission changed");Map<String,Object> identity=Json.obj("requestId",trusted.requestId(),"traceId",trusted.traceId(),"traceparent",TraceContext.ensure().traceparent(),"tenantId",trusted.tenantId(),"principal",Json.obj("kind",trusted.principal().kind().name(),"id",trusted.principal().id()),"authorizationRevision",trusted.authorizationRevision(),"deadline",trusted.deadline().toString());long remaining=Math.min(capability(plugin,capability).timeoutMillis(),Math.min(java.time.Duration.between(host.clock().instant(),trusted.deadline()).toMillis(),java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(callDeadline.get()-System.nanoTime())));return r.transport.invokeBounded(engineContext,capability,"invoke",Json.obj("capability",capability,"input",input,"context",identity),remaining);}
         finally{invocationSources.get().pop();count.decrementAndGet();if(cancelRequested.contains(key)&&totalCalls(plugin)==0&&sameIdentity(r)){try{requireOk(control(r,"cancel",Map.of("tenantId",trusted.tenantId())));}catch(RuntimeException ignored){/* Cancellation outcome remains unknown; coordinator observes runner state. */}}}
     }
     private void authorizeDependency(TrustedContext context,String target,String capability){

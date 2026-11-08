@@ -8,11 +8,47 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import re
 from pathlib import Path
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGINS = ('portability.python', 'portability.node')
+# Explicit diagnostic vocabulary, never infer safe text from its character shape.
+# New semantic codes require review before they can appear in shared reports.
+SAFE_FCP_CODES = frozenset({
+    'HOST_IMPLEMENTATION_DEPENDENCY', 'NOT_INSTALLED', 'CAPABILITY_NOT_GRANTED',
+    'INVALID_ARGUMENT', 'REVISION_CONFLICT', 'CONFIRMATION_REQUIRED',
+    'INVALID_INPUT', 'VERSION_CONFLICT', 'PERMISSION_DENIED', 'PLUGIN_DISABLED',
+    'UNAUTHENTICATED', 'OPERATION_PENDING', 'VERSION_OPERATION_PENDING',
+    'GRANT_REVISION_CONFLICT', 'NOT_READY', 'RESTART_BACKOFF', 'DATA_ACCESS',
+})
+
+
+def response_evidence(status, reply):
+    """Allowlisted error metadata only: never response messages, input or identity."""
+    reply = reply if isinstance(reply, dict) else {}
+    data = reply.get('data')
+    data = data if isinstance(data, dict) else {}
+    code = reply.get('code')
+    fcp_code = data.get('fcpCode')
+    trace = data.get('traceId')
+    result = dict(httpStatus=status if type(status) is int and 100 <= status <= 599 else None,
+                  code=int(code) if type(code) in (str, int) and re.fullmatch(r'[1-5][0-9]{2}', str(code)) else None,
+                  fcpCode=fcp_code if isinstance(fcp_code, str) and fcp_code in SAFE_FCP_CODES else None)
+    if isinstance(trace, str) and re.fullmatch(r'[0-9a-f]{32}', trace) and trace != '0'*32:
+        result['traceId'] = trace
+    return result
+
+
+class ContractAssertion(AssertionError):
+    def __init__(self, name, checks, evidence=None):
+        self.report = dict(status='FAIL', contract='A35 shared HTTP semantics v1',
+                           checks=list(checks), failedCheck=name)
+        if evidence is not None:
+            self.report['response'] = evidence
+        suffix = '' if evidence is None else ' '+json.dumps(evidence, sort_keys=True)
+        super().__init__('A35 shared HTTP contract: '+name+suffix)
 
 
 def exported(plugin):
@@ -52,9 +88,9 @@ def run_http_contract(adapter):
     responses, changes auth implementation, or grants platform permissions implicitly.
     """
     checks = []
-    def check(name, condition):
+    def check(name, condition, evidence=None):
         if not condition:
-            raise AssertionError('A35 shared HTTP contract: '+name)
+            raise ContractAssertion(name, checks, evidence)
         checks.append(dict(name=name, status='PASS'))
     def data(path, body=None):
         status, reply = adapter.request(path, body)
@@ -62,7 +98,8 @@ def run_http_contract(adapter):
         return reply['data']
     def error(name, expected, path, body):
         status, reply = adapter.request(path, body)
-        check(name, status >= 400 and reply.get('data', {}).get('fcpCode') == expected)
+        evidence = response_evidence(status, reply)
+        check(name, evidence['httpStatus'] is not None and status >= 400 and evidence['fcpCode'] == expected, evidence)
     def current():
         return data('/fcp/plugins')['revision']
     def plan(plugin, action):
@@ -135,11 +172,14 @@ def run_http_contract(adapter):
           dict(input=dict(message=123), expectedRevision=published['revision']))
     error('stale catalog semantic code', 'VERSION_CONFLICT', '/fcp/capabilities/'+exported(PLUGINS[0])+'/invoke',
           dict(input={}, expectedRevision=published['revision']-1))
-    adapter.set_grant(PLUGINS[1], False)
+    # Revoke a provider with no requires. Revoking node's required echo approval
+    # also invalidates enablement: native recovery correctly cuts off tenant admissions.
+    # This check isolates live invocation authorization, not platform enablement failure.
+    adapter.set_grant(PLUGINS[0], False)
     revoked = catalog()
-    error('live permission revocation semantic code', 'PERMISSION_DENIED', '/fcp/capabilities/'+exported(PLUGINS[1])+'/invoke',
+    error('live permission revocation semantic code', 'PERMISSION_DENIED', '/fcp/capabilities/'+exported(PLUGINS[0])+'/invoke',
           dict(input={}, expectedRevision=revoked['revision']))
-    check('revocation removes only unauthorized page', pages(revoked) == {PLUGINS[0]})
+    check('revocation removes only unauthorized page', pages(revoked) == {PLUGINS[1]})
     disable = plan(PLUGINS[0], 'DISABLE')
     check('disable reports dependent impact', set(disable['affectedPlugins']) == set(PLUGINS))
     check('disable complete', confirm(disable, 'a35-disable')['outcome'] == 'APPLIED')

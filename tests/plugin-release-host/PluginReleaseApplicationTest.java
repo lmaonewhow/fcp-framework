@@ -1,6 +1,7 @@
 import dev.fcp.host.*;
 import fcp.*;
 import fcp.host.*;
+import fcp.observability.TraceContext;
 import fcp.control.*;
 import fcp.plugin.*;
 import fcp.runtime.*;
@@ -23,12 +24,67 @@ public class PluginReleaseApplicationTest {
     }
     static class Policy implements VersionPluginPolicy {
         final Set<String> allowed=new HashSet<>();
-        public HostCapabilities.Decision authorize(TrustedContext c,Version v,HostCapabilities.Grant g){return new HostCapabilities.Decision(allowed.contains(v.digest()),1);}
+        final List<TrustedContext> taskContexts=new ArrayList<>();
+        public HostCapabilities.Decision authorize(TrustedContext c,Version v,HostCapabilities.Grant g){if(c.principal().kind()==TrustedContext.Kind.TASK){taskContexts.add(c);check(TraceContext.current()!=null&&TraceContext.current().traceId().equals(c.traceId())&&TraceContext.current().requestId().equals(c.requestId()),"TASK authorization sees bound entry correlation");}return new HostCapabilities.Decision(allowed.contains(v.digest()),1);}
         public Approval read(TrustedContext c,GrantKey k){return null;}
         public Approval change(TrustedContext c,GrantKey k,boolean allow,Instant expiry,long expected){if(allow)allowed.add(k.version().digest());else allowed.remove(k.version().digest());return new Approval(k,"fcp:plugin:echo",expected+1,allow,expiry);}
     }
     static TrustedContext ctx(String tenant){return new TrustedContext(UUID.randomUUID().toString(),"trace",tenant,new TrustedContext.Principal(TrustedContext.Kind.USER,"operator"),1,Set.of(),Instant.now().plusSeconds(90));}
     static TrustedContext t1ForTask(){return ctx("t1");}
+    static void taskTraceChecks(ReleaseTaskApplication tasks,TrustedContext operator,StateJournal taskJournal,StateJournal runtimeJournal,Host host,Policy policy)throws Exception{
+        check(TraceContext.current()==null,"TASK test starts on clean thread");
+        var http=TraceContext.start(null,false);
+        try(var scope=TraceContext.open(http)){
+            var pin=tasks.pin(operator,"registered","trace-bound",Map.of("message","trace"));
+            var result=tasks.run(operator,"registered","trace-bound");
+            check(TraceContext.current()==http,"HTTP scope survives successful TASK calls");
+            check(Schema.map(result.get("result")).get("packageVersion").equals("1.0.0"),"traced TASK uses actual pinned Python");
+            int appRows=0;
+            for(Object raw:Schema.list(Schema.map(Json.parse(taskJournal.load().json())).get("audit"))){
+                var audit=Schema.map(raw);if(!"trace-bound".equals(audit.get("run")))continue;
+                appRows++;check(http.traceId().equals(audit.get("traceId"))&&http.requestId().equals(audit.get("requestId")),"application audit retains entry trace/request");
+            }
+            check(appRows==4,"both pin and run audit pairs checked");
+            var runtimeState=Schema.map(Json.parse(runtimeJournal.load().json()));
+            String runtimeKey=Schema.map(runtimeState.get("tasks")).entrySet().stream().filter(e->pin.get("taskId").equals(Schema.map(e.getValue()).get("taskId"))).map(Map.Entry::getKey).findFirst().orElseThrow();
+            int runtimeRows=0;
+            for(Object raw:Schema.list(runtimeState.get("audit"))){
+                var audit=Schema.map(raw);if(!String.valueOf(audit.get("action")).endsWith(":"+runtimeKey))continue;
+                runtimeRows++;check(http.traceId().equals(audit.get("traceId"))&&"registered-principal".equals(audit.get("actor"))&&"t1".equals(audit.get("tenant")),"runtime audit keeps trace and deployment TASK authority");
+            }
+            check(runtimeRows==2,"real runtime records executing and completion");
+            host.denied=true;
+            try{rejected("PERMISSION_DENIED",()->tasks.pin(operator,"registered","denied",Map.of()));
+                rejected("PERMISSION_DENIED",()->tasks.run(operator,"registered","trace-bound"));}
+            finally{host.denied=false;}
+            check(TraceContext.current()==http,"authorization rejection restores outer scope");
+            tasks.pin(operator,"registered","trace-invalid",Map.of("undeclared",true));
+            try{tasks.run(operator,"registered","trace-invalid");throw new AssertionError("invalid task accepted");}catch(FcpException expected){checks++;}
+            check(TraceContext.current()==http,"runtime exception restores outer scope");
+            check(tasks.status(operator,"registered","trace-invalid").get("state").equals("UNKNOWN"),"tracing preserves UNKNOWN");
+        }
+        check(TraceContext.current()==null,"closing HTTP scope clears reused thread");
+        tasks.pin(operator,"registered","trace-root",Map.of("message","root"));
+        check(TraceContext.current()==null,"unbound pin removes root");
+        tasks.run(operator,"registered","trace-root");
+        check(TraceContext.current()==null,"unbound run removes root");
+        Set<String> pinTraces=new HashSet<>(),runTraces=new HashSet<>();
+        for(Object raw:Schema.list(Schema.map(Json.parse(taskJournal.load().json())).get("audit"))){
+            var audit=Schema.map(raw);if(!"trace-root".equals(audit.get("run")))continue;
+            String trace=String.valueOf(audit.get("traceId")),request=String.valueOf(audit.get("requestId"));
+            check(TraceContext.validTraceId(trace)&&TraceContext.validTraceId(request),"unbound audit uses valid IDs");
+            (String.valueOf(audit.get("action")).startsWith("PIN")?pinTraces:runTraces).add(trace);
+        }
+        check(pinTraces.size()==1&&runTraces.size()==1&&!pinTraces.equals(runTraces),"unbound entries get distinct internally consistent roots");
+        rejected("TASK_DEFINITION_MISSING",()->tasks.pin(operator,"missing","trace-root",Map.of()));
+        rejected("TASK_RUN_MISSING",()->tasks.run(operator,"registered","missing"));
+        host.denied=true;
+        try{rejected("PERMISSION_DENIED",()->tasks.pin(operator,"registered","root-denied",Map.of()));
+            rejected("PERMISSION_DENIED",()->tasks.run(operator,"registered","trace-root"));}
+        finally{host.denied=false;}
+        check(TraceContext.current()==null,"unbound exceptions and authorization failures do not leak");
+        check(!policy.taskContexts.isEmpty()&&policy.taskContexts.stream().allMatch(c->c.principal().kind()==TrustedContext.Kind.TASK&&c.principal().id().equals("registered-principal")&&c.tenantId().equals("t1")&&c.dataScopes().equals(Set.of("tenant:t1"))),"correlation never imports USER authority");
+    }
     public static void main(String[] args)throws Exception{
         check(PluginReleaseApplication.requireLegacyQuiescent(null).isEmpty(),"empty legacy state permits explicit mode");
         String stopped=Json.write(Map.of("tenants",Map.of("t1",Map.of("enabled",List.of())),"installs",Map.of("old",Map.of()),"operations",Map.of()));
@@ -59,6 +115,7 @@ public class PluginReleaseApplicationTest {
                     var operator=ctx("000000");
                     var definitions=List.of(new ReleaseTaskApplication.Definition("registered","t1","registered-principal","ci.python","echo"),new ReleaseTaskApplication.Definition("foreign","t2","foreign-principal","ci.python","echo"));
                     var tasks=new ReleaseTaskApplication(host,runtime,taskJournal,definitions);
+                    taskTraceChecks(tasks,operator,taskJournal,compositionJournal,host,policy);
                     rejected("PERMISSION_DENIED",()->tasks.pin(t1ForTask(),"registered","one",Map.of()));
                     rejected("TASK_DEFINITION_MISSING",()->tasks.pin(operator,"browser-principal","one",Map.of()));
                     var pinned=tasks.pin(operator,"registered","one",Map.of("message","task-input"));

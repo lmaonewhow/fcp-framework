@@ -1,6 +1,8 @@
 package dev.fcp.host;
 import fcp.control.LifecycleCoordinator;
 import fcp.host.TrustedContext;
+import fcp.observability.TraceContext;
+import fcp.observability.TraceEvents;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.function.Function;
@@ -10,7 +12,11 @@ public final class PluginRecovery implements AutoCloseable {
     private final ScheduledExecutorService executor;
     private final Map<String,String> failures=new ConcurrentHashMap<>();
     public PluginRecovery(LifecycleCoordinator coordinator,Function<String,TrustedContext> identity) {
-        this(coordinator::knownTenants, tenant -> coordinator.reconcile(identity.apply(tenant),tenant));
+        this(coordinator::knownTenants, tenant -> {try(var traceScope=TraceContext.open(TraceContext.start(null,false))){
+            long started=System.nanoTime();String outcome="ERROR";
+            try{coordinator.reconcile(identity.apply(tenant),tenant);outcome="OK";}
+            finally{TraceEvents.record("task.recovery","reconcile",outcome,started);}
+        }});
     }
     // Package-private seam tests the real scheduler without granting infrastructure authority.
     PluginRecovery(java.util.function.Supplier<java.util.Set<String>> tenants,java.util.function.Consumer<String> reconcile) {
