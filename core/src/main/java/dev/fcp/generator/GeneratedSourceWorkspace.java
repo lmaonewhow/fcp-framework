@@ -167,7 +167,7 @@ public final class GeneratedSourceWorkspace {
             visitOperations(p -> {
                 if (owner.equals(p.getProperty("owner"))) {
                     out.add(result(p));
-                    out.sort(Comparator.comparing((Map<String,Object> m) -> m.get("createdAt").toString()).reversed());
+                    out.sort(Comparator.comparing((Map<String,Object> m) -> Instant.parse(m.get("createdAt").toString())).reversed());
                     if (out.size() > 256) out.remove(out.size()-1);
                 }
             });

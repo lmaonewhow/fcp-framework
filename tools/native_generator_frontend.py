@@ -9,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = 'src/views/tool/gen/index.vue'
 PIN = 'd0d451967676707021b9857df529c395b27e90a7'
 PREIMAGE = 'b87ce2cc797679224d8f714cad52082a321a04e012df10020e31b964a77c23a9'
+# Exact output of the separately checksum-verified compat-5.6/types.patch.
+COMPAT_PREIMAGE = '9ac87b7d662d1c858b6cc2a3f978dcb0372d7cbb6bb5494d1ebf959da98cadd8'
 
 
 def apply_generator_frontend(project: Path) -> None:
@@ -18,7 +20,7 @@ def apply_generator_frontend(project: Path) -> None:
     if expected != PIN or head != PIN:
         raise RuntimeError('Generator frontend upstream commit drift')
     target = project / TARGET
-    if target.resolve() != target or hashlib.sha256(target.read_bytes()).hexdigest() != PREIMAGE:
+    if target.resolve() != target or hashlib.sha256(target.read_bytes()).hexdigest() not in {PREIMAGE, COMPAT_PREIMAGE}:
         raise RuntimeError('Generator frontend preimage drift')
     source = target.read_text()
     replacements = [

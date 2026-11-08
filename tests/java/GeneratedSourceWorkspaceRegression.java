@@ -144,6 +144,16 @@ public final class GeneratedSourceWorkspaceRegression {
         check(Files.readString(sqlRoot.resolve(sqlPath)).endsWith("-- manual permission adjustment\n"),"SQL manual adjustment retained");
         check(status(sqlWorkspace.plan(OWNER,Map.of("1",zip("demoMenu.sql",menu(200,"1","业务名称变更"))))).equals("conflict"),"SQL business name change still conflicts");
         check(status(sqlWorkspace.plan(OWNER,Map.of("1",zip("demoMenu.sql",menu(200,"9","菜单200"))))).equals("conflict"),"SQL external parent change still conflicts");
+        // ISO Instant strings have variable fractional precision; sort actual instants.
+        Path orderingRoot=root();GeneratedSourceWorkspace ordering=new GeneratedSourceWorkspace(orderingRoot);
+        Map<String,Object> oldOrder=apply(ordering,"v1"),newOrder=apply(ordering,"v2");
+        for(var value:List.of(oldOrder,newOrder)) {
+            Path m=orderingRoot.resolve(".fcp-generator/operations/"+id(value)+"/manifest.properties");Properties orderProps=new Properties();
+            try(InputStream in=Files.newInputStream(m)){orderProps.load(in);}
+            orderProps.setProperty("createdAt",id(value).equals(id(oldOrder))?"2026-01-01T00:00:00Z":"2026-01-01T00:00:00.001Z");
+            try(OutputStream out=Files.newOutputStream(m)){orderProps.store(out,"");}
+        }
+        check(((Map<?,?>)((List<?>)ordering.history(OWNER).get("operations")).get(0)).get("operationId").equals(id(newOrder)),"history uses chronological instant ordering");
         System.out.println("RESULT "+assertions+" generator-workspace checks PASS");
     }
 }

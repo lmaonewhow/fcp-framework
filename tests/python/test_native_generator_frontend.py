@@ -41,6 +41,21 @@ class GeneratorFrontendPatchTests(unittest.TestCase):
             self.assertEqual((self.project / 'src/fcp/generator' / name).read_bytes(),
                              (ROOT / 'integration/plus-ui/src/fcp/generator' / name).read_bytes())
 
+    def test_exact_compatibility_postimage_integrates_without_relaxing_drift(self):
+        # This is the exact gen-page hunk in the separately verified compatibility bundle.
+        before = "const dateRange = ref<[DateModelType, DateModelType]>(['', '']);"
+        after = "const dateRange = ref<[string, string]>(['', '']);"
+        self.assertEqual(self.original.decode().count(before), 1)
+        compatible = self.original.decode().replace(before, after).encode()
+        self.assertEqual(hashlib.sha256(compatible).hexdigest(), generator.COMPAT_PREIMAGE)
+        self.page.write_bytes(compatible)
+        generator.apply_generator_frontend(self.project)
+        self.assertIn(after, self.page.read_text())
+        self.assertIn('generatorApplyRef?.show(ids)', self.page.read_text())
+        self.page.write_bytes(compatible + b'\n')
+        with self.assertRaisesRegex(RuntimeError, 'preimage drift'):
+            generator.apply_generator_frontend(self.project)
+
     def test_repeat_and_drift_refused_without_mutation(self):
         generator.apply_generator_frontend(self.project)
         patched = self.page.read_bytes()
