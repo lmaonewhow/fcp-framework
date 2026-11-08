@@ -46,6 +46,28 @@ def set_element_checkbox(label, checked):
         expect(control).not_to_be_checked()
 
 
+
+def capture_business_failure(page, role, base, output, report):
+    """Record the active role's business page only, never a stale admin or login page."""
+    if page is None:
+        return
+    detail = {'role':role, 'path':'UNAVAILABLE', 'screenshot':'NOT_CAPTURED'}
+    report['businessFailurePage'] = detail
+    try:
+        expected, current = urllib.parse.urlsplit(base), urllib.parse.urlsplit(page.url)
+    except Exception:
+        detail['screenshot'] = 'CAPTURE_FAILED'
+        return
+    detail['path'] = current.path
+    if (current.scheme,current.netloc,current.path) != (expected.scheme,expected.netloc,PAGE):
+        return
+    try:
+        page.screenshot(path=str(output/'business-failure.png'),full_page=True)
+        detail['screenshot'] = 'business-failure.png'
+    except Exception:
+        detail['screenshot'] = 'CAPTURE_FAILED'
+
+
 def native_request(base, token, path, method='GET', payload=None):
     require_loopback(base)
     parsed = urllib.parse.urlsplit(path)
@@ -74,6 +96,7 @@ def verify_business(generator, base, build):
     with sync_playwright() as p:
         browser = p.chromium.launch()
         contexts = []
+        active_page, active_role = None, None
         try:
             state = fixture.login(browser, base, 'admin')
             token = native_token(state,base)
@@ -86,7 +109,10 @@ def verify_business(generator, base, build):
             context = browser.new_context(storage_state=state,viewport=dict(width=1600,height=1040),record_video_dir=str(output/'business-video'),record_video_size=dict(width=1600,height=1040))
             contexts.append(context)
             page = context.new_page(); errors = []
-            page.on('pageerror', lambda error: errors.append(type(error).__name__))
+            active_page, active_role = page, 'admin'
+            from ci_ingestion import safe_diagnostic
+            report['businessBrowserDiagnostics'] = {'admin':{'pageErrors':errors}}
+            page.on('pageerror', lambda error: errors.append(safe_diagnostic(str(error),fixture.diagnostic_secrets)))
             def record_response(response):
                 # Only fixed synthetic business responses. Never record login, tokens or headers.
                 parsed = urllib.parse.urlsplit(response.url)
@@ -94,10 +120,15 @@ def verify_business(generator, base, build):
                 row = {'method':response.request.method,'path':parsed.path,'query':parsed.query,'status':response.status,'body':response.json()}
                 with (output/'business-http.jsonl').open('a') as log: log.write(json.dumps(row,ensure_ascii=False)+'\n')
             def is_list(response): return urllib.parse.urlsplit(response.url).path == API+'/list'
-            def list_action(action):
+            def list_action(action, expected_range=None):
                 with page.expect_response(is_list,timeout=30000) as received: action()
                 body = received.value.json()
                 record_response(received.value)
+                if expected_range is not None:
+                    params = urllib.parse.parse_qs(urllib.parse.urlsplit(received.value.url).query)
+                    actual = (params.get('params[beginEventTime]',[]),params.get('params[endEventTime]',[]))
+                    expected = ([expected_range[0]],[expected_range[1]]) if expected_range else ([],[])
+                    check('native request serializes the exact complete-day range or clears both bounds',actual == expected)
                 check('native browser list request succeeds',received.value.status == 200 and body.get('code',200) == 200 and isinstance(body.get('rows'),list))
                 settled(page)
                 return body
@@ -170,10 +201,10 @@ def verify_business(generator, base, build):
             # Fill actual Element Plus date range inputs, then blur to commit v-model.
             begin,end = page.get_by_placeholder('开始日期',exact=True),page.get_by_placeholder('结束日期',exact=True)
             begin.fill('2026-10-13');end.fill('2026-10-13');end.press('Tab')
-            ranged = list_action(lambda:page.get_by_role('button',name='搜索',exact=True).click())
+            ranged = list_action(lambda:page.get_by_role('button',name='搜索',exact=True).click(), expected_range=('2026-10-13 00:00:00','2026-10-13 23:59:59'))
             check('inclusive date range contains late-evening row and excludes adjacent dates',ranged['total'] == 1 and ranged['rows'][0]['name'] == names[1])
             screenshot('06-business-date-search.png')
-            reset = list_action(lambda:page.get_by_role('button',name='重置',exact=True).click())
+            reset = list_action(lambda:page.get_by_role('button',name='重置',exact=True).click(), expected_range=())
             check('query reset restores every current-tenant business row',reset['total'] == 3)
             # Cross-tenant read/update/delete must remain constrained, even for native superadmin.
             _,foreign = native_request(base,token,API+'/970001')
@@ -199,6 +230,10 @@ def verify_business(generator, base, build):
             readonly_token = native_token(readonly_state,base)
             readonly = browser.new_context(storage_state=readonly_state,viewport=dict(width=1600,height=1040));contexts.append(readonly)
             viewer_page = readonly.new_page()
+            active_page, active_role = viewer_page, 'viewer'
+            viewer_errors = []
+            report['businessBrowserDiagnostics']['viewer'] = {'pageErrors':viewer_errors}
+            viewer_page.on('pageerror', lambda error: viewer_errors.append(safe_diagnostic(str(error),fixture.diagnostic_secrets)))
             viewer_page.goto(base+PAGE,wait_until='domcontentloaded')
             expect(viewer_page.get_by_test_id('generator-business-note')).to_be_visible(timeout=30000)
             expect(viewer_page.locator('.el-table__body-wrapper tbody tr')).to_have_count(2,timeout=20000)
@@ -216,13 +251,11 @@ def verify_business(generator, base, build):
             status,value = native_request(base,None,API+'/list')
             check('anonymous generated API requires genuine login',value.get('code') == 401 and status in (200,401))
             check('rejected writes leave all current/foreign rows intact',sql('SELECT COUNT(*) FROM fcp_codegen_probe;') == '3')
+            check('read-only generated browser has no uncaught exception',not viewer_errors)
             report['generatedBusinessRuntime'] = 'PASS'
         except Exception:
-            # Preserve visible synthetic business failure state; never screenshot a login form.
-            if 'page' in locals() and urllib.parse.urlsplit(page.url).path == PAGE:
-                try:
-                    page.screenshot(path=str(output/'business-failure.png'),full_page=True)
-                except Exception: pass
+            # Follow the active acceptance role, including viewer navigation failures.
+            capture_business_failure(active_page,active_role,base,output,report)
             raise
         finally:
             for context in contexts: context.close()

@@ -40,6 +40,22 @@ class GeneratorTemplateTests(unittest.TestCase):
         self.assertIn('await add${BusinessName}(payload)', text)
         self.assertEqual(list(self.project.rglob('*.vm')), [self.target])
 
+    def test_date_only_query_normalizes_both_bounds_without_changing_datetime_editor(self):
+        generator.apply_generator_templates(self.project)
+        text = self.target.read_text()
+        self.assertIn(generator.DAY_RANGE_QUERY, text)
+        self.assertNotIn("proxy?.addDateRange(queryParams.value, dateRange${AttrName}.value, '${AttrName}');", text)
+        self.assertIn('range${AttrName}?.length === 2 && range${AttrName}.every(Boolean)', text)
+        self.assertIn("range${AttrName}[0].slice(0, 10) + ' 00:00:00'", text)
+        self.assertIn("range${AttrName}[1].slice(0, 10) + ' 23:59:59'", text)
+        self.assertIn(": [], '${AttrName}');", text)
+        self.assertEqual(text.count('type="daterange"'), self.original.decode().count('type="daterange"'))
+        self.assertEqual(text.count('type="datetime"'), self.original.decode().count('type="datetime"'))
+        self.assertIn('v-model="form.${field}"', text)
+        # No local control mutation or global addDateRange utility patch is introduced.
+        self.assertNotIn('dateRange${AttrName}.value =', generator.DAY_RANGE_QUERY)
+        self.assertEqual(list(self.project.rglob('*.vm')), [self.target])
+
     def test_drift_and_repeat_refuse_without_write(self):
         generator.apply_generator_templates(self.project)
         modified = self.target.read_bytes()

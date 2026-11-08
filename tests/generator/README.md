@@ -55,3 +55,7 @@ python -m unittest discover -s tests/python -p test_native_generated_build.py -v
 
 
 `test_generated_checkbox_actions.py` 回归 Element Plus 的可见标签交互：表单复选框和表格行选择都点击 `label.el-checkbox`，点击前检查可见、唯一和启用状态，点击后验证隐藏原生 input 的真实 checked 状态。不直接对隐藏 input 调用 check/uncheck，不使用 force 或 DOM 赋值。组件替身覆盖选中、取消、幂等选择、多选到清空、禁用/隐藏/歧义拒绝及点击未生效时失败；真实浏览器结果仍由上述原生业务门禁判定。
+
+普通 CRUD 模板的日期范围控件是 `daterange`。锁定 Element Plus 2.13.5 的日历选择会应用 `default-time`，而手工输入经 `parseUserInput` 不应用该值，因此不能仅靠控件的默认时间实现整日检索。模板现在只在该字段的查询边界规范两端为 `00:00:00` 与 `23:59:59`，不修改控件值、全局 `addDateRange` 或编辑表单的 datetime 精度。空值、清空和不完整范围会清除两个查询参数。
+
+模板片段回归覆盖日历值、手输午夜值、跨日、闰日、夏令时日期、日末记录与清空，完整模板仍受原始摘要与唯一锚点保护。原生验收继续实际键入日期，检查最终请求中的 `params[beginEventTime]` / `params[endEventTime]` 精确边界及重置后的双参数清除，并保留 23:59:58 记录必须被查出的断言。只读页独立收集 pageerror；失败截图跟随正在验收的角色，只截同源业务页面，不截登录页，也不误用先前管理员页。

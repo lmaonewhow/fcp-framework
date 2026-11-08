@@ -52,7 +52,17 @@ NEW_SPLIT = '''#foreach ($column in $columns)
   form.value.${column.javaField} = record.${column.javaField} ? String(record.${column.javaField}).split(',') : [];
 #end
 #end'''
+# Standard CRUD renders this as type="daterange", not a time-of-day range.
+# Element Plus keyboard parsing does not apply default-time; normalize at the
+# query boundary for both keyboard and calendar paths without mutating controls.
+DAY_RANGE_QUERY = """  const range${AttrName} = dateRange${AttrName}.value;
+  proxy?.addDateRange(queryParams.value,
+    range${AttrName}?.length === 2 && range${AttrName}.every(Boolean)
+      ? [range${AttrName}[0].slice(0, 10) + ' 00:00:00', range${AttrName}[1].slice(0, 10) + ' 23:59:59']
+      : [], '${AttrName}');"""
+
 REPLACEMENTS = (
+    ("  proxy?.addDateRange(queryParams.value, dateRange${AttrName}.value, '${AttrName}');", DAY_RANGE_QUERY),
     ("const dateRange${AttrName} = ref<[DateModelType, DateModelType]>(['', '']);",
      "const dateRange${AttrName} = ref<[string, string]>(['', '']);"),
     ('const initFormData: ${BusinessName}Form = {', EDIT_FORM),
