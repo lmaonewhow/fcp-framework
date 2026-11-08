@@ -84,6 +84,7 @@ class EducationCompositionPlan(unittest.TestCase):
         self.assertLess(source.index('command(build)'), source.index('education_fixture=EducationFixture('))
         self.assertLess(source.index('prepare_schema(database,sql'), source.index("ROOT/'tools/mysql_install.py'"))
         self.assertIn("education_fixture.verify('http://127.0.0.1:18787'", source)
+        self.assertIn("password={education_ddl_password}\\nssl-mode=REQUIRED\\n", source)
         self.assertLess(source.index('result=education_fixture.verify('), source.index('report[\'educationBrowserFixture\']=restore_browser_fixture_permission('))
 
     def test_browser_fixture_restoration_requires_owned_expected_state(self):

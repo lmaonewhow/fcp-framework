@@ -78,7 +78,7 @@ def run()->int:
    education_ddl_user='fcpe_'+secrets.token_hex(6);education_ddl_password=secrets.token_hex(24)
    sql(f"CREATE USER '{education_ddl_user}'@'%' IDENTIFIED BY '{education_ddl_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX,REFERENCES ON `{database}`.* TO '{education_ddl_user}'@'%';")
    education_options=private_dir/'education-ddl.cnf'
-   private(education_options,f'[client]\nhost=127.0.0.1\nport=33306\nuser={education_ddl_user}\npassword={education_ddl_password}\nssl-mode=DISABLED\n')
+   private(education_options,f'[client]\nhost=127.0.0.1\nport=33306\nuser={education_ddl_user}\npassword={education_ddl_password}\nssl-mode=REQUIRED\n')
    def education_ddl_sql(statement):
     environment={key:value for key,value in os.environ.items() if not key.startswith('MYSQL_')}
     environment['MYSQL_TEST_LOGIN_FILE']=str(private_dir/'absent-education.mylogin.cnf')
