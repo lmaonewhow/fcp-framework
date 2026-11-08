@@ -31,7 +31,7 @@ public class ObservationTest {
         Path incidentPath=Files.createTempDirectory("release-incidents-");
         try(var incidentJournal=new FileStateJournal(incidentPath)){var durable=new WindowedObservation(t,10,incidentJournal);durable.bind("persistent",4,4);durable.securityViolation("persistent",4);}
         try(var incidentJournal=new FileStateJournal(incidentPath)){var restarted=new WindowedObservation(t,10,incidentJournal);check(restarted.confirmedSecurityViolation("persistent",4),"durable security event survives collector restart without samples");check(!restarted.confirmedSecurityViolation("persistent",5),"durable incident generation scoped");}
-        o.securityViolation("r",1);check(o.confirmedSecurityViolation("r",1),"security latched");check(o.closeWindow("r",1).sample().securityViolation(),"security survives window close");check(!o.confirmedSecurityViolation("r",2),"security generation scoped");
+        o.bind("r",2,2);o.securityViolationAtRevision("r",1);check(!o.confirmedSecurityViolation("r",2),"late route1 security signal never contaminates route2 generation");o.securityViolation("r",1);check(o.confirmedSecurityViolation("r",1),"security latched");check(o.closeWindow("r",1).sample().securityViolation(),"security survives window close");check(!o.confirmedSecurityViolation("r",2),"security generation scoped");
     }
     static class CrashJournal implements StateJournal {
         final Path path;FileStateJournal inner;boolean crash;

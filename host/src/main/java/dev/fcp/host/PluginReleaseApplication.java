@@ -17,7 +17,9 @@ import java.util.function.Function;
 public final class PluginReleaseApplication {
     @FunctionalInterface public interface BusinessClassifier {
         RequestObserver.BusinessOutcome classify(TrustedContext caller,String release,String plugin,String capability,Object result);
+        default RequestObserver.BusinessOutcome classifyRequest(TrustedContext caller,String release,String plugin,String capability,Map<String,Object> input,Object result){return classify(caller,release,plugin,capability,result);}
     }
+    public static final class ResultIdentityViolation extends RuntimeException {public ResultIdentityViolation(){super("HOST_RESULT_IDENTITY_VIOLATION");}}
     private final RequestObserver observer;private final BusinessClassifier classifier;
     private final HostCapabilities host;private final PluginReleaseRuntime runtime;private final VerifiedPackageRepository packages;
     private final VersionProvider versions;private final VersionPluginPolicy policy;private final Function<TrustedContext,Set<String>> permissions;
@@ -72,7 +74,7 @@ public final class PluginReleaseApplication {
         boolean mayWrite=selected.snapshot().enabledManifests().get(plugin).provides().stream().filter(spec->spec.id().equals(selectedCapability)).findFirst().orElseThrow().sideEffects();
         return ObservedInvocation.invoke(observer,selected.decision(),mayWrite,
             ()->runtime.invoke(c,affinity,selectedPlugin,selectedCapability,input,idempotencyKey,expected),
-            result->classifier==null?RequestObserver.BusinessOutcome.UNKNOWN:classifier.classify(c,selected.decision().releaseId(),selectedPlugin,selectedCapability,result));
+            result->{if(classifier==null)return RequestObserver.BusinessOutcome.UNKNOWN;try{return classifier.classifyRequest(c,selected.decision().releaseId(),selectedPlugin,selectedCapability,input,result);}catch(ResultIdentityViolation violation){observer.securityViolationAtRevision(selected.decision().releaseId(),selected.decision().revision());throw new FcpException("HOST_RESULT_IDENTITY_VIOLATION","Host rejected a result whose identity differs from the trusted invocation");}});
     }
     public Map<String,Object> grantOptions(TrustedContext c,VersionPluginPolicy.Version version,String targetTenant,String scope,TrustedContext.Kind kind,String principal)throws IOException{
         admin(c);PluginManifest manifest=packages.resolve(version.pluginId(),version.version(),version.digest()).manifest();

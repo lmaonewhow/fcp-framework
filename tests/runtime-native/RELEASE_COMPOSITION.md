@@ -17,3 +17,5 @@
 该工作流上传 `reports/native-source-commit.txt`、`reports/ci-native.json`、`reports/native-release-composition/acceptance.json`、失败或成功截图、控制台和脱敏启动日志、`BUILD-EVIDENCE.json` 与 `UI-VARIANT-candidate.json`。会话令牌、affinity、私钥和登录状态仅留在本次私有目录或进程内存，不能进入上传证据。一次失败不会被后续模块成功覆盖。
 
 `python -m unittest discover -s tests/python -p 'test_native_composition_config.py' -v` 只验证模式互斥、真实构建前置条件、确定性夹具摘要和门禁，不运行浏览器、Spring 或 MySQL，不是原生验收 PASS。当前 cloud 执行环境的 Chromium socket 限制不会由修改该夹具绕过；真实验收结论只能取自完成的隔离 CI 运行及其精确提交。
+
+新增独立原生观察模块见 `RELEASE_OBSERVATION.md`。低样本暂停保留；其后单独重建两轮受控计划，对部署者精确批准的合成 identity-echo/1 包进行真实健康扩量与身份违规封禁。Node 与未批准契约仍为 UNKNOWN，不能将合成契约验收外推为任意产品业务语义。

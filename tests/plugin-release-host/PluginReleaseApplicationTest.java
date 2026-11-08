@@ -28,6 +28,7 @@ public class PluginReleaseApplicationTest {
         public Approval change(TrustedContext c,GrantKey k,boolean allow,Instant expiry,long expected){if(allow)allowed.add(k.version().digest());else allowed.remove(k.version().digest());return new Approval(k,"fcp:plugin:echo",expected+1,allow,expiry);}
     }
     static TrustedContext ctx(String tenant){return new TrustedContext(UUID.randomUUID().toString(),"trace",tenant,new TrustedContext.Principal(TrustedContext.Kind.USER,"operator"),1,Set.of(),Instant.now().plusSeconds(90));}
+    static TrustedContext t1ForTask(){return ctx("t1");}
     public static void main(String[] args)throws Exception{
         check(PluginReleaseApplication.requireLegacyQuiescent(null).isEmpty(),"empty legacy state permits explicit mode");
         String stopped=Json.write(Map.of("tenants",Map.of("t1",Map.of("enabled",List.of())),"installs",Map.of("old",Map.of()),"operations",Map.of()));
@@ -53,6 +54,50 @@ public class PluginReleaseApplicationTest {
                 var forged=new PluginReleaseRuntime.Release("old",Map.of("ci.python",new PluginReleaseRuntime.Version("ci.python","1.1.0",two.sha256())));
                 rejected("SYSTEM_RELEASE_PLUGIN_MISMATCH",()->app.register(admin,forged.json(),0));
                 app.register(admin,r1.json(),Schema.number(app.state(admin).get("revision")));app.register(admin,r2.json(),Schema.number(app.state(admin).get("revision")));app.activate(admin,"old",Schema.number(app.state(admin).get("revision")));app.activate(admin,"new",Schema.number(app.state(admin).get("revision")));
+                policy.allowed.add(one.sha256());policy.allowed.add(two.sha256());
+                try(var taskJournal=new FileStateJournal(root.resolve("tasks"))){
+                    var operator=ctx("000000");
+                    var definitions=List.of(new ReleaseTaskApplication.Definition("registered","t1","registered-principal","ci.python","echo"),new ReleaseTaskApplication.Definition("foreign","t2","foreign-principal","ci.python","echo"));
+                    var tasks=new ReleaseTaskApplication(host,runtime,taskJournal,definitions);
+                    rejected("PERMISSION_DENIED",()->tasks.pin(t1ForTask(),"registered","one",Map.of()));
+                    rejected("TASK_DEFINITION_MISSING",()->tasks.pin(operator,"browser-principal","one",Map.of()));
+                    var pinned=tasks.pin(operator,"registered","one",Map.of("message","task-input"));
+                    check(Schema.map(pinned.get("pinned")).get("release").equals("old"),"trusted task selected stable");
+                    check(!pinned.containsKey("input"),"task payload excluded from status");
+                    rejected("IDEMPOTENCY_CONFLICT",()->tasks.pin(operator,"registered","one",Map.of("message","changed")));
+                    router.put(new ReleasePolicy("product","old","new",10000,Set.of(),Set.of(),true,0),router.revision());
+                    var result=tasks.run(operator,"registered","one");
+                    check(Schema.map(result.get("result")).get("packageVersion").equals("1.0.0"),"task stays pinned after rollout");
+                    var reopened=new ReleaseTaskApplication(host,runtime,taskJournal,definitions);
+                    check(reopened.run(operator,"registered","one").equals(result),"durable completed run does not repeat execution");
+                    var foreign=tasks.pin(operator,"foreign","one",Map.of("message","foreign"));
+                    check(!foreign.get("taskId").equals(pinned.get("taskId")),"same run ID isolated by deployed definition");
+                    check(Schema.map(tasks.run(operator,"foreign","one").get("result")).get("packageVersion").equals("1.1.0"),"foreign task uses own trusted routing");
+                    policy.allowed.remove(one.sha256());
+                    var safeStatus=tasks.status(operator,"registered","one");
+                    var safePin=tasks.pin(operator,"registered","one",Map.of("message","task-input"));
+                    check(safeStatus.equals(safePin)&&!Json.write(safeStatus).contains("task-input")&&!safeStatus.containsKey("result")&&!safeStatus.containsKey("inputHash"),"revoked task status and pin replay reveal only control metadata");
+                    // Corrupt/nested payload fields must not leak through future record expansion.
+                    var snapshot=taskJournal.load();var stored=Schema.map(Json.parse(snapshot.json()));
+                    for(Object value:Schema.map(stored.get("runs")).values()){
+                        var row=Schema.map(value);if(!row.get("definition").equals("registered"))continue;
+                        Schema.map(row.get("pinned")).put("result",Map.of("secret","nested-result"));
+                        Schema.map(row.get("pinned")).put("input",Map.of("secret","nested-input"));
+                    }
+                    taskJournal.compareAndSet(snapshot.revision(),Json.write(stored));
+                    check(!Json.write(tasks.status(operator,"registered","one")).contains("nested-")&&!Json.write(tasks.pin(operator,"registered","one",Map.of("message","task-input"))).contains("nested-"),"metadata allowlist excludes nested input and result");
+                    rejected("PERMISSION_DENIED",()->tasks.run(operator,"registered","one"));
+                    policy.allowed.add(one.sha256());
+                    router.put(new ReleasePolicy("product","old","new",0,Set.of("t2"),Set.of(),true,0),router.revision());
+                    var changed=new ReleaseTaskApplication(host,runtime,taskJournal,List.of(new ReleaseTaskApplication.Definition("registered","t1","changed-principal","ci.python","echo")));
+                    rejected("TASK_DEFINITION_CHANGED",()->changed.status(operator,"registered","one"));
+                    tasks.pin(operator,"registered","invalid-input",Map.of("undeclared",true));
+                    try{tasks.run(operator,"registered","invalid-input");throw new AssertionError("invalid schema accepted");}catch(FcpException expected){checks++;}
+                    check(tasks.status(operator,"registered","invalid-input").get("state").equals("UNKNOWN"),"post-admission failure is conservatively uncertain");
+                    rejected("TASK_RUN_UNCERTAIN",()->reopened.run(operator,"registered","invalid-input"));
+
+                }
+                policy.allowed.remove(two.sha256());
                 var t1=ctx("t1");var t2=ctx("t2");policy.allowed.add(one.sha256());
                 var c1=app.catalog(t1,null);var c2=app.catalog(t2,null);
                 check(c1.get("releaseId").equals("old")&&c2.get("releaseId").equals("new"),"catalog uses same server release policy");
@@ -69,6 +114,26 @@ public class PluginReleaseApplicationTest {
                 var classified=new PluginReleaseApplication(host,runtime,packages,versions,policy,c->Set.of("fcp:plugin:view","fcp:plugin:echo"),observer,(caller,release,plugin,capability,result)->{check(caller==t1&&release.equals("old")&&plugin.equals("ci.python")&&capability.equals("echo"),"classifier receives trusted host identity and package selection");return fcp.release.observation.RequestObserver.BusinessOutcome.SUCCESS;});
                 classified.invoke(t1,(String)c1.get("affinity"),export,Map.of("message","trusted-classifier"),null,g1);
                 check(observed.get(observed.size()-1)==fcp.release.observation.RequestObserver.BusinessOutcome.SUCCESS,"only explicit host classifier confirms business outcome");
+                var semantic=new IdentityEchoClassifier(versions,List.of(new IdentityEchoClassifier.Binding("ci.python","echo",one.sha256(),"identity-echo/1")));
+                var checkedApp=new PluginReleaseApplication(host,runtime,packages,versions,policy,c->Set.of("fcp:plugin:view","fcp:plugin:echo"),observer,semantic);
+                checkedApp.invoke(t1,(String)c1.get("affinity"),export,Map.of("message","actual-identity-echo"),null,g1);
+                check(observed.get(observed.size()-1)==fcp.release.observation.RequestObserver.BusinessOutcome.SUCCESS,"exact deployment-pinned identity contract verifies real subprocess output");
+                checkedApp.invoke(t2,(String)c2.get("affinity"),export,Map.of("message","unapproved-contract"),null,g2);
+                check(observed.get(observed.size()-1)==fcp.release.observation.RequestObserver.BusinessOutcome.UNKNOWN,"other package digest not implicitly classified");
+                check(semantic.classifyRequest(t1,"old","ci.python","echo",Map.of("message","different"),output1)==fcp.release.observation.RequestObserver.BusinessOutcome.FAILURE,"echo semantic mismatch is business failure");
+                var unknown=new LinkedHashMap<String,Object>(output1);unknown.put("unknownField",true);
+                check(semantic.classifyRequest(t1,"old","ci.python","echo",Map.of("message","one"),unknown)==fcp.release.observation.RequestObserver.BusinessOutcome.UNKNOWN,"extra result field never silently healthy");
+                var violation=new LinkedHashMap<String,Object>(output1);violation.put("tenantId","another-tenant");
+                try{semantic.classifyRequest(t1,"old","ci.python","echo",Map.of("message","one"),violation);throw new AssertionError("Host must reject crossed tenant result");}catch(PluginReleaseApplication.ResultIdentityViolation expected){checks++;}
+                if(args.length>2&&args[2].equals("identity-fault")){
+                    var window=new fcp.release.observation.WindowedObservation(Clock.systemUTC(),100);
+                    window.bind("new",7,router.revision());
+                    var faultVerifier=new IdentityEchoClassifier(versions,List.of(new IdentityEchoClassifier.Binding("ci.python","echo",two.sha256(),"identity-echo/1")));
+                    var guarded=new PluginReleaseApplication(host,runtime,packages,versions,policy,c->Set.of("fcp:plugin:view","fcp:plugin:echo"),window,faultVerifier);
+                    rejected("HOST_RESULT_IDENTITY_VIOLATION",()->guarded.invoke(t2,(String)c2.get("affinity"),export,Map.of("message","synthetic-identity-echo-violation"),null,g2));
+                    check(window.confirmedSecurityViolation("new",7),"real fault subprocess is rejected and actual route generation receives security incident");
+                    check(!window.confirmedSecurityViolation("new",8),"identity fault does not contaminate another generation");
+                }
                 rejected("RELEASE_AFFINITY_REQUIRED",()->app.invoke(t1,null,export,Map.of(),null,g1));
                 rejected("CAPABILITY_MISSING",()->app.invoke(t1,(String)c1.get("affinity"),"bogus",Map.of(),null,g1));
                 policy.allowed.remove(two.sha256());rejected("PERMISSION_DENIED",()->app.invoke(t2,(String)c2.get("affinity"),export,Map.of(),null,g2));
@@ -77,12 +142,21 @@ public class PluginReleaseApplicationTest {
                 var options=app.grantOptions(admin,new VersionPluginPolicy.Version("ci.python","1.1.0",two.sha256()),"t2","tenant:t2",TrustedContext.Kind.USER,"*");
                 check(options.get("digest").equals(two.sha256())&&!Schema.list(options.get("options")).isEmpty(),"approval options bind verified package digest");
                 host.denied=true;rejected("PERMISSION_DENIED",()->app.state(admin));host.denied=false;
+                policy.allowed.add(two.sha256()); // Explicit reapproval for independent drain scenario.
+                try(var drainJournal=new FileStateJournal(root.resolve("drain-tasks"))){
+                var drainTasks=new ReleaseTaskApplication(host,runtime,drainJournal,List.of(new ReleaseTaskApplication.Definition("drain","t2","draining-principal","ci.python","echo")));
+                drainTasks.pin(ctx("000000"),"drain","one",Map.of("message","drain"));
                 var draining=app.beginDrain(admin,"new",Schema.number(app.state(admin).get("revision")));
+                rejected("TASKS_PENDING",()->app.stop(admin,"new"));
+                var completedDrain=drainTasks.run(ctx("000000"),"drain","one");
+                check(Schema.map(completedDrain.get("result")).get("packageVersion").equals("1.1.0"),"already pinned TASK executes during admission drain");
+
                 check(Boolean.TRUE.equals(draining.get("draining"))&&Boolean.FALSE.equals(draining.get("admission")),"drain closes new admission without deleting release");
                 check(Schema.number(app.status(admin,"new").get("pendingTasks"))==0,"native status exposes pinned task drain count");
                 check(Boolean.TRUE.equals(app.stop(admin,"new").get("stopped")),"drained release stops independently");
                 check(Boolean.TRUE.equals(app.status(admin,"old").get("ready")),"other version remains ready");
-                router.put(new ReleasePolicy("product","old","new",0,Set.of("t2"),Set.of(),false,1),1);
+                }
+                router.put(new ReleasePolicy("product","old","new",0,Set.of("t2"),Set.of(),false,1),router.revision());
                 rejected("RELEASE_DISABLED",()->app.catalog(t1,(String)c1.get("affinity")));
             }
         }

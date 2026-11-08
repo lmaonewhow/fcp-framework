@@ -44,6 +44,7 @@ public final class WindowedObservation implements ObservationProvider,RequestObs
             if(b.durations.size()<limit&&nanos>=0)b.durations.add(nanos);else b.incomplete=true;
         }}};
     }
+    @Override public synchronized void securityViolationAtRevision(String release,long routeRevision){Key key=bindings.get(new Binding(release,routeRevision));if(key==null)throw new IllegalStateException("OBSERVATION_GENERATION_UNBOUND");securityViolation(key.release(),key.generation());}
     /** Trusted security integration only. It is latched for that generation, not cleared by polling. */
     public synchronized void securityViolation(String release,long generation){Key k=new Key(release,generation);if(!buckets.containsKey(k))throw new IllegalStateException("Unknown observation generation");if(!security.contains(k)&&security.size()>=1000){buckets.get(k).security=true;incidentOverflow=true;throw new IllegalStateException("SECURITY_INCIDENT_LIMIT");}security.add(k);
         if(incidents!=null)try{var snapshot=incidents.load();mergeIncidents(snapshot.json());if(security.size()>1000)throw new IllegalStateException("SECURITY_INCIDENT_LIMIT");

@@ -82,9 +82,16 @@ def run()->int:
   if (ROOT/'core/src/main/java/fcp/runtime/EngineRuntimePort.java').is_file():
    props+='\nfcp.runtime.enabled=true\nFCP_RUNTIME_ROOT='+str(private_dir/'runtime-plugins')+'\nFCP_TRUSTED_PUBLISHERS='+('test,fcp-fixtures' if a.exchange else 'test')+'\nFCP_RUNTIME_PYTHON='+str(shutil.which('python3'))+'\nFCP_RUNTIME_NODE='+str(shutil.which('node'))+'\n'
   if a.plugin_releases:
+   sys.path.insert(0,str(ROOT/'tests/runtime-native'))
+   from task_release_acceptance import definitions as task_definitions
+   tasks_file=private_dir/'release-tasks.json';private(tasks_file,json.dumps(task_definitions()))
+   props+='\nfcp.plugin.release.tasks.enabled=true\nFCP_RELEASE_TASKS_FILE='+str(tasks_file)+'\n'
    key=private_dir/'release-routing.key';key.write_bytes(secrets.token_bytes(32));key.chmod(0o600)
    bundle_root=ROOT/'work/ci-native/release/ui-bundles';bundle_root.mkdir(parents=True,exist_ok=True)
    props+='\nfcp.release.enabled=true\nfcp.release.routing.enabled=true\nfcp.ui.release.enabled=true\nfcp.plugin.release.enabled=true\nfcp.release.observation.enabled=true\nFCP_RELEASE_ENVIRONMENT=ci\nFCP_RELEASE_EXECUTOR_MODE=native\nFCP_RELEASE_ROUTING_KEY_FILE='+str(key)+'\nFCP_UI_BUNDLE_ROOT='+str(bundle_root)+'\nFCP_RELEASE_EXECUTOR_LOCK_FILE='+str(private_dir/'release-executor.lock')+'\n'
+   sys.path.insert(0,str(ROOT/'tests/runtime-native'))
+   from native_observation_acceptance import configure as configure_native_observation
+   props+=configure_native_observation(private_dir,key)
   elif (ROOT/'core/src/main/java/fcp/release/control/ReleaseController.java').is_file():
    # Registry/UI acceptance only. No requests are sent to the disabled deployment destination.
    props+='\nfcp.release.enabled=true\nFCP_RELEASE_ENVIRONMENT=ci\nFCP_RELEASE_EXECUTOR_ENDPOINT=https://127.0.0.1:19443/\nFCP_RELEASE_EXECUTOR_ACTIONS=DEPLOY\n'

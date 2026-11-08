@@ -18,7 +18,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'tools'))
 from ci_ingestion import safe_diagnostic
 from native_client import require_loopback
-from native_runtime_acceptance import Client, RuntimeFixture, exported, package_bytes
+from native_runtime_acceptance import Client, RuntimeFixture, exported
+from native_observation_acceptance import package_bytes
 from ui_boundaries import is_rejected
 
 CLIENT_ID = 'e5cd7e4891bf95d1d19206ce24a7b32e'
@@ -487,6 +488,10 @@ class ReleaseCompositionFixture(RuntimeFixture):
                                retired['activeCalls'] == 0 and retired['pendingTasks'] == 0 and retired['activationState'] == 'STOPPED')
                     self.check('retired candidate OS children actually exit', all(not Path('/proc', str(pid)).exists() for pid in candidate_pids))
                     self.invoke(admin, self.selection(admin, 'admin', 'stable'), '1.0.0', 'stable-after-retire')
+                    from task_release_acceptance import verify_native_tasks
+                    verify_native_tasks(self, admin, clients['teacher'], tenant, packages, plan)
+                    from native_observation_acceptance import verify as verify_native_observation
+                    verify_native_observation(self, admin, plan)
                     self.assert_pid(self.pid, pid_provider, 'after full native composite acceptance')
                     self.check('both real UI versions have no uncaught browser errors', not self.report['browserErrors'])
                     self.report.update(status='PASS', browser='PASS', backendPidUnchanged='PASS')
