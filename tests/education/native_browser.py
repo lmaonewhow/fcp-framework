@@ -78,6 +78,13 @@ def verify_browser(education_fixture, base: str, build_id: str) -> dict:
         check('actual HTTP and native envelope status ' + str(expected), response.status == expected and body.get('code') == expected)
         return body.get('data')
 
+    def wait_idle(page):
+        # A real native button is disabled for every read/write in useWorkspace.
+        # Waiting for Vue to re-enable it also waits for the same render flush
+        # that updates rows/options. HTTP response arrival alone is insufficient.
+        expect(page.get_by_test_id('education-workspace').get_by_role(
+            'button', name='刷新学校和权限', exact=True)).to_be_enabled(timeout=30000)
+
     def open_page(browser, role):
         state = host.login(browser, base, role)  # Real encryption and Redis CAPTCHA verification.
         client = NativeClient(base, native_token(state, base), 'e5cd7e4891bf95d1d19206ce24a7b32e')
@@ -107,19 +114,23 @@ def verify_browser(education_fixture, base: str, build_id: str) -> dict:
         expect(marker).to_be_visible(timeout=30000)
         expect(marker).to_have_attribute('data-build-id', build_id)
         expect(page.get_by_test_id('education-workspace')).to_be_visible()
+        wait_idle(page)
         return context, page, client, values, posts, errors
 
     def choose_school(page, ident):
+        wait_idle(page)
         page.get_by_test_id('education-school').click()
         with page.expect_response(lambda response: is_response(response, f'/schools/{ident}/organizations')) as listed:
             page.locator('.el-select-dropdown__item:visible').filter(has_text=re.compile(r'（' + ident + r'）$')).click()
         values = response_data(listed.value)
+        wait_idle(page)
         expect(page.get_by_test_id('education-records')).to_be_visible()
         return values
 
     def find_row(page, ident):
         table = page.get_by_test_id('education-records')
         for _ in range(100):
+            wait_idle(page)
             row = table.locator('tr').filter(has_text=re.compile(r'\b' + re.escape(ident) + r'\b'))
             if row.count() == 1:
                 return row
@@ -151,7 +162,9 @@ def verify_browser(education_fixture, base: str, build_id: str) -> dict:
                 button.evaluate('(button) => { button.click(); button.click(); }')
             else:
                 button.click()
-        return response_data(saved.value, expected)
+        value = response_data(saved.value, expected)
+        wait_idle(page)
+        return value
 
     contexts = []
     try:
@@ -217,6 +230,7 @@ def verify_browser(education_fixture, base: str, build_id: str) -> dict:
                 screenshot(page, 'school-admin-organization-list-detail')
 
                 page.locator('.el-radio-button').filter(has_text=re.compile(r'^班级$')).click()
+                wait_idle(page)
                 page.get_by_test_id('education-term').click()
                 with page.expect_response(lambda response: is_response(response, '/schools/800001/classes')) as listed:
                     page.locator('.el-select-dropdown__item:visible').filter(has_text='T2026').click()
@@ -239,6 +253,7 @@ def verify_browser(education_fixture, base: str, build_id: str) -> dict:
                     page.reload()
                 choose_school(page, '800001')
                 page.locator('.el-radio-button').filter(has_text=re.compile(r'^班级$')).click()
+                wait_idle(page)
                 page.get_by_test_id('education-term').click()
                 with page.expect_response(lambda response: is_response(response, '/schools/800001/classes')):
                     page.locator('.el-select-dropdown__item:visible').filter(has_text='T2026').click()
@@ -273,6 +288,7 @@ def verify_browser(education_fixture, base: str, build_id: str) -> dict:
                 with admin_page.expect_response(lambda response: is_response(response, '/schools')) as refreshed:
                     admin_page.get_by_role('button', name='刷新学校和权限', exact=True).click()
                 created = next(item for item in response_data(refreshed.value)['items'] if item['id'] == school_id)
+                wait_idle(admin_page)
                 check('pending school has closed per-school operations', created.get('readiness') == 'EXECUTION_GRANT_MISSING' and not any(created.get('operations', {}).values()))
                 admin_page.get_by_test_id('education-school').click()
                 admin_page.locator('.el-select-dropdown__item:visible').filter(has_text=re.compile(r'（' + school_id + r'）$')).click()

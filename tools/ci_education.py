@@ -179,7 +179,7 @@ class EducationFixture:
         for scope in ('tenant','school:800001','school:800002'):
             statements.append(f"INSERT INTO ed_core_execution_grant(tenant_id,scope_key,capability_key,manifest_digest,epoch,enabled) VALUES('000000','{scope}','education.foundation','{self.digest}',0,1);")
         for role,actor,name in ((987101,1,'tenant_admin'),(987102,950001,'school_admin'),(987103,950002,'readonly')):
-            statements.append(f"INSERT INTO sys_role(role_id,tenant_id,role_name,role_key,role_sort,data_scope,status,del_flag,create_by,create_time) VALUES({role},'000000','Synthetic education {name}','edu_ci_{name}',20,'5','0','0',1,NOW());")
+            statements.append(f"INSERT INTO sys_role(role_id,tenant_id,role_name,role_key,role_sort,data_scope,status,del_flag,create_by,create_time) VALUES({role},'000000','Synthetic {name}','edu_ci_{name}',20,'5','0','0',1,NOW());")
             statements.append(f"INSERT INTO sys_user_role(user_id,role_id) VALUES({actor},{role});")
             statements.append(f"INSERT INTO sys_role_menu(role_id,menu_id) VALUES({role},942008),({role},942000),({role},986020);")
         for index,operation in enumerate(('view',)+self.OPS):

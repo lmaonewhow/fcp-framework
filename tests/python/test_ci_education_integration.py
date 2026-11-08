@@ -13,11 +13,17 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
 import ci_education_integration as integration
-from ci_native import parse_args
+from ci_native import parse_args, mysql_failure_summary
 from native import BuildError, git_blob
 
 
 class EducationCompositionPlan(unittest.TestCase):
+    def test_mysql_diagnostic_keeps_only_structured_code_state_and_line(self):
+        self.assertEqual(mysql_failure_summary("ERROR 1406 (22001) at line 20: private secret SQL 'value'\n"), '1406:22001@line20')
+        self.assertEqual(mysql_failure_summary("ERROR 2061 (HY000): credentials must not escape\n"), '2061:HY000')
+        self.assertEqual(mysql_failure_summary('raw private SQL and host detail'), 'unclassified client failure')
+        self.assertEqual(mysql_failure_summary('ERROR 12 (private secret): detail'), 'unclassified client failure')
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

@@ -25,6 +25,12 @@ def failure_status(error:Exception)->str:
  # A compiler/test failure is observed failure, even before a JAR exists.
  return 'BLOCKED' if isinstance(error,PrerequisiteError) else 'FAIL'
 
+def mysql_failure_summary(stderr:str)->str:
+ # Preserve only structured diagnostic coordinates, never SQL text, values,
+ # credentials or arbitrary server messages in an exported acceptance report.
+ found=re.search(r'(?m)^ERROR ([0-9]{1,6}) \(([A-Z0-9]{5})\)(?: at line ([0-9]{1,9}))?:',stderr)
+ return (found.group(1)+':'+found.group(2)+(('@line'+found.group(3)) if found.group(3) else '')) if found else 'unclassified client failure'
+
 def command(args,cwd=ROOT,env=None,timeout=2400):
  result=subprocess.run([str(x) for x in args],cwd=cwd,env=env,timeout=timeout,check=False)
  if result.returncode:raise RuntimeError(str(args[0])+' failed: '+str(result.returncode))
@@ -63,7 +69,7 @@ def run()->int:
   mysql_file=private_dir/'mysql.cnf';private(mysql_file,f'[client]\nhost=127.0.0.1\nport=33306\nuser=root\npassword={root_password}\nssl-mode=DISABLED\n')
   def sql(text):
    result=subprocess.run(['mysql','--defaults-extra-file='+str(mysql_file),'--batch','--skip-column-names'],input=text,text=True,capture_output=True,timeout=60)
-   if result.returncode:raise RuntimeError('Isolated CI SQL failed; inspect private database service logs')
+   if result.returncode:raise RuntimeError('Isolated CI SQL failed: '+mysql_failure_summary(result.stderr)+'; SQL and credentials withheld')
    return result.stdout
   sql(f'CREATE DATABASE `{database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;')
   if a.education:
@@ -84,8 +90,7 @@ def run()->int:
     environment['MYSQL_TEST_LOGIN_FILE']=str(private_dir/'absent-education.mylogin.cnf')
     value=subprocess.run(['mysql','--defaults-file='+str(education_options),'--default-character-set=utf8mb4','--batch','--raw','--skip-column-names',database],input=statement,text=True,capture_output=True,timeout=180,env=environment)
     if value.returncode:
-     code=re.search(r'ERROR\s+(\d+)\s*\(([A-Za-z0-9]+)\)',value.stderr)
-     raise RuntimeError('Education schema SQL failed: '+(':'.join(code.groups()) if code else 'client error')+'; SQL and credentials withheld')
+     raise RuntimeError('Education schema SQL failed: '+mysql_failure_summary(value.stderr)+'; SQL and credentials withheld')
     return value.stdout.strip()
    report['educationSchema']=education_plan.apply(education_ddl_sql,runtime_user,host_plan['expectedHostTables'])
   # Local disposable Redis service is unconfigured until this step. No production host is accepted here.
