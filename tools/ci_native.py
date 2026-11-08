@@ -74,6 +74,9 @@ def run()->int:
   props+='\nFCP_PORT=18787\nFCP_BIND=127.0.0.1\n'
   if (ROOT/'core/src/main/java/fcp/runtime/EngineRuntimePort.java').is_file():
    props+='\nfcp.runtime.enabled=true\nFCP_RUNTIME_ROOT='+str(private_dir/'runtime-plugins')+'\nFCP_TRUSTED_PUBLISHERS='+('test,fcp-fixtures' if a.exchange else 'test')+'\nFCP_RUNTIME_PYTHON='+str(shutil.which('python3'))+'\nFCP_RUNTIME_NODE='+str(shutil.which('node'))+'\n'
+  if (ROOT/'core/src/main/java/fcp/release/control/ReleaseController.java').is_file():
+   # Registry/UI acceptance only. No requests are sent to the disabled deployment destination.
+   props+='\nfcp.release.enabled=true\nFCP_RELEASE_ENVIRONMENT=ci\nFCP_RELEASE_EXECUTOR_ENDPOINT=https://127.0.0.1:19443/\nFCP_RELEASE_EXECUTOR_ACTIONS=DEPLOY\n'
   if a.ingestion:
    from ci_ingestion import Fixture
    prefix=re.search(r'(?m)^FCP_REDIS_PREFIX=(.+)$',props)[1]
