@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [dev, main]
   push:
-    branches: [dev, feat/request-trace-observability]
+    branches: [dev, feat/request-trace-observability, backup/trace-release-recovery-20261108]
     paths:
       - '.github/workflows/trace-frontend.yml'
       - 'integration/frontend-shared/**'

@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [dev, 'feat/runtime-*']
   push:
-    branches: [dev]
+    branches: [dev, backup/trace-release-recovery-20261108]
     paths:
       - '.github/workflows/native-release-composition.yml'
       - 'tools/**'

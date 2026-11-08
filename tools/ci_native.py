@@ -141,6 +141,7 @@ def run()->int:
    composition_fixture.ui_versions=prepare_ui_versions(release/'BUILD-EVIDENCE.json',release/'UI-VARIANT-candidate.json',release/'ui-bundles')
    report['uiVariantBuild']=variant
   jar=release/'ruoyi-admin.jar';driver=private_dir/'mysql-driver.jar'
+  if a.plugin_releases:command([sys.executable,ROOT/'tests/runtime-native/verify_plugin_advice.py',jar])
   with zipfile.ZipFile(jar) as archive:
    matches=[n for n in archive.namelist() if re.fullmatch(r'BOOT-INF/lib/mysql-connector-j-[^/]+\.jar',n)]
    if len(matches)!=1:raise RuntimeError('One native MySQL Connector/J dependency is required')
