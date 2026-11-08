@@ -312,13 +312,13 @@ INSERT INTO sys_user_role(user_id,role_id) VALUES(1,950510),(950001,950511);
                     # A35 uses the identical function and ZIP bytes as the development HTTP test.
                     # Authentication remains the genuine browser-created native session above.
                     sys.path.insert(0,str(ROOT/'tests/runtime-portability'))
-                    from http_contract import run_http_contract
+                    from http_contract import run_http_contract, ContractAssertion
                     from host_adapters import NativeAdapter
                     adapter=NativeAdapter(admin,lambda plugin,allow:self.change_grant(admin,plugin,allow,'a35-grant-'+plugin+'-'+str(allow)),'000000','1')
                     try:
                         self.report['portability']=run_http_contract(adapter)
-                    except Exception:
-                        self.report['portability']=dict(status='FAIL',contract='A35 shared HTTP semantics v1')
+                    except Exception as error:
+                        self.report['portability']=error.report if isinstance(error,ContractAssertion) else dict(status='FAIL',contract='A35 shared HTTP semantics v1')
                         raise
                     self.check('A35 shared development/native HTTP semantics',self.report['portability']['status']=='PASS')
                     self.assert_pid(pid,pid_provider,'after grant revoke disable and uninstall');self.report.update(status='PASS',backendPidUnchanged='PASS',totalChecks=len(self.report['checks']),elapsedSeconds=round(time.monotonic()-started,3))

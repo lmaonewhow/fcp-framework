@@ -17,6 +17,19 @@ catalog projection, invocation identity, Node-to-Python capability callbacks, in
 live grant revocation, dependent disablement and disabled invocation. Authenticated failures
 assert the same `data.fcpCode`, not host-specific error strings.
 
+The live invocation-revocation check removes the Python provider's grant: it has no
+`requires`, so its permission can be revoked without removing an enablement prerequisite.
+Node requires `echo`; revoking Node's grant instead causes the real recovery scheduler to
+fail `CAPABILITY_NOT_GRANTED` and deliberately cut off tenant admissions. That is a different
+security boundary, not a permissible substitute for the strict `PERMISSION_DENIED` assertion.
+Real HTTP regressions record a log boundary after writing the grant change and observe two
+completed recovery events before checking both cases. The single-threaded scheduler starts
+the next tick only after the prior tick finishes, excluding a pre-write in-flight tick. Python
+revocation still passes the unchanged semantic assertion, while the former Node target is a
+negative control that produces `PLUGIN_DISABLED`. No production authorization is changed.
+Failure reports retain completed checks and bounded HTTP/code/fcpCode/valid trace ID fields,
+never raw messages, bodies, principal IDs or tokens.
+
 The native adapter receives only the client created after genuine RuoYi encrypted browser
 login and native host/build/database evidence verification. Its grants use the native
 reviewed grant-plan API and MySQL. DevHost uses an explicitly configured private development

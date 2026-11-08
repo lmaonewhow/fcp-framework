@@ -16,11 +16,20 @@ sys.path.insert(0, str(ROOT/'tools'))
 sys.path.insert(0, str(ROOT/'tests/runtime-portability'))
 from native_client import NativeClient
 from host_adapters import DevelopmentAdapter
-from http_contract import run_http_contract
+from http_contract import run_http_contract, ContractAssertion
 
 
 class PortabilityHttpTest(unittest.TestCase):
     def test_same_http_semantics(self):
+        self.run_contract()
+
+    def test_revocation_remains_permission_denied_after_actual_recovery(self):
+        self.run_contract(wait_for_recovery=True)
+
+    def test_required_approval_revocation_cuts_off_admission_after_recovery(self):
+        self.run_contract(wait_for_recovery=True, revoke_required=True)
+
+    def run_contract(self, wait_for_recovery=False, revoke_required=False):
         with tempfile.TemporaryDirectory(prefix='fcp-portability-') as temporary:
             work = Path(temporary)
             node = shutil.which('node')
@@ -33,10 +42,32 @@ class PortabilityHttpTest(unittest.TestCase):
             private = work/'identities.json'
             private.write_text(json.dumps(config)); private.chmod(0o600)
             def grant(plugin, allow):
+                if not allow and revoke_required:
+                    # Negative control reproduces the former target-selection defect.
+                    plugin = 'portability.node'
                 identity['grants'] = [g for g in identity['grants'] if g['plugin'] != plugin]
                 if allow:
                     identity['grants'].append(dict(plugin=plugin, capability='echo', operation='invoke', dataScope='tenant:t1', permission='fcp:plugin:echo'))
                 private.write_text(json.dumps(config))
+                if not allow and wait_for_recovery:
+                    # A completion already in flight can still use pre-write grants.
+                    # Take the boundary AFTER writing, then observe two completions:
+                    # PluginRecovery has one thread and schedules the next tick only
+                    # in the previous tick's finally, so the second must read new grants.
+                    offset = (work/'host.log').stat().st_size
+                    deadline = time.monotonic()+20
+                    while time.monotonic() < deadline:
+                        lines = (work/'host.log').read_text()[offset:].splitlines()
+                        events = [json.loads(line) for line in lines if line.startswith('{') and line.endswith('}')]
+                        recovered = [event for event in events if event.get('event') == 'task.recovery']
+                        if len(recovered) >= 2:
+                            self.assertEqual(recovered[-1]['outcome'], 'ERROR' if revoke_required else 'OK')
+                            if revoke_required:
+                                self.assertIn('FCP recovery failed: CAPABILITY_NOT_GRANTED', '\n'.join(lines))
+                            break
+                        time.sleep(.05)
+                    else:
+                        self.fail('Fewer than two real recovery completions observed after grant write')
             with socket.socket() as sock:
                 sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
             with (work/'host.log').open('w') as log:
@@ -52,12 +83,25 @@ class PortabilityHttpTest(unittest.TestCase):
                             time.sleep(.05)
                     else:
                         self.fail('Development JVM did not become ready')
-                    result = run_http_contract(DevelopmentAdapter(client, grant, 't1', 'portability-admin'))
+                    adapter = DevelopmentAdapter(client, grant, 't1', 'portability-admin')
+                    if revoke_required:
+                        with self.assertRaises(ContractAssertion) as caught:
+                            run_http_contract(adapter)
+                        self.assertEqual(caught.exception.report['failedCheck'], 'live permission revocation semantic code')
+                        self.assertEqual(caught.exception.report['response']['fcpCode'], 'PLUGIN_DISABLED')
+                        self.assertGreaterEqual(caught.exception.report['response']['httpStatus'], 400)
+                        report = ROOT/'reports/runtime-portability'
+                        report.mkdir(parents=True, exist_ok=True)
+                        (report/'required-approval-negative-control.json').write_text(json.dumps(dict(
+                            status='PASS', scope='real development HTTP negative control; not native evidence',
+                            observedContractFailure=caught.exception.report), indent=2)+'\n')
+                        return
+                    result = run_http_contract(adapter)
                     self.assertEqual(result['status'], 'PASS')
                     self.assertIsNone(process.poll(), 'Shared suite must not restart the host')
                     report = ROOT/'reports/runtime-portability'
                     report.mkdir(parents=True, exist_ok=True)
-                    (report/'development-http.json').write_text(json.dumps(result, indent=2)+'\n')
+                    (report/('development-http-after-recovery.json' if wait_for_recovery else 'development-http.json')).write_text(json.dumps(result, indent=2)+'\n')
                 finally:
                     process.terminate()
                     try:

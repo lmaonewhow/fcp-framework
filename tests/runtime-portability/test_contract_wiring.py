@@ -52,5 +52,60 @@ class ContractWiringTest(unittest.TestCase):
         self.assertIn('check_plugin_directory(', (ROOT/'tools/package_exchange_fixtures.py').read_text())
 
 
+class RevocationEvidenceTest(unittest.TestCase):
+    def test_live_revocation_targets_provider_without_enablement_requirements(self):
+        import inspect
+        from http_contract import run_http_contract
+        source = inspect.getsource(run_http_contract)
+        self.assertFalse(package_bytes('python')[1]['requires'])
+        self.assertTrue(package_bytes('node')[1]['requires'])
+        self.assertIn('adapter.set_grant(PLUGINS[0], False)', source)
+        self.assertIn("'PERMISSION_DENIED', '/fcp/capabilities/'+exported(PLUGINS[0])", source)
+        self.assertIn('pages(revoked) == {PLUGINS[1]}', source)
+
+    def test_response_projection_retains_only_safe_diagnostic_fields(self):
+        from http_contract import response_evidence, ContractAssertion
+        response = dict(code=503, msg='secret message', token='secret token',
+                        data=dict(fcpCode='PLUGIN_DISABLED', traceId='a'*32,
+                                  principal='secret principal', body='secret body'))
+        evidence = response_evidence(503, response)
+        self.assertEqual(evidence, dict(httpStatus=503, code=503,
+                                       fcpCode='PLUGIN_DISABLED', traceId='a'*32))
+        error = ContractAssertion('revocation', [dict(name='prior check', status='PASS')], evidence)
+        self.assertNotIn('secret', str(error))
+        self.assertNotIn('secret', str(error.report))
+        self.assertEqual(error.report['checks'][0]['status'], 'PASS')
+        self.assertEqual(error.report['status'], 'FAIL')
+
+    def test_unknown_uppercase_and_nonstring_codes_never_leak(self):
+        from http_contract import response_evidence, ContractAssertion
+        for value in ('SECRET_TOKEN_VALUE', 'A'*10000, 403, True, None,
+                      ['PERMISSION_DENIED'], {'secret': 'SECRET_TOKEN_VALUE'}):
+            with self.subTest(value_type=type(value).__name__):
+                evidence = response_evidence(403, {'code': 403, 'data': {'fcpCode': value}})
+                self.assertIsNone(evidence['fcpCode'])
+                error = ContractAssertion('revocation', [], evidence)
+                self.assertNotIn('SECRET_TOKEN_VALUE', str(error))
+                self.assertNotIn('SECRET_TOKEN_VALUE', str(error.report))
+                self.assertNotIn('A'*100, str(error.report))
+
+    def test_known_a35_and_recovery_codes_remain_exact(self):
+        from http_contract import response_evidence
+        expected = ('HOST_IMPLEMENTATION_DEPENDENCY', 'NOT_INSTALLED', 'CAPABILITY_NOT_GRANTED',
+                    'INVALID_ARGUMENT', 'REVISION_CONFLICT', 'CONFIRMATION_REQUIRED',
+                    'INVALID_INPUT', 'VERSION_CONFLICT', 'PERMISSION_DENIED', 'PLUGIN_DISABLED',
+                    'OPERATION_PENDING', 'GRANT_REVISION_CONFLICT', 'NOT_READY')
+        for code in expected:
+            self.assertEqual(response_evidence(409, {'data': {'fcpCode': code}})['fcpCode'], code)
+
+    def test_malformed_codes_and_trace_never_leak(self):
+        from http_contract import response_evidence
+        for reply in (None, [], {'code': {'secret': 1}, 'data': []},
+                      {'code': 'secret', 'data': {'fcpCode': 'secret value', 'traceId': 'secret'}}):
+            self.assertEqual(response_evidence(403, reply), dict(httpStatus=403, code=None, fcpCode=None))
+        self.assertNotIn('traceId', response_evidence(403, {'data': {'traceId': '0'*32}}))
+        self.assertIsNone(response_evidence(True, {'code': True})['httpStatus'])
+
+
 if __name__ == '__main__':
     unittest.main()
