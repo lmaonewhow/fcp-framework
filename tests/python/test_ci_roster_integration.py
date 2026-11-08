@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 import tempfile
 import subprocess
+import time
 import unittest
 from unittest.mock import patch
 
@@ -39,6 +40,17 @@ class RosterCompositionGuards(unittest.TestCase):
             with self.subTest(args=args), redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                 parse_args(args)
         self.assertFalse(parse_args(['--ingestion', '--education']).roster)
+
+    def test_login_batches_wait_full_native_window_without_weakening_limit(self):
+        for stage in ('foundation-only', 'roster-http', 'roster-browser'):
+            with patch.object(time, 'sleep') as sleep, patch.object(time, 'monotonic', side_effect=[10, 70.025]):
+                evidence = ci_roster_integration.wait_native_login_window(stage)
+            sleep.assert_called_once_with(60)
+            self.assertEqual(evidence, dict(stage=stage, waitSeconds=60.025, nativeRateLimitChanged=False))
+        with patch.object(time, 'sleep'), patch.object(time, 'monotonic', side_effect=[10, 69.9]), self.assertRaises(RuntimeError):
+            ci_roster_integration.wait_native_login_window('roster-browser')
+        with self.assertRaises(ValueError):
+            ci_roster_integration.wait_native_login_window('unknown')
 
     def test_reviewed_lock_is_bound_to_exact_named_sources(self):
         self.assertEqual(self.read(), self.lock_data)

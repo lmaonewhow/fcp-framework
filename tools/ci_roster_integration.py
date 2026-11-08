@@ -12,6 +12,23 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def wait_native_login_window(stage):
+    """Keep separate genuine login batches below the native 20/IP/60s gate.
+
+    Waiting is test orchestration, never a limiter or Redis configuration change.
+    Multiple native page navigations can request tenant/list for a single login.
+    """
+    import time
+    if stage not in {'foundation-only', 'roster-http', 'roster-browser'}:
+        raise ValueError('Unknown native login batch')
+    started = time.monotonic()
+    time.sleep(60)
+    elapsed = time.monotonic() - started
+    if elapsed < 60:
+        raise RuntimeError('The complete native login window did not elapse')
+    return {'stage': stage, 'waitSeconds': round(elapsed, 3), 'nativeRateLimitChanged': False}
+
+
 def run_roster_native_probe(*, database, url, user, password, manifest, driver, output, root=ROOT):
     """Execute the separate JDBC transaction gate with the real packaged driver.
 

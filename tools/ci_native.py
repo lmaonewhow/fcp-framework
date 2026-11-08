@@ -317,14 +317,16 @@ def run()->int:
       raise RuntimeError('Roster acceptance requires completed real foundation HTTP and browser acceptance')
      # Preserve the genuine tenantList 20/IP/60s limit. New role logins start only
      # after a complete quiet window, never by clearing Redis or weakening limits.
-     wait_started=time.monotonic();time.sleep(60)
-     report['educationRosterLoginWindow']={'waitSeconds':round(time.monotonic()-wait_started,3),'nativeRateLimitChanged':False}
+     from ci_roster_integration import wait_native_login_window
+     report['educationRosterLoginWindows']=[wait_native_login_window('foundation-only')]
      roster_fixture.verify_foundation_only('http://127.0.0.1:18787',report['build']['buildId'])
      roster_fixture.seed(foundation_browser_report=foundation_browser_result)
      from ci_roster_integration import run_roster_native_probe
      report['educationRosterJdbc']=run_roster_native_probe(database=database,url=url,user=runtime_user,password=runtime_password,
       manifest=roster_fixture.digest,driver=driver,output=roster_fixture.output.parent/'jdbc-probe')
+     report['educationRosterLoginWindows'].append(wait_native_login_window('roster-http'))
      result=roster_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid)
+     report['educationRosterLoginWindows'].append(wait_native_login_window('roster-browser'))
      # Do not reuse the cached foundation module named native_browser.
      import importlib.util
      spec=importlib.util.spec_from_file_location('education_roster_native_browser',ROOT/'tests/education_roster/native_browser.py')

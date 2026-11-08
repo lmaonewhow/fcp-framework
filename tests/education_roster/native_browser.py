@@ -54,6 +54,112 @@ def _write_report(report: dict, output: Path) -> None:
     (output / 'acceptance.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
 
+def _error_text(value, secrets=(), limit=600):
+    """Bounded diagnostic text only, never a response/DOM/header dump."""
+    text = str(value or '')
+    # Refuse oversized payload-shaped errors instead of truncating a credential.
+    if len(text) > 65536:
+        return '[OVERSIZED_ERROR_TEXT_OMITTED]'
+    for secret in sorted((str(value) for value in secrets if value), key=len, reverse=True):
+        text = text.replace(secret, '[REDACTED]')
+    def safe_url(match):
+        url = re.sub(r'^(https?://)[^/\s@]+@', r'\1[REDACTED_USERINFO]@', match.group())
+        return re.split(r'[?#]', url, maxsplit=1)[0] + ('?[REDACTED_URL_SUFFIX]' if re.search(r'[?#]', url) else '')
+    text = re.sub(r'https?://[^\s<>"\')]+', safe_url, text)
+    text = re.sub(r'Bearer\s+[^\s,;]+', 'Bearer [REDACTED]', text, flags=re.IGNORECASE)
+    text = re.sub(r'\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b', '[REDACTED_JWT]', text)
+    # Error messages occasionally embed credentials or serialized response bodies.
+    # Keep stack locations and ordinary JS TypeErrors, not those payloads.
+    text = re.sub(r'(?im)\b(authorization|cookie|set-cookie|password|passwd|access[_-]?token|refresh[_-]?token|token|client[_-]?secret|api[_-]?key)\s*["\']?\s*[:=][^\n]*', r'\1=[REDACTED_FIELD]', text)
+    text = re.sub(r'\{[\s\S]*', '[REDACTED_STRUCTURED_TEXT]', text)
+    text = re.sub(r'\[\s*(?:["{\d]|true\b|false\b|null\b)[\s\S]*', '[REDACTED_STRUCTURED_TEXT]', text)
+    return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '?', text)[:limit]
+
+
+class _RolePageErrors:
+    """Capture every pageerror; bounded retention is not an error filter."""
+    MAX_ERRORS = 20
+    MAX_STACK_LINES = 12
+    MAX_NETWORK_FAILURES = 20
+
+    def __init__(self, report, role, secrets, base='http://127.0.0.1:18787'):
+        self.report, self.secrets = report, secrets
+        parsed = urlsplit(base)
+        self.origin = (parsed.scheme, parsed.netloc)
+        self.entry = dict(role=role, stage='open-context', pageErrorCount=0, droppedPageErrors=0, pageErrors=[],
+                          httpFailureCount=0, droppedHttpFailures=0, httpFailures=[],
+                          requestFailedCount=0, droppedRequestFailures=0, requestFailures=[],
+                          envelopeInspectionFailureCount=0)
+        report.setdefault('browserDiagnostics', []).append(self.entry)
+
+    def stage(self, value):
+        # Stage names are literal runner actions, never page text or URLs.
+        self.entry['stage'] = value if re.fullmatch(r'[a-z0-9:-]{1,100}', value) else 'unknown-stage'
+
+    def capture(self, error):
+        self.entry['pageErrorCount'] += 1
+        if len(self.entry['pageErrors']) >= self.MAX_ERRORS:
+            self.entry['droppedPageErrors'] += 1
+            return
+        stack = str(getattr(error, 'stack', '') or '')
+        # Redact before line/character truncation so no secret prefix is retained.
+        safe_stack_text = _error_text(stack, self.secrets, 6000)
+        safe_stack = safe_stack_text.splitlines()
+        self.entry['pageErrors'].append(dict(
+            stage=self.entry['stage'], completedChecks=len(self.report['checks']),
+            name=_error_text(getattr(error, 'name', type(error).__name__), self.secrets, 80),
+            message=_error_text(getattr(error, 'message', str(error)), self.secrets),
+            stack='\n'.join(safe_stack[:self.MAX_STACK_LINES])[:3600],
+            stackTruncated=len(safe_stack) > self.MAX_STACK_LINES or len(safe_stack_text) > 3600 or len(stack) > 6000))
+
+
+    def _request(self, request):
+        parsed = urlsplit(request.url)
+        if (parsed.scheme, parsed.netloc) != self.origin:
+            return None
+        return dict(stage=self.entry['stage'], completedChecks=len(self.report['checks']),
+                    path=_error_text(parsed.path, self.secrets, 300),
+                    method=request.method if request.method in ('GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS') else 'OTHER')
+
+    def request_failed(self, request):
+        observation = self._request(request)
+        if observation is None:
+            return
+        self.entry['requestFailedCount'] += 1
+        if len(self.entry['requestFailures']) >= self.MAX_NETWORK_FAILURES:
+            self.entry['droppedRequestFailures'] += 1
+            return
+        observation['reason'] = _error_text(request.failure or 'UNKNOWN', self.secrets, 300)
+        self.entry['requestFailures'].append(observation)
+
+    def response(self, response):
+        observation = self._request(response.request)
+        if observation is None:
+            return
+        status = response.status
+        code = None
+        # Retain only the top-level numeric native envelope code. Never retain or
+        # stringify a response body, its data/msg, headers, cookies, or credentials.
+        try:
+            content_type = response.header_value('content-type') or ''
+            if 'json' in content_type.lower():
+                body = response.json()
+                candidate = body.get('code') if isinstance(body, dict) else None
+                if type(candidate) is int and 100 <= candidate <= 9999:
+                    code = candidate
+                del body
+        except Exception:
+            self.entry['envelopeInspectionFailureCount'] += 1
+        if status < 400 and (code is None or code == 200):
+            return
+        self.entry['httpFailureCount'] += 1
+        if len(self.entry['httpFailures']) >= self.MAX_NETWORK_FAILURES:
+            self.entry['droppedHttpFailures'] += 1
+            return
+        observation.update(httpStatus=status, envelopeCode=code)
+        self.entry['httpFailures'].append(observation)
+
+
 def verify_browser(fixture, base: str, build_id: str) -> dict:
     from playwright.sync_api import sync_playwright, expect
     from native_client import require_loopback
@@ -172,8 +278,11 @@ def verify_browser(fixture, base: str, build_id: str) -> dict:
                     state = host.login(browser, base, role)
                     context = browser.new_context(storage_state=state, viewport=dict(width=1440, height=1080))
                     page = context.new_page()
-                    errors, mutations = [], []
-                    page.on('pageerror', lambda error: errors.append(safe_diagnostic(str(error), host.diagnostic_secrets)))
+                    mutations = []
+                    diagnostics = _RolePageErrors(report, role, host.diagnostic_secrets, base)
+                    page.on('pageerror', diagnostics.capture)
+                    page.on('response', diagnostics.response)
+                    page.on('requestfailed', diagnostics.request_failed)
                     def capture(request):
                         parsed = urlsplit(request.url)
                         if parsed.path.startswith(PREFIX):
@@ -182,6 +291,7 @@ def verify_browser(fixture, base: str, build_id: str) -> dict:
                                 mutations.append(parsed.path)
                     page.on('request', capture)
                     try:
+                        diagnostics.stage('open-page')
                         with page.expect_response(lambda r: matches(r, '/capabilities')) as cap_response, page.expect_response(lambda r: matches(r, '/schools')) as school_response:
                             page.goto(base + PAGE)
                         capabilities = data(cap_response.value)
@@ -197,8 +307,10 @@ def verify_browser(fixture, base: str, build_id: str) -> dict:
                             check(role + ' has only school A', [s['id'] for s in schools] == ['800001'])
                         school_a = next(s for s in schools if s['id'] == '800001')
                         current_kind = 'enrollments'
+                        diagnostics.stage('select-school-a:enrollments')
                         listed = select_school(page, school_a, current_kind if current_kind in allowed_kinds else None)
                         for kind in KINDS:
+                            diagnostics.stage('show-tab:' + kind)
                             if current_kind != kind:
                                 if kind in allowed_kinds:
                                     with page.expect_response(lambda r, k=kind: matches(r, '/schools/800001/' + k)) as response:
@@ -219,30 +331,40 @@ def verify_browser(fixture, base: str, build_id: str) -> dict:
                             # Exact first cell, no word-boundary regex on adjacent table cells.
                             exact = page.get_by_test_id('roster-records').locator('tbody tr').filter(has=page.locator('td:first-child .cell').filter(has_text=re.compile(r'^\s*' + re.escape(first['id']) + r'\s*$')))
                             expect(exact).to_have_count(1)
+                            diagnostics.stage('show-detail:' + kind)
                             with page.expect_response(lambda r, k=kind, rid=first['id']: matches(r, '/schools/800001/' + k + '/' + rid)) as detail_response:
                                 exact.get_by_role('button', name='查看', exact=True).click()
                             safe_row(data(detail_response.value), kind, '800001')
                             expect(page.get_by_test_id('roster-detail')).to_contain_text(first['id'])
+                            diagnostics.stage('capture-detail:' + kind)
                             screenshot(page, role + '-' + kind)
+                            diagnostics.stage('close-detail:' + kind)
                             page.get_by_role('button', name='关闭详情', exact=True).click()
                             expect(page.get_by_test_id('roster-detail')).to_have_count(0)
                         if role == 'admin':
                             school_b = next(s for s in schools if s['id'] == '800002')
+                            diagnostics.stage('select-school-b:' + current_kind)
                             result = select_school(page, school_b, current_kind)
                             check('admin school switch replaces records', len(result['items']) == 1)
                             safe_row(result['items'][0], current_kind, '800002')
+                            diagnostics.stage('capture-school-b')
                             screenshot(page, 'admin-school-b')
                             pending = [s for s in schools if s['readiness'] == 'EXECUTION_GRANT_MISSING']
                             for school_pending in pending:
+                                diagnostics.stage('select-pending-school')
                                 select_school(page, school_pending)
                                 expect(page.get_by_text('该学校的执行许可尚未就绪，查询保持关闭。', exact=True)).to_be_visible()
                                 expect(page.get_by_test_id('roster-records')).to_have_count(0)
-                        check(role + ' no browser errors', not errors)
+                        diagnostics.stage('assert-no-browser-errors')
+                        check(role + ' no browser errors', diagnostics.entry['pageErrorCount'] == 0)
                         check(role + ' read-only page made no mutation requests', not mutations)
                     finally:
+                        diagnostics.stage('close-context')
                         context.close()
             finally:
                 browser.close()
+        check('all roles have no browser errors including context closure',
+              all(entry['pageErrorCount'] == 0 for entry in report.get('browserDiagnostics', [])))
         report.update(status='PASS', completed=True)
     except Exception as error:
         report.update(status='FAIL', error=safe_diagnostic(str(error), host.diagnostic_secrets))

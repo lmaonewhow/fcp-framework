@@ -139,4 +139,44 @@ describe('real Vue + ElementPlus roster rendering; mocked HTTP and identity, not
     expect(wrapper.text()).toContain('本次查询已取消'); expect(wrapper.find('[data-testid="roster-no-schools"]').exists()).toBe(false);
   });
 
+  it('real ElementPlus admin sequence closes a mounted table when switching to a pending school without unhandled errors', async () => {
+    // This is a component reproduction attempt using synthetic HTTP, not proof
+    // about the native CI pageerror whose original stack was not retained.
+    probe.identity = reactive({ userId: 'synthetic-admin', tenantId: 'synthetic-tenant', token: 'synthetic-session' });
+    const schools = [school('10'), school('20'), school('30', { readiness: 'EXECUTION_GRANT_MISSING', operations: {} })];
+    probe.request.mockImplementation(config => {
+      if (config.url.endsWith('/capabilities')) return ok(caps);
+      if (config.url.includes('/schools?')) return ok(page(schools));
+      const match = config.url.match(/\/schools\/(10|20)\/(enrollments|memberships|assignments)(?:\/(101|201))?/);
+      if (!match) throw new Error('Unexpected synthetic request');
+      const result = row(match[1] === '10' ? '101' : '201', match[1], match[2]);
+      return ok(match[3] ? result : page([result]));
+    });
+    const container = document.createElement('div'); document.body.appendChild(container);
+    const wrapper = mount(Workspace, { attachTo: container, global: { plugins: [ElementPlus], stubs: { transition: false, 'transition-group': false } } }); wrappers.push(wrapper);
+    const selectRealOption = async id => {
+      await wrapper.get('[data-testid="roster-school"] .el-select__wrapper').trigger('click'); await flushPromises();
+      const option = wrapper.findAllComponents({ name: 'ElOption' }).find(item => item.props('value') === id);
+      expect(option).toBeDefined(); await option.trigger('click'); await flushPromises();
+    };
+    try {
+      await flushPromises(); await selectRealOption('10');
+      for (const [kind, label] of [['enrollments', '学籍关系'], ['memberships', '入班历史'], ['assignments', '任教关系']]) {
+        const target = wrapper.findAll('[role="tab"]').find(item => item.text() === label);
+        await target.trigger('click'); await flushPromises();
+        await button(wrapper, '查看').trigger('click'); await flushPromises(); expect(wrapper.get('[data-testid="roster-detail"]').text()).toContain('101');
+        await button(wrapper, '关闭详情').trigger('click'); await flushPromises();
+      }
+      await selectRealOption('20'); expect(wrapper.get('[data-testid="roster-records"]').text()).toContain('201');
+      const requests = probe.request.mock.calls.length;
+      await selectRealOption('30');
+      expect(wrapper.text()).toContain('该学校的执行许可尚未就绪'); expect(wrapper.find('[data-testid="roster-records"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="roster-detail"]').exists()).toBe(false); expect(probe.request.mock.calls).toHaveLength(requests);
+      // Let real ElementPlus debounce/frame work run after table unmount. Vitest
+      // treats any uncaught rejection as a failure; no pageerror category is filtered.
+      await new Promise(resolve => setTimeout(resolve, 700)); await flushPromises();
+      expect(wrapper.find('[data-testid="roster-records"]').exists()).toBe(false);
+    } finally { wrapper.unmount(); wrappers.pop(); container.remove(); }
+  });
+
 });
