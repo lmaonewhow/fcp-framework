@@ -32,3 +32,23 @@ node tests/generator/template-contract.test.mjs /absolute/path/to/node_modules/t
 ```
 
 Python 测试采用上游 `8136a0191a2258c0e1b36a8146a1c5ebc070c139` 的原始 `index.vue.vm` fixture（MIT），检查摘要、漂移、重复应用、符号链接及装配调用。Node 测试从修复器提取选定分支的 TypeScript 片段，验证原始 checkbox 数组/字符串错误、修复后严格类型检查，以及空值、编辑、重复提交和重试时控件保持数组。它不是完整 Velocity 渲染或完整生成页面的 vue-tsc；这两项必须通过真实原生验收另行验证。
+
+
+## 生成业务真实运行门禁
+
+`tools/ci_native.py --ingestion --exchange --generator --generator-business` 仅在独立 GitHub Actions 的新建 `fcp_ci_*` 数据库中运行。新开关同时要求 `--generator` 与 `--ingestion`，不改变生产生成器默认行为：生成或应用源码本身始终不执行 SQL。现有 `--generator` 单独路径仍只验证源码应用、编译、构建和类型检查，业务运行与 SQL 执行保持 `NOT_RUN`。
+
+原生生成测试先验证缺少五个审计列以及非 primary 数据源均无法直接应用，再使用带完整原生审计列的合成表。业务门禁仅接受固定 `generatorprobe/probe` 的六条原生菜单 INSERT，逐列验证内容、父菜单与权限，先检查数据库所有权、空业务表及菜单冲突，输出计划并用 mysqldump 备份相关表，再执行菜单和只读验收角色授权。预览、备份失败或 SQL 漂移会停止，不清库，不自动恢复，也不触碰其他数据库。菜单 SQL 仅由独立验收部署身份执行，实际 JAR 继续使用只具 DML 权限的账号。
+
+首次原生生成、应用和回滚之后，测试在 Vue 源码中加入明确标注的手工提示，重新生成并确认提示被保留，再使用同一个锁定装配检出编译 Java、真实构建 Vue 和执行 vue-tsc。旧 JVM 必须完成退出，才能运行带私有隔离配置的 Maven clean verify 和启动新 JAR，避免两个宿主共享运行目录；最外层 finally 始终回收最新进程。两个原生 JVM 均明确使用 UTC 时区。原始发布 JAR 不覆盖，生成构建保存到 `work/ci-native/generated-release/`。
+
+生成业务页通过原生菜单 `/admin/tool/probe` 加载。真实 Chromium 场景使用原生验证码、加密登录和会话，完成三条合成记录的新增、列表、编辑、名称 LIKE 查询、含日末记录的日期范围、条件重置、删除及刷新持久化。复选框覆盖多选回显、改为单项、清空、重新打开；数据库核对原生租户和审计字段。独立只读账号重新登录，验证按钮隐藏及新增、修改、删除、导出接口明确返回 403；匿名调用必须为 401；另一租户合成记录不能被读出、修改或删除。不会拦截响应、伪造令牌、替换后台或关闭权限。
+
+`reports/generator-native/acceptance.json` 分开记录源码应用、`generatedSqlExecution` 和 `generatedBusinessRuntime`；失败、未运行不能写成通过。`menu-plan.json`、`menu-before.sql`、原始合成业务 HTTP 记录、生成源码副本、编译日志，以及新 JAR 的 sourceCommit、generatedBuildId、baselineBuildId、逐文件摘要和 JAR SHA-256 一并保留。`SOURCE-FILES.json` 可复核装配源摘要，Maven 日志仅脱敏私有配置。截图与录像在登录之后采集，等待请求、加载遮罩和过渡动画结束，涵盖表单、实际列表、日期查询、删除和只读页面。打包结果里的 `runtimeVerification=NOT_RUN` 是打包阶段范围；业务是否通过以绑定同一 JAR 的 acceptance.json 为准。
+
+本地护栏/打包回归使用临时文件及进程替身，不代表真实 MySQL、Maven 或浏览器验收：
+
+```sh
+python -m unittest discover -s tests/python -p test_generated_business.py -v
+python -m unittest discover -s tests/python -p test_native_generated_build.py -v
+```

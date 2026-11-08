@@ -1,5 +1,6 @@
 import dev.fcp.generator.GeneratedSourceWorkspace;
 import dev.fcp.generator.RuoYiGeneratedMetadata;
+import dev.fcp.generator.GeneratedSchemaRequirements;
 import java.io.*;
 import java.nio.*;
 import java.nio.charset.StandardCharsets;
@@ -15,6 +16,7 @@ public final class GeneratedSourceWorkspaceRegression {
     @FunctionalInterface interface Throwing { void run() throws Exception; }
     static void check(boolean condition,String label) { assertions++;if(!condition)throw new AssertionError(label); }
     static void rejects(Throwing work,String label) throws Exception { try{work.run();throw new AssertionError("Accepted: "+label);}catch(IOException expected){assertions++;} }
+    static void rejectsArgument(Throwing work,String label) throws Exception { try{work.run();throw new AssertionError("Accepted: "+label);}catch(IllegalArgumentException expected){assertions++;} }
     static byte[] zip(String... entries) throws Exception {
         ByteArrayOutputStream out=new ByteArrayOutputStream();try(ZipOutputStream z=new ZipOutputStream(out)){for(int i=0;i<entries.length;i+=2){z.putNextEntry(new ZipEntry(entries[i]));z.write(entries[i+1].getBytes(StandardCharsets.UTF_8));z.closeEntry();}}return out.toByteArray();
     }
@@ -154,6 +156,16 @@ public final class GeneratedSourceWorkspaceRegression {
             try(OutputStream out=Files.newOutputStream(m)){orderProps.store(out,"");}
         }
         check(((Map<?,?>)((List<?>)ordering.history(OWNER).get("operations")).get(0)).get("operationId").equals(id(newOrder)),"history uses chronological instant ordering");
+        GeneratedSchemaRequirements.requirePrimary("master","master");check(true,"primary datasource accepted");
+        GeneratedSchemaRequirements.requirePrimary("business","business");check(true,"configured primary accepted");
+        rejectsArgument(()->GeneratedSchemaRequirements.requirePrimary("slave","master"),"generated mapper cannot route non-primary");
+        rejectsArgument(()->GeneratedSchemaRequirements.requirePrimary(null,"master"),"missing selected datasource rejected");
+        rejectsArgument(()->GeneratedSchemaRequirements.requirePrimary("",""),"empty primary rejected");
+        List<String> audit=List.of("create_dept","create_by","create_time","update_by","update_time");
+        GeneratedSchemaRequirements.requireAuditColumns(audit);check(true,"all inherited mapped audit columns exist");
+        GeneratedSchemaRequirements.requireAuditColumns(audit.stream().map(v->v.toUpperCase(Locale.ROOT)).toList());check(true,"database column names are case-insensitive");
+        for(String omitted:audit) { List<String> partial=new ArrayList<>(audit);partial.remove(omitted);rejectsArgument(()->GeneratedSchemaRequirements.requireAuditColumns(partial),"missing inherited column "+omitted); }
+        rejectsArgument(()->GeneratedSchemaRequirements.requireAuditColumns(null),"unavailable actual schema rejected");
         System.out.println("RESULT "+assertions+" generator-workspace checks PASS");
     }
 }

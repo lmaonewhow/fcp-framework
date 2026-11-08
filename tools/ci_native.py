@@ -34,7 +34,8 @@ def private(path:Path,content:str):
 
 def parse_args(argv=None):
  parser=argparse.ArgumentParser(description=__doc__)
- parser.add_argument('--generator',action='store_true',help='Real generator source-application acceptance; requires --ingestion');parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');parser.add_argument('--plugin-releases',action='store_true',help='Real dual-UI and multi-plugin composite release acceptance; requires --ingestion, excludes --exchange');a=parser.parse_args(argv)
+ parser.add_argument('--generator-business',action='store_true',help='Package and run generated synthetic business CRUD in the owned disposable database; requires --generator and --ingestion');parser.add_argument('--generator',action='store_true',help='Real generator source-application acceptance; requires --ingestion');parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');parser.add_argument('--plugin-releases',action='store_true',help='Real dual-UI and multi-plugin composite release acceptance; requires --ingestion, excludes --exchange');a=parser.parse_args(argv)
+ if a.generator_business and not (a.generator and a.ingestion):parser.error('--generator-business requires --generator and --ingestion')
  if a.generator and not a.ingestion:parser.error('--generator requires genuine --ingestion login fixture')
  if a.exchange and not a.ingestion:parser.error('--exchange requires genuine --ingestion login fixture')
  if a.plugin_releases and not a.ingestion:parser.error('--plugin-releases requires genuine --ingestion login fixture')
@@ -49,6 +50,7 @@ def run()->int:
   if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')
   requirements=doctor()
   if requirements['status']!='READY' or not shutil.which('mysql'):raise PrerequisiteError('Build tools/network/mysql CLI missing')
+  if a.generator_business and not shutil.which('mysqldump'):raise PrerequisiteError('Generated business acceptance requires mysqldump for the reviewed menu backup')
   root_password=os.environ.get('FCP_CI_MYSQL_PASSWORD','')
   if not re.fullmatch('[A-Za-z0-9_-]{16,100}',root_password):raise PrerequisiteError('Explicit CI MySQL fixture password is required')
   private_cleanup=OwnedDisposableDirectory.create();private_dir=private_cleanup.path
@@ -202,8 +204,9 @@ def run()->int:
   log_path=private_dir/'native-startup.log';started=time.monotonic()
   def start_host():
    nonlocal process
+   if process is not None and process.poll() is None:raise RuntimeError('Refusing overlapping native JVMs sharing isolated runtime roots')
    with log_path.open('a') as log:
-    process=subprocess.Popen(['java','-Xms128m','-Xmx1024m','-jar',str(jar),'--spring.profiles.active=prod,fcp'],cwd=private_dir,stdout=log,stderr=subprocess.STDOUT)
+    process=subprocess.Popen(['java','-Duser.timezone=UTC','-Xms128m','-Xmx1024m','-jar',str(jar),'--spring.profiles.active=prod,fcp'],cwd=private_dir,stdout=log,stderr=subprocess.STDOUT)
    ready=False;start=time.monotonic()
    while time.monotonic()-start<120 and process.poll() is None:
     try:
@@ -212,9 +215,9 @@ def run()->int:
     except (OSError,UnicodeError):pass
     time.sleep(.5)
    if not ready:raise RuntimeError('Native JVM/static management frontend did not become ready')
+  from ci_native_host import stop_host,replace_host
   def restart():
-   process.terminate()
-   process.wait(timeout=35)
+   stop_host(process)
    start_host()
   start_host()
   with urllib.request.urlopen('http://127.0.0.1:18787/teacher/',timeout=5) as response:teacher=response.read(2_000_000).decode()
@@ -246,9 +249,30 @@ def run()->int:
     from development_business import verify_development_business
     modules.append(NativeModule('developmentBusiness',lambda:verify_development_business(private_dir,url,runtime_user,runtime_password,driver,exchange_fixture.endpoint,exchange_fixture.report.get('sharedBusinessContract',{})),
      lambda value:{'status':value['status'],'sameNativeRows':value['sameNativeRows'],'jvmRestartPersistence':value['jvmRestartPersistence']}))
+   def generated_business_pipeline(generated):
+    nonlocal jar
+    from business_database import install_generated_menu
+    from business_runtime import verify_business
+    from native_generated_build import build_generated
+    def prepare():
+     generated.report['menuSqlPlan']=install_generated_menu(fixture,generated.root/'generated/sql/probeMenu.sql',generated.output,mysql_file,database,
+      execution_started=lambda:generated.report.update(generatedSqlExecution='RUNNING'))
+     generated.report['generatedSqlExecution']='PASS'
+     evidence=build_generated(work,private_dir/'fcp-runtime.properties',generated.generated_files,source_commit=generated.report['sourceCommit'])
+     generated.report['generatedBusinessBuild']=evidence
+     return evidence
+    def launch(evidence):
+     nonlocal jar
+     jar=Path(evidence['jarPath'])
+     if hashlib.sha256(jar.read_bytes()).hexdigest()!=evidence['jarSha256']:raise RuntimeError('Generated JAR changed before native launch')
+     generated.report['generatedBusinessRuntime']='RUNNING'
+     start_host()
+     generated.report['generatedJavaPid']=process.pid
+    evidence=replace_host(lambda:stop_host(process),prepare,launch)
+    verify_business(generated,'http://127.0.0.1:18787',evidence)
    if generator_fixture:
-    modules.append(NativeModule('generatorApply',lambda:generator_fixture.verify('http://127.0.0.1:18787',report['build']['buildId']),
-     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'generatedBusinessRuntime':value['generatedBusinessRuntime']}))
+    modules.append(NativeModule('generatorApply',lambda:generator_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],generated_business_pipeline if a.generator_business else None),
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'generatedBusinessRuntime':value['generatedBusinessRuntime'],'generatedSqlExecution':value['generatedSqlExecution'],'generatedBusinessBuild':value.get('generatedBusinessBuild')}))
    run_native_modules(report,modules,prerequisites_passed=result.get('status')=='PASS' and bool(report.get('build',{}).get('buildId')),
     host_alive=lambda:process is not None and process.poll() is None,
     secrets_provider=lambda:[*fixture.diagnostic_secrets,fixture.password])

@@ -21,6 +21,8 @@ fcp.generator.workspace=/absolute/path/to/fcp-source-checkout
 
 本轮直接应用支持普通 CRUD 模板，包含业务日期范围查询和以 String 保存逗号分隔值的复选框字段。锁定模板源经过精确校验后修复日期范围类型，并分离复选控件数组与接口字符串，下载和应用使用同一修正后的模板。树形或自定义模板、非 String 复选字段会在生成计划前明确拒绝，仍可使用原下载功能审查；它们没有被计入本轮可直接应用的范围。
 
+直接应用仅支持宿主主数据源，因为原生生成的 Mapper 不含多数据源路由。预览前会读取实际数据库列，检查继承实体必须映射的 `create_dept`、`create_by`、`create_time`、`update_by`、`update_time`；缺列会提前拒绝，避免只编译成功却在查询或写入时失败。这些是必要条件，不替代生成后的业务运行验收。启用多租户时，业务表还需符合宿主的 `tenant_id` 或租户排除配置。
+
 文件自动落入 FCP 的受控源码覆盖层：
 
 | 原生生成文件 | FCP 源码位置 |
@@ -58,3 +60,5 @@ Java、Mapper XML 和管理端 Vue/TypeScript 会被 `tools/native.py` 的正常
 `tests/java/GeneratedSourceWorkspaceRegression.java` 使用真实临时文件验证新建、更新、手改保留、冲突整批拒绝、陈旧计划、持久幂等、回滚和故障现场恢复。它不是 Spring/MySQL/浏览器测试。
 
 `tests/generator/native_acceptance.py` 通过 `tools/ci_native.py --ingestion --exchange --generator` 使用真实锁定若依、隔离 MySQL/Redis、原生加密登录和 Chromium，测试原生导入、模板生成、预览、点击确认、真实落盘、手改、冲突、陈旧计划、UI 撤销及越权拒绝，并对生成后的 Java 与管理端源码执行真实编译/构建/类型检查。此测试不执行生成菜单 SQL，不声明生成业务已经上线。结果写到 `reports/generator-native/acceptance.json`，构建及源码标识绑定该次实际运行。测试代码存在不表示验收通过，应查看对应提交 CI 的真实结果。
+
+进一步的生成业务运行验收使用显式的 `--generator-business`，同时要求 `--generator --ingestion`。它仅能操作本次创建的隔离 CI 测试库，在菜单 SQL 预检、输出计划和保存备份之后安装合成业务的菜单及测试权限，将实际生成并应用的源码重新打包到真实若依 JAR，再运行浏览器业务操作和截图。原生成器的“确认应用”仍然只写源码，不执行 SQL，也不会因此获得部署权限。生成业务的运行结论、截图、实际覆盖范围和未运行项以该次报告为准，不能由源文件存在或编译成功推断。

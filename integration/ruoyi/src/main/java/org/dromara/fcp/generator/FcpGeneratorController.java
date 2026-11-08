@@ -3,6 +3,7 @@ package org.dromara.fcp.generator;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.dev33.satoken.stp.StpUtil;
 import dev.fcp.generator.GeneratedSourceWorkspace;
+import dev.fcp.generator.GeneratedSchemaRequirements;
 import jakarta.servlet.http.HttpServletRequest;
 import org.dromara.common.core.domain.R;
 import org.dromara.common.log.annotation.Log;
@@ -33,9 +34,11 @@ public class FcpGeneratorController {
     private final GeneratedSourceWorkspace workspace;
     private final DataSource source;
     private final Path root;
+    private final String primaryDataSource;
 
     public FcpGeneratorController(IGenTableService generator, DataSource source,
-            @Value("${fcp.generator.workspace:}") String directory) throws IOException {
+            @Value("${fcp.generator.workspace:}") String directory,
+            @Value("${spring.datasource.dynamic.primary:master}") String primaryDataSource) throws IOException {
         if (directory.isBlank() || !Path.of(directory).isAbsolute()) {
             throw new IOException("Generator requires an explicit absolute FCP development workspace");
         }
@@ -48,6 +51,7 @@ public class FcpGeneratorController {
         }
         this.generator = generator;
         this.source = source;
+        this.primaryDataSource = primaryDataSource;
         this.workspace = new GeneratedSourceWorkspace(root);
     }
 
@@ -107,6 +111,10 @@ public class FcpGeneratorController {
             if (!table.isCrud()) {
                 throw new IllegalArgumentException("当前直接应用仅支持普通 CRUD 模板；树形或自定义模板请下载后审查");
             }
+            GeneratedSchemaRequirements.requirePrimary(table.getDataName(), primaryDataSource);
+            var actualColumns = generator.selectDbTableColumnsByName(table.getTableName(), table.getDataName());
+            GeneratedSchemaRequirements.requireAuditColumns(actualColumns == null ? null : actualColumns.stream()
+                    .map(column -> column.getColumnName()).toList());
             if (table.getColumns().stream().anyMatch(column -> "checkbox".equals(column.getHtmlType())
                     && !"String".equals(column.getJavaType()))) {
                 throw new IllegalArgumentException("直接应用的复选框字段必须使用 String 类型保存逗号分隔值");
