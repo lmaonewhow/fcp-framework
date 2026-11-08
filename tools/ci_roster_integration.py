@@ -109,7 +109,7 @@ def verify_artifact_mismatch(*, jar, private_dir, output, manifest, root=ROOT):
     if config.is_symlink() or not config.is_file() or config.stat().st_mode & 0o077:
         raise ValueError('Owned private runtime configuration required')
     wrong = ('0' if manifest[0] != '0' else '1') + manifest[1:]
-    command = ['java', '-Xms128m', '-Xmx1024m', '-jar', str(jar), '--spring.profiles.active=prod,fcp',
+    command = ['java', '-Duser.timezone=UTC', '-Xms128m', '-Xmx1024m', '-jar', str(jar), '--spring.profiles.active=prod,fcp',
                '--server.port=0', '--FCP_EDUCATION_ROSTER_MANIFEST_DIGEST=' + wrong]
     output.mkdir(parents=True, exist_ok=False)
     log = private_dir / 'roster-artifact-mismatch-startup.log'

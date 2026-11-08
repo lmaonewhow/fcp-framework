@@ -32,16 +32,23 @@ public final class RosterArtifactIdentity {
         } catch(Exception rejected) {throw failure();}
     }
     /** Only the explicitly supported VM prefix is accepted. The first launch selector must -jar.
+     * The single exact UTC property matches the supported native launcher; arbitrary system
+     * properties remain forbidden and cannot change class loading or artifact verification.
      * No scanning through main-class/application arguments, @argfiles, class/module/source launches,
      * agents, alternative classpaths or unrecognized launcher options.
      */
     static Path launchArchive(String[] arguments) {
         if(arguments==null)throw failure();
         int i=0;
+        boolean utcSeen=false;
         while(i<arguments.length) {
             String argument=arguments[i];
             if(argument==null)throw failure();
             if(argument.matches("-Xm[sx][1-9][0-9]*[kKmMgG]?")){i++;continue;}
+            if(argument.equals("-Duser.timezone=UTC")) {
+                if(utcSeen)throw failure();
+                utcSeen=true;i++;continue;
+            }
             if(argument.equals("-jar")) {
                 if(i+1>=arguments.length)throw failure();
                 return archivePath(arguments[i+1]);

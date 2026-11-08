@@ -20,6 +20,13 @@ public final class RosterArtifactIdentityCheck {
         Class<?>[] launch={String[].class},hash={Path.class,String.class},source={String.class};
         try {
             check(invoke("launchArchive",launch,(Object)new String[]{"-Xms128m","-Xmx1024m","-jar",jar.toString(),"--application-option"}).equals(jar.toRealPath()));
+            check(invoke("launchArchive",launch,(Object)new String[]{"-Duser.timezone=UTC","-Xms128m","-Xmx1024m","-jar",jar.toString(),"--application-option"}).equals(jar.toRealPath()));
+            // Preserve the existing accepted heap-size syntax and repetition policy.
+            check(invoke("launchArchive",launch,(Object)new String[]{"-Xms128m","-Xms256m","-Xmx1G","-Duser.timezone=UTC","-jar",jar.toString()}).equals(jar.toRealPath()));
+            for(String option:List.of("-Duser.timezone=GMT","-Duser.timezone=Etc/UTC","-Duser.timezone=utc","-Duser.timezone=UTC ","-Duser.timezone=UTC=UTC","-Duser.timezone","-Djava.class.path=other.jar","-Djava.system.class.loader=Other","-agentlib:jdwp","-agentpath:/tmp/agent.so","-Xbootclasspath/a:other.jar","--class-path=other.jar"))
+                denied(()->invoke("launchArchive",launch,(Object)new String[]{option,"-jar",jar.toString()}));
+            denied(()->invoke("launchArchive",launch,(Object)new String[]{"-Duser.timezone=UTC","-Duser.timezone=UTC","-jar",jar.toString()}));
+            denied(()->invoke("launchArchive",launch,(Object)new String[]{"-Duser.timezone=UTC","-Duser.timezone=GMT","-jar",jar.toString()}));
             check(invoke("verifyDigest",hash,jar,digest).equals(digest));
             denied(()->invoke("verifyDigest",hash,jar,"f".repeat(64)));
             denied(()->invoke("verifyDigest",hash,jar,digest.toUpperCase(Locale.ROOT)));

@@ -1,4 +1,5 @@
 """Source/plan gates only; no native database, browser or PII policy claim."""
+import ast
 from contextlib import redirect_stderr
 import hashlib
 import io
@@ -127,6 +128,14 @@ class RosterCompositionGuards(unittest.TestCase):
             def wait(self, timeout): return 1
             def poll(self): return 1
         def launch(command, **kwargs):
+            # Match the actual native launch prefix, rather than a weaker negative-only one.
+            tree = ast.parse((ROOT / 'tools/ci_native.py').read_text())
+            start = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == 'start_host')
+            actual = next(node for node in ast.walk(start) if isinstance(node, ast.Call)
+                          and isinstance(node.func, ast.Attribute) and node.func.attr == 'Popen')
+            prefix = [ast.literal_eval(value) for value in actual.args[0].elts[:5]]
+            self.assertEqual(prefix, ['java', '-Duser.timezone=UTC', '-Xms128m', '-Xmx1024m', '-jar'])
+            self.assertEqual(command[:5], prefix)
             self.assertIn('--FCP_EDUCATION_ROSTER_MANIFEST_DIGEST=' + ('0' if manifest[0] != '0' else '1') + manifest[1:], command)
             kwargs['stdout'].write('ROSTER_EXECUTION_ARTIFACT_MISMATCH synthetic-private-test-value\n'); kwargs['stdout'].flush()
             return FakeProcess()
