@@ -29,7 +29,7 @@ class GeneratorFixture:
             target = self.root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / relative, target)
-        fixture.sql(f"USE `{fixture.database}`; CREATE TABLE fcp_codegen_probe (id BIGINT NOT NULL PRIMARY KEY COMMENT '编号', tenant_id VARCHAR(20) NOT NULL DEFAULT '000000' COMMENT '租户', name VARCHAR(80) NOT NULL COMMENT '名称', create_time DATETIME NULL, update_time DATETIME NULL) COMMENT='生成器合成验收';")
+        fixture.sql(f"USE `{fixture.database}`; CREATE TABLE fcp_codegen_probe (id BIGINT NOT NULL PRIMARY KEY COMMENT '编号', tenant_id VARCHAR(20) NOT NULL DEFAULT '000000' COMMENT '租户', name VARCHAR(80) NOT NULL COMMENT '名称', event_time DATETIME NULL COMMENT '业务日期', tags VARCHAR(100) NULL COMMENT '复选标签', create_time DATETIME NULL, update_time DATETIME NULL) COMMENT='生成器合成验收';")
         self.output = ROOT / 'reports/generator-native'
         self.output.mkdir(parents=True, exist_ok=True)
         self.report = dict(status='RUNNING', scope='genuine RuoYi generator and native browser, real disposable MySQL and files',
@@ -71,9 +71,30 @@ class GeneratorFixture:
                 rows = native('/tool/gen/list?tableName=fcp_codegen_probe')['rows']
                 self.check('real native schema import found exactly the synthetic table', len(rows) == 1)
                 table_id = str(rows[0]['tableId'])
-                table = native('/tool/gen/' + table_id)['data']['info']
+                metadata = native('/tool/gen/' + table_id)['data']
+                table = metadata['info']
+                table['columns'] = metadata['rows']
+                columns = {column['columnName']: column for column in table['columns']}
+                columns['event_time'].update(htmlType='datetime', queryType='BETWEEN', isQuery='1')
+                columns['tags'].update(htmlType='checkbox', dictType='sys_normal_disable', isInsert='1', isEdit='1')
                 table.update(packageName='org.dromara.fcp.generated', moduleName='generatorprobe', businessName='probe',
                              className='FcpCodegenProbe', functionName='生成器合成验收', functionAuthor='FCP CI')
+                # Refuse unsupported template contracts before any source write.
+                columns['tags']['javaType'] = 'Integer'
+                native('/tool/gen', table)
+                status, rejected = admin.request('/fcp/generator/plans', {'tableIds': [table_id]})
+                self.check('non-string checkbox metadata is refused before applying source',
+                           (status >= 400 or rejected.get('code') != 200) and not (self.root / 'integration').exists())
+                columns['tags']['javaType'] = 'String'
+                table['tplCategory'] = 'tree'
+                original_params = table.get('params')
+                table['params'] = {'treeCode': 'id', 'treeParentCode': 'id', 'treeName': 'name'}
+                native('/tool/gen', table)
+                status, rejected = admin.request('/fcp/generator/plans', {'tableIds': [table_id]})
+                self.check('unverified tree template is refused before applying source',
+                           (status >= 400 or rejected.get('code') != 200) and not (self.root / 'integration').exists())
+                table['tplCategory'] = 'crud'
+                table['params'] = original_params or {}
                 native('/tool/gen', table)
                 config = admin.data('/fcp/generator/config')
                 self.check('explicit source workspace is enabled without exposing an absolute path', config['enabled'] and str(self.root) not in json.dumps(config))
@@ -108,6 +129,8 @@ class GeneratorFixture:
                 sql = self.root / 'generated/sql/probeMenu.sql'
                 self.check('actual native Java, MyBatis XML, plus-ui Vue and menu SQL mapped to source paths', all(path.is_file() for path in (java, xml, vue, sql)))
                 self.check('native Velocity generated real tenant entity source', 'class FcpCodegenProbe extends TenantEntity' in java.read_text())
+                self.check('real generator exercises business date range and checkbox templates',
+                           'dateRangeEventTime' in vue.read_text() and 'el-checkbox-group' in vue.read_text())
                 self.check('generated SQL is not executed', self.fixture.sql(f"USE `{self.fixture.database}`; SELECT COUNT(*) FROM sys_menu WHERE component='generatorprobe/probe/index';").strip() == '0')
                 page.screenshot(path=str(self.output / '02-real-generator-applied.png'), full_page=True)
                 stable = admin.data('/fcp/generator/plans', {'tableIds': [table_id]})

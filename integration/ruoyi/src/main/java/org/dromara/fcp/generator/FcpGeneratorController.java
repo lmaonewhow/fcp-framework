@@ -104,6 +104,13 @@ public class FcpGeneratorController {
             if (table == null || table.getColumns() == null || table.getColumns().isEmpty() || table.getColumns().size() > 200) {
                 throw new IllegalArgumentException("表不存在或字段数量不在 1 至 200 范围内");
             }
+            if (!table.isCrud()) {
+                throw new IllegalArgumentException("当前直接应用仅支持普通 CRUD 模板；树形或自定义模板请下载后审查");
+            }
+            if (table.getColumns().stream().anyMatch(column -> "checkbox".equals(column.getHtmlType())
+                    && !"String".equals(column.getJavaType()))) {
+                throw new IllegalArgumentException("直接应用的复选框字段必须使用 String 类型保存逗号分隔值");
+            }
             tableZips.put(id, generator.downloadCode(Long.parseLong(id)));
         }
         return ok(workspace.plan(owner(), tableZips));

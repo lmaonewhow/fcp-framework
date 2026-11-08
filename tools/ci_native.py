@@ -43,7 +43,7 @@ def parse_args(argv=None):
 
 def run()->int:
  a=parse_args()
- report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeStorageLifecycle':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'runtimeComposition':{'status':'NOT_RUN'},'production':'BLOCKED'}
+ report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeStorageLifecycle':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'runtimeComposition':{'status':'NOT_RUN'},'generatorApply':{'status':'NOT_RUN'},'production':'BLOCKED'}
  generator_fixture=None;process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None;failure_fixture=None;storage_lifecycle_fixture=None;composition_fixture=None;deployment_user=None;deployment_password=None
  try:
   if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')

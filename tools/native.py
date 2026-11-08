@@ -21,6 +21,7 @@ import urllib.parse
 import zipfile
 from native_trace_frontend import apply_frontend_trace
 from native_generator_frontend import apply_generator_frontend
+from native_generator_templates import apply_generator_templates
 
 ROOT = Path(__file__).resolve().parents[1]
 PINS = json.loads((ROOT / 'upstreams.lock.json').read_text())['upstreams']
@@ -289,6 +290,7 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
     # Each edit has a verified pinned-blob precondition, before *any* project edits.
     for name,project in projects.items():
         for path,blob in BLOBS[name].items(): check_blob(project/path,blob)
+    apply_generator_templates(backend)
     apply_native_trace_patch(backend)
     redact_auth_failure_log(backend)
     invalidate_deleted_auth_cache(backend)
@@ -436,6 +438,7 @@ def build(projects: dict[str,Path], work: Path, resolve_admin_lock: bool, admin_
         run(['node',ROOT/'tests/frontend-runtime/verify-field-label.mjs',project,name],cwd=ROOT,clean_vite=True)
         if name == 'admin':
             run(['node',ROOT/'tests/generator/ui-state.test.mjs',project/'node_modules/@vue/compiler-sfc',project/'node_modules/typescript'],cwd=ROOT)
+            run(['node',ROOT/'tests/generator/template-contract.test.mjs',project/'node_modules/typescript'],cwd=ROOT)
         dist=project/'dist'; validate_dist(dist,name)
         from ui_release_bundle import build_bundle
         bundle=build_bundle(dist,output/'ui-bundles',name)
