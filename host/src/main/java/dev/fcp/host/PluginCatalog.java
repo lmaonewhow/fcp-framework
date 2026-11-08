@@ -13,12 +13,13 @@ public final class PluginCatalog {
             Map<String,PluginManifest> enabled, long generation, Set<String> hostPermissions) {
         Set<String> permissions=new TreeSet<>();
         for(String permission:hostPermissions)if(permission.startsWith("fcp:plugin:"))permissions.add(permission.substring("fcp:plugin:".length()));
-        List<Object> pages=new ArrayList<>(),slots=new ArrayList<>();
+        List<Object> pages=new ArrayList<>(),slots=new ArrayList<>(),authorizations=new ArrayList<>();
         for(var entry:new TreeMap<>(enabled).entrySet()) {
             String plugin=entry.getKey();PluginManifest manifest=entry.getValue();
             Map<String,String> exports=new HashMap<>();
             for(var capability:manifest.provides()) {
                 HostCapabilities.Decision decision=host.authorize(context,new HostCapabilities.Grant(plugin,capability.id(),"invoke","tenant:"+context.tenantId()));
+                authorizations.add(Json.obj("plugin",plugin,"capability",capability.id(),"allowed",decision!=null&&decision.allowed(),"revision",decision==null?0:decision.currentRevision()));
                 if(decision!=null&&decision.allowed())exports.put(capability.id(),EngineRuntimePort.export(plugin,capability.id()));
             }
             for(String kind:List.of("pages","slots")) {
@@ -38,8 +39,10 @@ public final class PluginCatalog {
                 }
             }
         }
-        return Json.obj("catalog",Json.obj("contractVersion","1.0","schemaVersion",1,"revision",generation,"pages",pages,"slots",slots),
+        Map<String,Object> result=Json.obj("catalog",Json.obj("contractVersion","1.0","schemaVersion",1,"revision",generation,"pages",pages,"slots",slots),
             "context",Json.obj("userId",context.principal().id(),"tenantId",context.tenantId(),"language","zh-CN","permissions",new ArrayList<>(permissions)));
+        result.put("projectionFingerprint",fcp.release.version.VersionCodec.sha256(fcp.release.version.VersionCodec.canonical(Json.obj("projection",result,"authorizations",authorizations))));
+        return result;
     }
     @SuppressWarnings("unchecked") private static void replaceActions(Object value,Map<String,String> exports) {
         Map<String,Object> node=(Map<String,Object>)value;

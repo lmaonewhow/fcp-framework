@@ -9,6 +9,9 @@ globalThis.localStorage = {
   removeItem: key => { store.delete(key); },
   clear: () => store.clear()
 };
+const tabStore = new Map();
+globalThis.sessionStorage = {getItem:key=>tabStore.get(key)??null,setItem:(key,value)=>tabStore.set(key,value),removeItem:key=>tabStore.delete(key),clear:()=>tabStore.clear()};
+globalThis.document = {addEventListener:()=>{},querySelector:()=>null};
 let destination = '', reloads = 0;
 const listeners=[];
 globalThis.window={ location:{replace:value=>{destination=value;},reload:()=>{reloads++;}},
@@ -34,7 +37,8 @@ ok('clear removes shared and native state',()=>{assert.equal(m.readToken(),'');a
 m.writeToken('x');
 let response={code:200,data:{allowedShells:['teacher'],home:'https://evil.example'}};
 let lastRequest;
-globalThis.fetch=async(url,options)=>{lastRequest={url,options};return {ok:true,json:async()=>response};};
+let bootstrapStatus=200;
+globalThis.fetch=async(url,options)=>{lastRequest={url,options};if(url.startsWith('/fcp/ui/releases/'))return {ok:bootstrapStatus===200,status:bootstrapStatus,json:async()=>({code:bootstrapStatus,data:{mode:'EMBEDDED',shell:new URL(url,'http://fixture.invalid').searchParams.get('shell'),reason:'DISABLED'}})};return {ok:true,json:async()=>response};};
 assert.equal(await m.ensureShell('admin','native-client'),true);checks++;
 ok('redirect stays on fixed trusted host path',()=>assert.equal(destination,'/teacher/fcp/school'));
 ok('token stays in Authorization header',()=>{assert.equal(lastRequest.url,'/fcp/ui/session');assert.equal(lastRequest.options.headers.Authorization,'Bearer x');});
@@ -47,16 +51,21 @@ await m.ensureShell('admin','native-client');
 ok('plugin redirect rejects nested or traversal destinations',()=>assert.equal(destination,'/teacher/fcp/school'));
 response={code:200,data:{allowedShells:['admin','teacher']}};
 assert.equal(await m.ensureShell('admin','native-client'),false);checks++;
+assert.equal(await m.ensureShell('teacher','native-client'),false);checks++;
+bootstrapStatus=404;await assert.rejects(()=>m.ensureShell('admin','native-client'),/UI_RELEASE_UNAVAILABLE/);checks++;
+bootstrapStatus=200;
 response={code:200,data:{allowedShells:['https://evil.example']}};
 await assert.rejects(()=>m.ensureShell('admin','native-client'));checks++;
 response={code:403};await assert.rejects(()=>m.ensureShell('admin','native-client'));checks++;
 await assert.rejects(()=>m.ensureShell('admin',''));checks++;
+const beforeSync=listeners.length;
 m.installSessionSync();m.installSessionSync();
-ok('session synchronization installed once',()=>assert.equal(listeners.length,1));
-listeners[0][1]({key:m.TOKEN_KEY,storageArea:localStorage});
+const sessionListener=listeners.at(-1)[1];
+ok('session synchronization installed once',()=>assert.equal(listeners.length-beforeSync,1));
+sessionListener({key:m.TOKEN_KEY,storageArea:localStorage});
 ok('cross-tab auth change resets native stores',()=>assert.equal(reloads,1));
-listeners[0][1]({key:'theme',storageArea:localStorage});
+sessionListener({key:'theme',storageArea:localStorage});
 ok('theme change does not force reload',()=>assert.equal(reloads,1));
-listeners[0][1]({key:null,storageArea:localStorage});
+sessionListener({key:null,storageArea:localStorage});
 ok('cross-tab storage clear forces logout reload',()=>assert.equal(reloads,2));
 console.log(`RESULT ${checks} JavaScript unit checks PASS; fetch is a test double, not a real HTTP/backend test`);

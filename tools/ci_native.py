@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """CI-only genuine native build and MySQL/JVM smoke, with optional real UI ingestion.
 --ingestion adds encrypted native login, both shells, imports, authorization and restart.
+--plugin-releases adds a separate real composite-release mode, never legacy Exchange.
 No load, long-running stability or production-readiness claim is made.
 Uses fresh GitHub Actions MySQL/Redis services on dedicated loopback ports.
 """
@@ -31,12 +32,18 @@ def command(args,cwd=ROOT,env=None,timeout=2400):
 def private(path:Path,content:str):
  path.write_text(content,encoding='utf-8');path.chmod(0o600)
 
-def run()->int:
+def parse_args(argv=None):
  parser=argparse.ArgumentParser(description=__doc__)
- parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');a=parser.parse_args()
+ parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');parser.add_argument('--plugin-releases',action='store_true',help='Real dual-UI and multi-plugin composite release acceptance; requires --ingestion, excludes --exchange');a=parser.parse_args(argv)
  if a.exchange and not a.ingestion:parser.error('--exchange requires genuine --ingestion login fixture')
- report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeStorageLifecycle':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'production':'BLOCKED'}
- process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None;failure_fixture=None;storage_lifecycle_fixture=None;deployment_user=None;deployment_password=None
+ if a.plugin_releases and not a.ingestion:parser.error('--plugin-releases requires genuine --ingestion login fixture')
+ if a.plugin_releases and a.exchange:parser.error('--plugin-releases is isolated from the legacy --exchange execution port')
+ return a
+
+def run()->int:
+ a=parse_args()
+ report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeStorageLifecycle':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'runtimeComposition':{'status':'NOT_RUN'},'production':'BLOCKED'}
+ process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None;failure_fixture=None;storage_lifecycle_fixture=None;composition_fixture=None;deployment_user=None;deployment_password=None
  try:
   if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')
   requirements=doctor()
@@ -74,19 +81,38 @@ def run()->int:
   props+='\nFCP_PORT=18787\nFCP_BIND=127.0.0.1\n'
   if (ROOT/'core/src/main/java/fcp/runtime/EngineRuntimePort.java').is_file():
    props+='\nfcp.runtime.enabled=true\nFCP_RUNTIME_ROOT='+str(private_dir/'runtime-plugins')+'\nFCP_TRUSTED_PUBLISHERS='+('test,fcp-fixtures' if a.exchange else 'test')+'\nFCP_RUNTIME_PYTHON='+str(shutil.which('python3'))+'\nFCP_RUNTIME_NODE='+str(shutil.which('node'))+'\n'
+  if a.plugin_releases:
+   sys.path.insert(0,str(ROOT/'tests/runtime-native'))
+   from task_release_acceptance import definitions as task_definitions
+   tasks_file=private_dir/'release-tasks.json';private(tasks_file,json.dumps(task_definitions()))
+   props+='\nfcp.plugin.release.tasks.enabled=true\nFCP_RELEASE_TASKS_FILE='+str(tasks_file)+'\n'
+   key=private_dir/'release-routing.key';key.write_bytes(secrets.token_bytes(32));key.chmod(0o600)
+   bundle_root=ROOT/'work/ci-native/release/ui-bundles';bundle_root.mkdir(parents=True,exist_ok=True)
+   props+='\nfcp.release.enabled=true\nfcp.release.routing.enabled=true\nfcp.ui.release.enabled=true\nfcp.plugin.release.enabled=true\nfcp.release.observation.enabled=true\nFCP_RELEASE_ENVIRONMENT=ci\nFCP_RELEASE_EXECUTOR_MODE=native\nFCP_RELEASE_ROUTING_KEY_FILE='+str(key)+'\nFCP_UI_BUNDLE_ROOT='+str(bundle_root)+'\nFCP_RELEASE_EXECUTOR_LOCK_FILE='+str(private_dir/'release-executor.lock')+'\n'
+   sys.path.insert(0,str(ROOT/'tests/runtime-native'))
+   from native_observation_acceptance import configure as configure_native_observation
+   props+=configure_native_observation(private_dir,key)
+  elif (ROOT/'core/src/main/java/fcp/release/control/ReleaseController.java').is_file():
+   # Registry/UI acceptance only. No requests are sent to the disabled deployment destination.
+   props+='\nfcp.release.enabled=true\nFCP_RELEASE_ENVIRONMENT=ci\nFCP_RELEASE_EXECUTOR_ENDPOINT=https://127.0.0.1:19443/\nFCP_RELEASE_EXECUTOR_ACTIONS=DEPLOY\n'
   if a.ingestion:
    from ci_ingestion import Fixture
    prefix=re.search(r'(?m)^FCP_REDIS_PREFIX=(.+)$',props)[1]
    fixture=Fixture(database,sql,private_dir,redis_password,prefix)
+   fixture.ui_bootstrap_reason="NOT_CONFIGURED" if a.plugin_releases else "DISABLED"
    if (ROOT/'tests/runtime-native/native_runtime_acceptance.py').is_file():
     sys.path.insert(0,str(ROOT/'tests/runtime-native'))
     from native_runtime_acceptance import RuntimeFixture
     runtime_fixture=RuntimeFixture(database,sql,private_dir,fixture)
     from failure_boundaries import FailureBoundaryFixture, run_mysql_failure_boundaries
     failure_fixture=FailureBoundaryFixture(database,sql,private_dir,fixture)
-    from storage_lifecycle_acceptance import StorageLifecycleFixture
-    storage_lifecycle_fixture=StorageLifecycleFixture(database,sql,private_dir,fixture)
-    if not a.exchange:
+    if a.plugin_releases:
+     from release_composition_acceptance import ReleaseCompositionFixture
+     composition_fixture=ReleaseCompositionFixture(runtime_fixture,failure_fixture)
+    else:
+     from storage_lifecycle_acceptance import StorageLifecycleFixture
+     storage_lifecycle_fixture=StorageLifecycleFixture(database,sql,private_dir,fixture)
+    if not a.exchange and not a.plugin_releases:
      deployment_user='fcpm_'+secrets.token_hex(6);deployment_password=secrets.token_hex(24)
      sql(f"CREATE USER '{deployment_user}'@'%' IDENTIFIED BY '{deployment_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX ON `{database}`.* TO '{deployment_user}'@'%';")
      props+='\nfcp.runtime.storage-deployment.enabled=true\nFCP_STORAGE_DEPLOYMENT_JDBC_URL='+url+'\nFCP_STORAGE_DEPLOYMENT_USER='+deployment_user+'\nFCP_STORAGE_DEPLOYMENT_PASSWORD='+deployment_password+'\n'
@@ -108,6 +134,12 @@ def run()->int:
   else:build+=['--admin-lock',ROOT/'locks/admin-package-lock.json']
   command(build)
   release=work/'release';report['build']=json.loads((release/'BUILD-EVIDENCE.json').read_text())
+  if a.plugin_releases:
+   from native import build_ui_variant
+   from ui_release_acceptance import prepare_ui_versions
+   variant=build_ui_variant({name:work/'upstream'/name for name in ('admin','teacher')},work)
+   composition_fixture.ui_versions=prepare_ui_versions(release/'BUILD-EVIDENCE.json',release/'UI-VARIANT-candidate.json',release/'ui-bundles')
+   report['uiVariantBuild']=variant
   jar=release/'ruoyi-admin.jar';driver=private_dir/'mysql-driver.jar'
   with zipfile.ZipFile(jar) as archive:
    matches=[n for n in archive.namelist() if re.fullmatch(r'BOOT-INF/lib/mysql-connector-j-[^/]+\.jar',n)]
@@ -133,7 +165,7 @@ def run()->int:
    storage_env=os.environ.copy();storage_env.update(FCP_STORAGE_TEST_URL=url,FCP_STORAGE_TEST_USER=runtime_user,FCP_STORAGE_TEST_PASSWORD=runtime_password,FCP_STORAGE_TEST_DEPLOY_USER=deployment_user,FCP_STORAGE_TEST_DEPLOY_PASSWORD=deployment_password)
    command(['java','-cp',str(storage_classes)+os.pathsep+str(driver),'MysqlStorageTest'],env=storage_env,timeout=180)
    report['runtimePluginStorage']='PASS'
-   if failure_fixture:
+   if failure_fixture and not a.plugin_releases:
     failure_mysql=run_mysql_failure_boundaries(driver,storage_env)
     report['runtimeMysqlFailureBoundaries']={'status':failure_mysql['status'],'totalChecks':failure_mysql['totalChecks']}
   # Grant-binding probes own a second fresh database: never modify the native lifecycle journal.
@@ -187,13 +219,16 @@ def run()->int:
    report.update(scope=result['scope'],browser=result['status'],ingestion=result['status'],nativeChecks=result['totalChecks'])
    def native_pid():return process.pid if process and process.poll() is None else None
    modules=[]
-   if runtime_fixture:
+   if composition_fixture:
+    modules.append(NativeModule('runtimeComposition',lambda:composition_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'browser':value['browser'],'backendPidUnchanged':value['backendPidUnchanged'],'observation':value['observation']}))
+   if runtime_fixture and not a.plugin_releases:
     modules.append(NativeModule('runtimePlugins',lambda:runtime_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
      lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'browser':value['browser'],'backendPidUnchanged':value['backendPidUnchanged']}))
    if storage_lifecycle_fixture:
     modules.append(NativeModule('runtimeStorageLifecycle',lambda:storage_lifecycle_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
      lambda value:{'status':value['status'],'acceptance':'A11','totalChecks':value['totalChecks'],'snapshots':len(value['snapshots'])}))
-   if failure_fixture:
+   if failure_fixture and not a.plugin_releases:
     modules.append(NativeModule('runtimeFailureBoundaries',lambda:failure_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
      lambda value:{'status':value['status'],'totalChecks':value['totalChecks']}))
    if exchange_fixture:

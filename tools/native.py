@@ -34,11 +34,14 @@ BLOBS = {
   'script/sql/ry_vue_5.X.sql':'3cd642b0be5916b2d2081b07282213de618aec0c',
   'script/sql/ry_workflow.sql':'f8b37ecc50a45e87611e2b31f4115cb3661b0ac3'},
  'admin': {
+  'vite.config.ts':'070846c2138a9457b83dd3188f26e2961c6de173',
   'src/utils/auth.ts':'db50ac93614d13cc3733ff36cc32950d66de82c7',
   'src/permission.ts':'fb60b07c6c5572212e00015af2b96a607cd5cd0e',
   'src/router/index.ts':'a6497dbe1fd24d368e3c2c345ec5376911273a01',
   'package.json':'32766149caf7848ef44955992728de9923430b58'},
  'teacher': {
+  'src/hooks/business/download.ts':'b3b70c14858177c9ddf5907a390b1bde92c00a1b',
+  'vite.config.ts':'45c2f978a66613c6364154814767ef8da966c4f3',
   'src/locales/langs/en-us.ts':'3928cbae3fdb3b6bc2a723fc6d492f081d27feed',
   'src/locales/langs/zh-cn.ts':'449a839c10724474f43b4268c21057c00d20db84',
   'src/utils/storage.ts':'2ab44c28635fd207950ecfe6e5066480cbd61593',
@@ -309,13 +312,16 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
          'return "redirect:/admin/";')
     for name,project,overlay in [('admin',admin,'plus-ui'),('teacher',teacher,'soybean')]:
         copy_files(ROOT/f'integration/{overlay}/src', project/'src')
-        for file in ['trace.ts','session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue','usePlugins.ts','PluginWorkspace.vue','usePluginManager.ts','PluginManager.vue','useVersionManager.ts','VersionManager.vue']:
+        for file in ['trace.ts','release-session.ts','session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue','usePlugins.ts','PluginWorkspace.vue','usePluginManager.ts','PluginManager.vue','useVersionManager.ts','VersionManager.vue','pluginReleaseManager.ts','PluginReleaseManager.vue']:
             target=project/'src/fcp'/file
             if target.exists(): raise BuildError('FCP session module already present')
             target.parent.mkdir(parents=True,exist_ok=True)
             shutil.copy2(ROOT/'integration/frontend-shared'/file,target)
         copy_files(ROOT/'integration/frontend-runtime', project/'src/fcp/runtime')
         apply_frontend_trace(project,name)
+        copy_files(ROOT/'integration/frontend-release', project/'src/fcp/release')
+        edit(project/'vite.config.ts','base: env.VITE_APP_CONTEXT_PATH,' if name=='admin' else 'base: viteEnv.VITE_BASE_URL,',
+             "base: command === 'build' ? './' : env.VITE_APP_CONTEXT_PATH," if name=='admin' else "base: configEnv.command === 'build' ? './' : viteEnv.VITE_BASE_URL,")
         router=project/'src/router/index.ts'
         router_source=router.read_text(encoding='utf-8')
         router_source="import { fcpPluginRoutes } from '@/views/fcp/plugins/routes';\n"+router_source
@@ -331,12 +337,14 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
     s="import { ensureShell } from '@/fcp/session';\n"+s
     s=replace_once(s,'          isRelogin.show = false;', '''          isRelogin.show = false;
           try {
-            if (await ensureShell('admin', import.meta.env.VITE_APP_CLIENT_ID || '')) { next(false); NProgress.done(); return; }
+            if (await ensureShell('admin', import.meta.env.VITE_APP_CLIENT_ID || '', '/admin' + to.path)) { next(false); NProgress.done(); return; }
           } catch (error) {
             ElMessage.error(error instanceof Error ? error.message : '界面授权失败');
             next(false); NProgress.done(); return;
           }''')
     perm.write_text(s,encoding='utf-8')
+    edit(teacher/'src/hooks/business/download.ts',"StreamSaver.mitm = '/streamsaver/mitm.html?version=2.0.0';",
+         "StreamSaver.mitm = new URL('streamsaver/mitm.html?version=2.0.0', document.baseURI).href;")
     storage=teacher/'src/utils/storage.ts'
     s="import { bridgeStorage } from '@/fcp/session';\n"+storage.read_text(encoding='utf-8')
     s=replace_once(s,"export const localStg = createStorage<StorageType.Local>('local', storagePrefix);",
@@ -361,7 +369,7 @@ def add_school_locale(path: Path, parent_label: str, school_label: str, ingestio
     if re.search(r'^\s*fcp(?:_school)?:', path.read_text(encoding='utf-8'), re.MULTILINE):
         raise BuildError('FCP route locale already exists; refusing duplicate adaptation')
     edit(path, '  route: {\n',
-         "  route: {\n    fcp: "+repr(parent_label)+",\n    fcp_school: "+repr(school_label)+",\n    fcp_ingestion: "+repr(ingestion_label)+",\n    fcp_plugins: "+repr(plugins_label)+",\n")
+         "  route: {\n    fcp_releases: '系统版本与发布',\n    fcp: "+repr(parent_label)+",\n    fcp_school: "+repr(school_label)+",\n    fcp_ingestion: "+repr(ingestion_label)+",\n    fcp_plugins: "+repr(plugins_label)+",\n")
 
 def install_frontend(project: Path, name: str, resolve_admin_lock: bool, admin_lock: Path|None=None) -> str:
     if name=='teacher':
@@ -387,7 +395,7 @@ def validate_dist(dist: Path, shell: str) -> None:
     index=dist/'index.html'
     if not index.is_file(): raise BuildError(f'Missing real {shell} production index')
     html=index.read_text(encoding='utf-8')
-    if f'/{shell}/' not in html or not list(dist.rglob('*.js')):
+    if not re.search(r'(?:src|href)=[\"\']\./',html) or not list(dist.rglob('*.js')):
         raise BuildError(f'{shell} asset base is invalid')
     if 'localhost:' in html or '/src/main.ts' in html: raise BuildError('Development index cannot be packaged')
 
@@ -424,9 +432,24 @@ def build(projects: dict[str,Path], work: Path, resolve_admin_lock: bool, admin_
         run(['npm','exec','--','vue-tsc','--noEmit'] if name=='admin' else ['pnpm','run','typecheck'],cwd=project,clean_vite=True)
         run(['node',ROOT/'tests/frontend-runtime/verify-field-label.mjs',project,name],cwd=ROOT,clean_vite=True)
         dist=project/'dist'; validate_dist(dist,name)
+        from ui_release_bundle import build_bundle
+        bundle=build_bundle(dist,output/'ui-bundles',name)
         copy_files(dist,resources/'static'/name)
+        for suffix in ('.gz','.br'):
+            (resources/'static'/name/('index.html'+suffix)).unlink(missing_ok=True)
+        original=(dist/'index.html').read_text(encoding='utf-8')
+        if '<base' in original.lower() or '<head>' not in original: raise BuildError('Unexpected UI base template')
+        embedded=original.replace('<head>',f'<head><base href="/{name}/"><meta name="fcp-ui-bundle" content="embedded">',1)
+        (resources/'static'/name/'embedded-index.html').write_text(embedded,encoding='utf-8')
+        # Client ID comes from the already-validated build env, not a password or user credential.
+        build_env=(project/('.env.production.local' if name=='admin' else '.env.prod.local')).read_text()
+        match=re.search(r"(?m)^VITE_APP_CLIENT_ID='([^']+)'$",build_env)
+        if not match: raise BuildError('Missing fixed native client ID')
+        launcher=(ROOT/'integration/frontend-shared/ui-launcher.mjs').read_text().replace('__FCP_SHELL__',json.dumps(name)).replace('__FCP_CLIENT_ID__',json.dumps(match[1]))
+        (resources/'static'/name/'release-loader.mjs').write_text(launcher,encoding='utf-8')
+        (resources/'static'/name/'index.html').write_text(f'<!doctype html><html><head><meta charset="UTF-8"><title>FCP</title></head><body><p>正在校验系统版本…</p><script type="module" src="/{name}/release-loader.mjs"></script></body></html>',encoding='utf-8')
         lock=project/('package-lock.json' if name=='admin' else 'pnpm-lock.yaml')
-        evidence['frontend'][name]={'lockPolicy':policy,'lockSha256':sha(lock.read_bytes()),'typecheck':'PASS','productionBuild':'PASS'}
+        evidence['frontend'][name]={'lockPolicy':policy,'lockSha256':sha(lock.read_bytes()),'typecheck':'PASS','productionBuild':'PASS','uiBundle':bundle['manifest']}
     test_runtime_config=validate_test_runtime(test_runtime_config,existing_redis_no_password=existing_redis_no_password)
     # WarmFlow retains a static application-context reference. Separate test-class
     # JVMs keep real random-port integration and upstream contexts independent.
@@ -455,6 +478,36 @@ def build(projects: dict[str,Path], work: Path, resolve_admin_lock: bool, admin_
     evidence.update(nativeBuild='PASS',javaUnitTests=collect_java_tests(projects['backend']),jarSha256=sha(jar.read_bytes()),
                     applicationGate='BLOCKED_UNTIL_REAL_API_AND_BROWSER_VERIFICATION')
     (output/'BUILD-EVIDENCE.json').write_text(json.dumps(evidence,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    return evidence
+
+def build_ui_variant(projects: dict[str,Path], work: Path, label: str='candidate') -> dict:
+    """Rebuild both actual locked Vue projects with a distinct compiled build identity.
+    Reuses installed locked dependencies; does not replace the already-built host JAR.
+    This is an integration variant, not a claim of different product functionality.
+    """
+    if not re.fullmatch(r'[a-z][a-z0-9-]{0,31}',label): raise BuildError('Unsafe UI variant label')
+    from ui_release_bundle import build_bundle
+    output=work/'release'
+    original=json.loads((output/'BUILD-EVIDENCE.json').read_text())
+    if original.get('nativeBuild')!='PASS': raise BuildError('Build a genuine native baseline before UI variant')
+    build_id=original['buildId']+'-'+label
+    evidence={'buildId':build_id,'baselineBuildId':original['buildId'],'scope':'Actual pinned Vue rebuild, same feature source with changed compiled build identity','frontend':{}}
+    for name in ['admin','teacher']:
+        project=projects[name];env=project/('.env.production.local' if name=='admin' else '.env.prod.local')
+        before=env.read_bytes()
+        try:
+            text=before.decode('utf-8')
+            if len(re.findall(r'(?m)^VITE_FCP_BUILD_ID=.*$',text))!=1: raise BuildError('Missing UI build identity')
+            env.write_text(re.sub(r'(?m)^VITE_FCP_BUILD_ID=.*$','VITE_FCP_BUILD_ID='+build_id,text),encoding='utf-8')
+            run(['npm','run','build:prod'] if name=='admin' else ['pnpm','run','build'],cwd=project,clean_vite=True)
+            run(['npm','exec','--','vue-tsc','--noEmit'] if name=='admin' else ['pnpm','run','typecheck'],cwd=project,clean_vite=True)
+            validate_dist(project/'dist',name)
+            bundle=build_bundle(project/'dist',output/'ui-bundles',name)
+            if bundle['manifest']['digest']==original['frontend'][name]['uiBundle']['digest']: raise BuildError('UI variant did not change compiled artifact')
+            evidence['frontend'][name]={'productionBuild':'PASS','typecheck':'PASS','uiBundle':bundle['manifest']}
+        finally:
+            env.write_bytes(before)
+    (output/('UI-VARIANT-'+label+'.json')).write_text(json.dumps(evidence,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     return evidence
 
 def main() -> int:

@@ -89,3 +89,17 @@ test('Soybean bootstrap routes do not eagerly import layout/store modules',async
  assert.match(source,/component:\s*\(\)\s*=>\s*import\('@\/layouts\/base-layout\/index\.vue'\)/);
  assert.match(source,/component:\s*\(\)\s*=>\s*import\('\.\/index\.vue'\)/);
 });
+
+for (const soybean of [false,true]) test(`${soybean?'soybean':'plus-ui'}: digest projection revoke/regrant/expiry keeps Engine revision and clears dirty/inflight`,async()=>{
+ const {runtime,state}=setup(soybean);const first='a'.repeat(64),revoked='b'.repeat(64),granted='c'.repeat(64);
+ assert.equal(runtime.applyProjection(catalog(1),first),true);runtime.markDirty('demo:home');let resolve,signal;
+ state.request=(_id,_value,options)=>{signal=options.signal;return new Promise(done=>resolve=done)};
+ const pending=runtime.invoke('demo:home','demo.read',{});assert.equal(runtime.applyProjection({...catalog(1),pages:[],slots:[]},revoked),true);
+ assert.equal(signal.aborted,true);assert.equal(state.clears,1);assert.deepEqual(state.dirty,['demo:home']);assert.equal(runtime.snapshot.pages.length,0);assert.equal(runtime.snapshot.revision,1);
+ resolve(soybean?{data:'revoked',error:null}:{code:200,data:'revoked'});await assert.rejects(pending,{code:'STALE_VERSION'});
+ assert.equal(runtime.applyProjection(catalog(1),granted),true);assert.equal(runtime.snapshot.pages.length,1);
+ let invokeRevision;state.request=async(_id,_input,options)=>{invokeRevision=options.revision;return soybean?{data:42,error:null}:{code:200,data:42}};
+ assert.equal(await runtime.invoke('demo:home','demo.read',{}),42);assert.equal(invokeRevision,1);
+ assert.equal(runtime.applyProjection({...catalog(1),pages:[],slots:[]},'d'.repeat(64)),true);assert.equal(runtime.snapshot.pages.length,0);
+ assert.equal(runtime.applyProjection(catalog(0),'e'.repeat(64)),false);assert.throws(()=>runtime.applyProjection(catalog(1),''),/projection fingerprint/);
+});

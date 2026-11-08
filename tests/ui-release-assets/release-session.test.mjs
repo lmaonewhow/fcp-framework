@@ -1,0 +1,27 @@
+import test,{beforeEach} from 'node:test';
+import assert from 'node:assert/strict';
+import {webcrypto} from 'node:crypto';
+const memory=()=>{const m=new Map();return {getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k),clear:()=>m.clear()}};
+globalThis.localStorage=memory();globalThis.sessionStorage=memory();Object.defineProperty(globalThis,"crypto",{value:webcrypto,configurable:true});
+const listeners={};let bundle='embedded',reloads=0,confirmed=false,calls=[];
+globalThis.document={querySelector:()=>({content:bundle}),addEventListener:(name,fn)=>listeners[name]=fn};
+globalThis.window={addEventListener:(name,fn)=>listeners[name]=fn,confirm:()=>confirmed,location:{reload:()=>reloads++}};
+const module=await import('../../integration/frontend-shared/release-session.ts');
+const value=()=>({mode:'RELEASE',releaseId:'r1',affinity:'signed',bundleDigest:'a'.repeat(64),shell:'admin'});
+beforeEach(()=>{localStorage.clear();sessionStorage.clear();localStorage.setItem('FCP-Host-Token','token-one');bundle='embedded';reloads=0;confirmed=false;calls=[];module.markUiSaved();globalThis.fetch=async(url,options)=>{calls.push({url,options});return {ok:true,status:200,json:async()=>({code:200,data:value()})}};});
+test('per-tab context is token-hash bound without duplicate raw token',async()=>{await module.rememberReleaseContext(value());assert.equal(await module.getReleaseAffinity(),'signed');assert(!sessionStorage.getItem('FCP-Release-Context-v1').includes('token-one'));localStorage.setItem('FCP-Host-Token','token-two');assert.equal(await module.getReleaseAffinity(),null);});
+test('loaded bundle cannot silently switch release via catalog result',async()=>{await module.rememberReleaseContext(value());await assert.rejects(()=>module.rememberReleaseContext({...value(),releaseId:'r2'}),/REFRESH_REQUIRED/);assert.equal(await module.getReleaseAffinity(),'signed');});
+test('same release refreshes signed context without reloading',async()=>{bundle='a'.repeat(64);assert.equal(await module.ensureUiRelease('admin','client'),false);assert.equal(await module.getReleaseAffinity(),'signed');assert.equal(reloads,0);assert(!calls[0].url.includes('token-one'));assert.equal(calls[0].options.cache,'no-store');});
+test('new build reloads only at explicit navigation guard',async()=>{assert.equal(await module.ensureUiRelease('admin','client'),true);assert.equal(reloads,1);assert.equal(await module.getReleaseAffinity(),null);});
+test('dirty form declines version replacement without losing context',async()=>{module.installUiReleaseGuard();listeners.input();await module.rememberReleaseContext({...value(),bundleDigest:'b'.repeat(64)});bundle='b'.repeat(64);assert.equal(await module.ensureUiRelease('admin','client'),false);assert.equal(reloads,0);assert.equal(await module.getReleaseAffinity(),'signed');});
+test('dirty form explicit confirmation permits reload',async()=>{module.installUiReleaseGuard();listeners.input();confirmed=true;assert.equal(await module.ensureUiRelease('admin','client'),true);assert.equal(reloads,1);});
+test('late bootstrap after token change cannot install old identity',async()=>{fetch=async()=>{localStorage.setItem('FCP-Host-Token','different');return {ok:true,status:200,json:async()=>({code:200,data:value()})}};await assert.rejects(()=>module.ensureUiRelease('admin','client'),/STALE_IDENTITY/);assert.equal(reloads,0);});
+test('disabled feature preserves existing embedded shell',async()=>{fetch=async()=>({ok:true,status:200,json:async()=>({code:200,data:{mode:'EMBEDDED',shell:'admin',reason:'DISABLED'}})});assert.equal(await module.ensureUiRelease('admin','client'),false);assert.equal(reloads,0);});
+test('malformed bootstrap fails closed',async()=>{fetch=async()=>({ok:true,status:200,json:async()=>({code:200,data:{...value(),bundleDigest:'../escape'}})});await assert.rejects(()=>module.ensureUiRelease('admin','client'),/INVALID/);assert.equal(reloads,0);});
+test('cross-tab identity event clears release affinity',async()=>{module.installUiReleaseGuard();await module.rememberReleaseContext(value());listeners.storage({key:'FCP-Host-Token'});assert.equal(await module.getReleaseAffinity(),null);});
+
+test('recovery governance remains available with business release unavailable',async()=>{fetch=async()=>{throw new Error('must not fetch release')};assert.equal(await module.ensureUiRelease('admin','client','/admin/fcp/releases'),false);assert.equal(reloads,0);});
+
+test('404 and 401 are errors, never embedded fallback',async()=>{for(const status of [404,401,409,503]){fetch=async()=>({ok:false,status});await assert.rejects(()=>module.ensureUiRelease('admin','client'),/UNAVAILABLE/);}assert.equal(reloads,0);});
+test('unconfigured embedded state has explicit successful contract',async()=>{fetch=async()=>({ok:true,status:200,json:async()=>({code:200,data:{mode:'EMBEDDED',shell:'admin',reason:'NOT_CONFIGURED'}})});assert.equal(await module.ensureUiRelease('admin','client'),false);bundle='a'.repeat(64);await assert.rejects(()=>module.ensureUiRelease('admin','client'),/UNAVAILABLE/);});
+test('malformed embedded reason or shell fails closed',async()=>{for(const data of [{mode:'EMBEDDED',shell:'teacher',reason:'DISABLED'},{mode:'EMBEDDED',shell:'admin',reason:'STOPPED'}]){fetch=async()=>({ok:true,status:200,json:async()=>({code:200,data})});await assert.rejects(()=>module.ensureUiRelease('admin','client'),/INVALID/);}});

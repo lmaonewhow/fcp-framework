@@ -11,11 +11,14 @@ public final class UiRoutePolicy {
     private UiRoutePolicy() {}
     public static Map<String,Object> session(SchoolFacade.Identity id) {
         requireRead(id);
-        boolean admin=id.adminShell();String page=id.can("list")?"school":id.permissions().contains("fcp:ingest:view")?"ingestion":"plugins";
+        boolean admin=id.adminShell();String page=id.can("list")?"school":id.permissions().contains("fcp:ingest:view")?"ingestion":id.permissions().contains("fcp:plugin:view")?"plugins":"releases";
         return Map.of("subject",id.subject(),"scope",id.scope(),
             "defaultShell",admin?"admin":"teacher",
             "allowedShells",admin?List.of("admin","teacher"):List.of("teacher"),
-            "home",(admin?"/admin/fcp/":"/teacher/fcp/")+page);
+            "home",(admin?"/admin/fcp/":"/teacher/fcp/")+page,
+            "releasePermissions",id.scope().equals("tenant-000000")
+                ? List.of("fcp:release:view","fcp:release:manage").stream().filter(id.permissions()::contains).toList()
+                : List.of());
     }
     /** Soybean v1.1.3 parses RuoYi-style routes itself. */
     public static List<Map<String,Object>> soybeanRoutes(SchoolFacade.Identity id) {
@@ -26,8 +29,10 @@ public final class UiRoutePolicy {
             "meta",Map.of("title","数据接入与业务插件","icon","mdi:database-import-outline","noCache",true)));
         if(id.permissions().contains("fcp:plugin:view"))children.add(Map.of("name","FcpPlugins","path","plugins","component","fcp/plugins/index","hidden",false,
             "meta",Map.of("title","配置插件工作台","icon","mdi:puzzle-outline","noCache",true)));
+        if(canRelease(id))children.add(Map.of("name","FcpReleases","path","releases","component","fcp/releases/index","hidden",false,
+            "meta",Map.of("title","系统版本与发布","icon","mdi:cloud-upload-outline","noCache",true)));
         return List.of(Map.of("name","Fcp","path","/fcp","component","Layout",
-            "redirect",id.can("list")?"/fcp/school":id.permissions().contains("fcp:ingest:view")?"/fcp/ingestion":"/fcp/plugins","hidden",false,
+            "redirect",id.can("list")?"/fcp/school":id.permissions().contains("fcp:ingest:view")?"/fcp/ingestion":id.permissions().contains("fcp:plugin:view")?"/fcp/plugins":"/fcp/releases","hidden",false,
             "meta",Map.of("title","教学工作台","icon","mdi:school-outline","noCache",true),"children",children));
     }
     public static boolean isPluginPagePath(String path) {
@@ -35,7 +40,8 @@ public final class UiRoutePolicy {
         if(path==null || path.length()>269 || !path.matches("fcp/plugins/"+id+"/"+id))return false;
         String[] parts=path.split("/");return parts[2].length()<=128 && parts[3].length()<=128;
     }
+    private static boolean canRelease(SchoolFacade.Identity id){return id.scope().equals("tenant-000000")&&id.permissions().contains("fcp:release:view");}
     private static void requireRead(SchoolFacade.Identity id) {
-        if(!id.can("list")&&!id.permissions().contains("fcp:ingest:view")&&!id.permissions().contains("fcp:plugin:view"))throw new FcpException("FORBIDDEN","FCP workspace permission required");
+        if(!id.can("list")&&!id.permissions().contains("fcp:ingest:view")&&!id.permissions().contains("fcp:plugin:view")&&!canRelease(id))throw new FcpException("FORBIDDEN","FCP workspace permission required");
     }
 }

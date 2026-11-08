@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineComponent, h, ref } from 'vue';
+import { computed, defineComponent, h, ref, watch } from 'vue';
 import type { VNode } from 'vue';
 import type { UiNode } from './runtime';
 import { usePlugins } from './usePlugins';
@@ -7,7 +7,9 @@ import PluginManager from './PluginManager.vue';
 import type { NativePluginHost } from './usePlugins';
 const props = defineProps<{host: NativePluginHost}>();
 const workspace = usePlugins(props.host,renderNode);
-const {identityView,catalog,error,notice,busy,fields,results,pending,retry,abandon,selected,isDeepLink,edit,invoke,refresh,navigate} = workspace;
+const {identityView,catalog,error,notice,busy,fields,results,pending,uncertainty,retry,abandon,selected,isDeepLink,edit,invoke,refresh,navigate} = workspace;
+const reconciled=ref(false);
+watch([pending,uncertainty,identityView],()=>{reconciled.value=false;});
 const activeTab=ref<'pages'|'manage'>('pages');
 const showManagement=computed(()=>['manage','install'].some(permission=>identityView.value.permissions.includes(permission)&&(props.host.controlPermissions?.()??[]).some(p=>p==='fcp:plugin:'+permission||p==='*:*:*')));
 function renderNode(node: UiNode, id: string): VNode {
@@ -15,9 +17,9 @@ function renderNode(node: UiNode, id: string): VNode {
   if (node.type === 'text') return h('p',node.text ?? '');
   if (node.type === 'field') return h('label',{class:'fcp-plugin-field'},[
     h('span',node.text ?? node.field ?? ''),
-    h(props.host.input,{...props.host.fieldAttributes(node.text ?? node.field ?? ''),[props.host.fieldValueProp]:fields.value[id]?.[node.field ?? ''] ?? '',[props.host.fieldUpdateProp]:(value:string) => {if(node.field) edit(id,node.field,value);},disabled:busy.value || Boolean(pending.value)})
+    h(props.host.input,{...props.host.fieldAttributes(node.text ?? node.field ?? ''),[props.host.fieldValueProp]:fields.value[id]?.[node.field ?? ''] ?? '',[props.host.fieldUpdateProp]:(value:string) => {if(node.field) edit(id,node.field,value);},disabled:busy.value || (Boolean(pending.value) || uncertainty.value)})
   ]);
-  if (node.type === 'button') return h(props.host.button,{disabled:busy.value || Boolean(pending.value) || !node.capabilityId,onClick:() => {if(node.capabilityId) void invoke(id,node.capabilityId);}},() => node.text ?? '执行');
+  if (node.type === 'button') return h(props.host.button,{disabled:busy.value || (Boolean(pending.value) || uncertainty.value) || !node.capabilityId,onClick:() => {if(node.capabilityId) void invoke(id,node.capabilityId);}},() => node.text ?? '执行');
   // Results are rendered as literal text cells, never as markup, URLs or script.
   const value = results.value[id];
   const rows: [string,unknown][] = value && typeof value === 'object' ? Object.entries(value) : value === undefined ? [] : [['result',value]];
@@ -29,10 +31,12 @@ const Configuration = defineComponent({props:{id:{type:String,required:true}},se
   <main class="fcp-plugin-workspace" data-testid="fcp-plugin-workspace">
     <header><h1>配置插件工作台</h1><component :is="host.button" @click="refresh">刷新目录</component><span>目录版本 {{ catalog.revision }}</span></header>
     <p v-if="error" role="alert">{{ error }}</p><p v-if="notice" role="status">{{ notice }}</p>
-    <section v-if="pending && !busy" role="alert" data-testid="plugin-pending-action">
-      <p>上次操作的结果尚未确认。重试将使用相同输入与幂等键；放弃不会撤销可能已完成的操作。</p>
-      <component :is="host.button" @click="retry">重试同一请求</component>
-      <component :is="host.button" @click="abandon">明确放弃重试信息</component>
+    <section v-if="(pending || uncertainty) && !busy" role="alert" data-testid="plugin-pending-action">
+      <p v-if="uncertainty">权限或发布上下文已变化，已清除原输入并禁止重放。请先核对原操作结果，不能直接提交新请求。</p>
+      <p v-else>上次操作的结果尚未确认。重试将使用相同输入与幂等键；放弃不会撤销可能已完成的操作。</p>
+      <component v-if="pending && !uncertainty" :is="host.button" @click="retry">重试同一请求</component>
+      <label><input type="checkbox" v-model="reconciled" />已核对原操作结果，明确放弃重试；这不会撤销服务端可能已完成的操作</label>
+      <component :is="host.button" :disabled="!reconciled" @click="abandon(reconciled)">确认核对并放弃重试</component>
     </section>
     <nav aria-label="工作台区域"><component :is="host.button" @click="activeTab='pages'">插件页面</component><component :is="host.button" v-if="showManagement" @click="activeTab='manage'">安装与权限管理</component></nav>
     <PluginManager v-if="showManagement" v-show="activeTab==='manage'" :host="host" :identity="identityView" @changed="refresh" />
