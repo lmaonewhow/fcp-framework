@@ -1,3 +1,5 @@
+import { withResponseTrace } from './trace.js';
+import type { TraceResponse } from './trace.js';
 /** Per-tab trusted release context. No tokens in URLs, cookies, plugin manifests or persisted duplicate fields. */
 const KEY = 'FCP-Release-Context-v1';
 const TOKEN = 'FCP-Host-Token';
@@ -32,9 +34,12 @@ export async function ensureUiRelease(shell:'admin'|'teacher',clientId:string,ta
   // Never make recovery governance depend on a healthy business release. Native RBAC still applies.
   if(shell==='admin' && /^\/admin\/fcp\/releases\/?$/.test(targetPath))return false;
   const original=token();if(!original){clearReleaseContext();return false;}
+  let traceResponse: TraceResponse | undefined;
+  try {
   const response=await fetch('/fcp/ui/releases/bootstrap?shell='+shell,{cache:'no-store',credentials:'same-origin',headers:{Authorization:'Bearer '+original,clientid:clientId}});
+  traceResponse={headers:response.headers};
   if(!response.ok)throw new Error('UI_RELEASE_UNAVAILABLE');
-  const result=await response.json();if(result.code!==200)throw new Error('UI_RELEASE_UNAVAILABLE');
+  const result=await response.json();traceResponse.data=result;if(result.code!==200)throw new Error('UI_RELEASE_UNAVAILABLE');
   if(token()!==original)throw new Error('STALE_IDENTITY');
   const value=result.data;
   if(value?.mode==='EMBEDDED' && value.shell===shell && ['DISABLED','NOT_CONFIGURED'].includes(value.reason)) {
@@ -49,4 +54,9 @@ export async function ensureUiRelease(shell:'admin'|'teacher',clientId:string,ta
     dirty=false;clearReleaseContext();window.location.reload();return true;
   }
   await rememberReleaseContext(value,original);return false;
+  } catch (error) {
+    // A late response must not attach a previous identity's diagnostics.
+    if(token()===original && error instanceof Error) withResponseTrace(error,traceResponse);
+    throw error;
+  }
 }

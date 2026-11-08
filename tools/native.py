@@ -447,6 +447,8 @@ def build(projects: dict[str,Path], work: Path, resolve_admin_lock: bool, admin_
         if not match: raise BuildError('Missing fixed native client ID')
         launcher=(ROOT/'integration/frontend-shared/ui-launcher.mjs').read_text().replace('__FCP_SHELL__',json.dumps(name)).replace('__FCP_CLIENT_ID__',json.dumps(match[1]))
         (resources/'static'/name/'release-loader.mjs').write_text(launcher,encoding='utf-8')
+        # Fixed same-origin module: identical response-only diagnostics as the dev host.
+        shutil.copy2(ROOT/'development-host/src/main/resources/dev-ui/trace.js',resources/'static'/name/'release-trace.mjs')
         (resources/'static'/name/'index.html').write_text(f'<!doctype html><html><head><meta charset="UTF-8"><title>FCP</title></head><body><p>正在校验系统版本…</p><script type="module" src="/{name}/release-loader.mjs"></script></body></html>',encoding='utf-8')
         lock=project/('package-lock.json' if name=='admin' else 'pnpm-lock.yaml')
         evidence['frontend'][name]={'lockPolicy':policy,'lockSha256':sha(lock.read_bytes()),'typecheck':'PASS','productionBuild':'PASS','uiBundle':bundle['manifest']}
@@ -463,6 +465,8 @@ def build(projects: dict[str,Path], work: Path, resolve_admin_lock: bool, admin_
                   'BOOT-INF/classes/org/dromara/fcp/school/FcpSchoolController.class',
                   'BOOT-INF/classes/static/admin/index.html',
                   'BOOT-INF/classes/static/teacher/index.html',
+                  'BOOT-INF/classes/static/admin/release-trace.mjs',
+                  'BOOT-INF/classes/static/teacher/release-trace.mjs',
                   'BOOT-INF/classes/fcp/runtime/plugins/statistics.py'}
         if not required<=names: raise BuildError('Incomplete native application JAR')
         manifest=archive.read('META-INF/MANIFEST.MF').decode()

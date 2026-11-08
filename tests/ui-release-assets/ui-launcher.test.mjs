@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {webcrypto} from 'node:crypto';
-const source=readFileSync(new URL('../../integration/frontend-shared/ui-launcher.mjs',import.meta.url),'utf8').replace('__FCP_SHELL__','"admin"').replace('__FCP_CLIENT_ID__','"test-client"');
+const source=readFileSync(new URL('../../integration/frontend-shared/ui-launcher.mjs',import.meta.url),'utf8').replace("import { responseTraceId, showTraceNotice } from './release-trace.mjs';\n",'').replace('__FCP_SHELL__','"admin"').replace('__FCP_CLIENT_ID__','"test-client"');
 async function launch(status,data){
  const calls=[],writes=[];let error=false;const memory=new Map([['FCP-Host-Token','test-token']]);
- const context={crypto:webcrypto,TextEncoder,localStorage:{getItem:k=>memory.get(k)},sessionStorage:{setItem(){},removeItem(){}},location:{pathname:'/admin/fcp/plugins',reload(){},replace(){}},document:{open(){},write:x=>writes.push(x),close(){},createElement:()=>({}),body:{replaceChildren:()=>{error=true},append(){}}},fetch:async url=>{
+ const context={responseTraceId:()=>'',showTraceNotice(){},crypto:webcrypto,TextEncoder,localStorage:{getItem:k=>memory.get(k)},sessionStorage:{setItem(){},removeItem(){}},location:{pathname:'/admin/fcp/plugins',reload(){},replace(){}},document:{open(){},write:x=>writes.push(x),close(){},createElement:()=>({}),body:{replaceChildren:()=>{error=true},append(){}}},fetch:async url=>{
   calls.push(url);
   if(url==='/fcp/ui/session')return {ok:true,json:async()=>({code:200,data:{allowedShells:['admin']}})};
   if(url.startsWith('/fcp/ui/releases/bootstrap'))return {ok:status===200,status,json:async()=>({code:status,data})};
