@@ -76,6 +76,10 @@ java -jar ruoyi-admin.jar --spring.profiles.active=prod,fcp
 
 演示平台位于 `tests/ingestion/platform.py`，CSV 样例位于 `fixtures/ingestion/`。完整场景从三人名册 API 同步开始，经 CSV 更新为四人名册，再导入和校正考勤，检查停用、权限与重启持久化。详细操作和业务口径见 [数据接入说明](docs/INGESTION.md)。
 
+## 代码生成与安全应用
+
+管理端原生代码生成页新增“生成并应用”，可将 Java、Mapper XML 和 plus-ui 页面直接写入配置好的 FCP 开发源码覆盖层。默认关闭；预览确认、生成基线保护、整批冲突拒绝与操作撤销避免手工覆盖。菜单 SQL 仍需审查，不自动执行、不热加载或部署生产。配置、使用方式和验收边界见 [生成代码后直接应用](docs/GENERATOR_APPLY.md)。
+
 ## 请求问题追踪
 
 新增统一 Trace ID 的入口、原生若依日志/审计关联、跨语言传播、错误页面复制与有界诊断记录。具体已实现范围、查询方法、真实性能证据及未覆盖项见 [请求追踪说明](docs/observability/TRACE.md)。本模块不是已部署的 OpenTelemetry/Collector 平台，不承诺完整链路零丢失或零性能影响。

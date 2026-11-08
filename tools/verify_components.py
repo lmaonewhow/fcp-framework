@@ -47,6 +47,8 @@ def main():
         count=int(re.search(r'RESULT (\d+) component checks PASS',result)[1])
         report['groups'].append({'name':'Java component + real Python child','checks':count,'status':'PASS','dataStore':'FileRecordStore test fixture; no MySQL'})
         for label,java_class,argument,pattern,meaning in [
+            ('generator-workspace','GeneratedSourceWorkspaceRegression',None,r'RESULT (\d+) generator-workspace',
+             'real temporary source files, plans, safe application, conflicts and rollback; no native Spring/MySQL'),
             ('process-termination','ProcessTerminationRegression',None,r'RESULT (\d+) process-termination',
              'real non-reading SIGTERM-ignoring Python child, bounded cleanup and quota release'),
             ('process-tree','ProcessTreeRegression',None,r'RESULT (\d+) process-tree',

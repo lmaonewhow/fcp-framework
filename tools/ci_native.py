@@ -34,7 +34,8 @@ def private(path:Path,content:str):
 
 def parse_args(argv=None):
  parser=argparse.ArgumentParser(description=__doc__)
- parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');parser.add_argument('--plugin-releases',action='store_true',help='Real dual-UI and multi-plugin composite release acceptance; requires --ingestion, excludes --exchange');a=parser.parse_args(argv)
+ parser.add_argument('--generator',action='store_true',help='Real generator source-application acceptance; requires --ingestion');parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');parser.add_argument('--plugin-releases',action='store_true',help='Real dual-UI and multi-plugin composite release acceptance; requires --ingestion, excludes --exchange');a=parser.parse_args(argv)
+ if a.generator and not a.ingestion:parser.error('--generator requires genuine --ingestion login fixture')
  if a.exchange and not a.ingestion:parser.error('--exchange requires genuine --ingestion login fixture')
  if a.plugin_releases and not a.ingestion:parser.error('--plugin-releases requires genuine --ingestion login fixture')
  if a.plugin_releases and a.exchange:parser.error('--plugin-releases is isolated from the legacy --exchange execution port')
@@ -43,7 +44,7 @@ def parse_args(argv=None):
 def run()->int:
  a=parse_args()
  report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeStorageLifecycle':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'runtimeComposition':{'status':'NOT_RUN'},'production':'BLOCKED'}
- process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None;failure_fixture=None;storage_lifecycle_fixture=None;composition_fixture=None;deployment_user=None;deployment_password=None
+ generator_fixture=None;process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None;failure_fixture=None;storage_lifecycle_fixture=None;composition_fixture=None;deployment_user=None;deployment_password=None
  try:
   if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')
   requirements=doctor()
@@ -125,6 +126,11 @@ def run()->int:
     deployment_user='fcpx_'+secrets.token_hex(6);deployment_password=secrets.token_hex(24)
     sql(f"CREATE USER '{deployment_user}'@'%' IDENTIFIED BY '{deployment_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX ON `{database}`.* TO '{deployment_user}'@'%';")
     props+=exchange_fixture.properties()+'\nfcp.runtime.storage-deployment.enabled=true\nFCP_STORAGE_DEPLOYMENT_JDBC_URL='+url+'\nFCP_STORAGE_DEPLOYMENT_USER='+deployment_user+'\nFCP_STORAGE_DEPLOYMENT_PASSWORD='+deployment_password+'\n'
+  if a.generator:
+   sys.path.insert(0,str(ROOT/'tests/generator'))
+   from native_acceptance import GeneratorFixture
+   generator_fixture=GeneratorFixture(fixture)
+   props+=generator_fixture.properties()
   private(private_dir/'fcp-runtime.properties',props)
   # @SpringBootTest in the pinned upstream initializes FCP and therefore requires the schema first.
   work=ROOT/'work/ci-native'
@@ -240,6 +246,9 @@ def run()->int:
     from development_business import verify_development_business
     modules.append(NativeModule('developmentBusiness',lambda:verify_development_business(private_dir,url,runtime_user,runtime_password,driver,exchange_fixture.endpoint,exchange_fixture.report.get('sharedBusinessContract',{})),
      lambda value:{'status':value['status'],'sameNativeRows':value['sameNativeRows'],'jvmRestartPersistence':value['jvmRestartPersistence']}))
+   if generator_fixture:
+    modules.append(NativeModule('generatorApply',lambda:generator_fixture.verify('http://127.0.0.1:18787',report['build']['buildId']),
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'generatedBusinessRuntime':value['generatedBusinessRuntime']}))
    run_native_modules(report,modules,prerequisites_passed=result.get('status')=='PASS' and bool(report.get('build',{}).get('buildId')),
     host_alive=lambda:process is not None and process.poll() is None,
     secrets_provider=lambda:[*fixture.diagnostic_secrets,fixture.password])

@@ -20,6 +20,7 @@ import uuid
 import urllib.parse
 import zipfile
 from native_trace_frontend import apply_frontend_trace
+from native_generator_frontend import apply_generator_frontend
 
 ROOT = Path(__file__).resolve().parents[1]
 PINS = json.loads((ROOT / 'upstreams.lock.json').read_text())['upstreams']
@@ -298,6 +299,7 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
     copy_files(ROOT/'integration/ruoyi/src/main/java',java)
     copy_files(ROOT/'integration/ruoyi/src/test/java',backend/'ruoyi-admin/src/test/java')
     resources=backend/'ruoyi-admin/src/main/resources'
+    copy_files(ROOT/'integration/ruoyi/src/main/resources', resources)
     if (resources/'application-fcp.yml').exists(): raise BuildError('fcp profile already exists')
     shutil.copy2(ROOT/'config/application-fcp.yml',resources/'application-fcp.yml')
     edit(resources/'application.yml','    active: @profiles.active@', '    active: @profiles.active@,fcp')
@@ -312,6 +314,7 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
          'return "redirect:/admin/";')
     for name,project,overlay in [('admin',admin,'plus-ui'),('teacher',teacher,'soybean')]:
         copy_files(ROOT/f'integration/{overlay}/src', project/'src')
+        if name == 'admin': apply_generator_frontend(project)
         for file in ['trace.ts','release-session.ts','session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue','usePlugins.ts','PluginWorkspace.vue','usePluginManager.ts','PluginManager.vue','useVersionManager.ts','VersionManager.vue','pluginReleaseManager.ts','PluginReleaseManager.vue']:
             target=project/'src/fcp'/file
             if target.exists(): raise BuildError('FCP session module already present')
@@ -431,6 +434,8 @@ def build(projects: dict[str,Path], work: Path, resolve_admin_lock: bool, admin_
         run(['npm','run','build:prod'] if name=='admin' else ['pnpm','run','build'],cwd=project,clean_vite=True)
         run(['npm','exec','--','vue-tsc','--noEmit'] if name=='admin' else ['pnpm','run','typecheck'],cwd=project,clean_vite=True)
         run(['node',ROOT/'tests/frontend-runtime/verify-field-label.mjs',project,name],cwd=ROOT,clean_vite=True)
+        if name == 'admin':
+            run(['node',ROOT/'tests/generator/ui-state.test.mjs',project/'node_modules/@vue/compiler-sfc',project/'node_modules/typescript'],cwd=ROOT)
         dist=project/'dist'; validate_dist(dist,name)
         from ui_release_bundle import build_bundle
         bundle=build_bundle(dist,output/'ui-bundles',name)
