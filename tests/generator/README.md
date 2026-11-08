@@ -52,3 +52,6 @@ Python 测试采用上游 `8136a0191a2258c0e1b36a8146a1c5ebc070c139` 的原始 `
 python -m unittest discover -s tests/python -p test_generated_business.py -v
 python -m unittest discover -s tests/python -p test_native_generated_build.py -v
 ```
+
+
+`test_generated_checkbox_actions.py` 回归 Element Plus 的可见标签交互：表单复选框和表格行选择都点击 `label.el-checkbox`，点击前检查可见、唯一和启用状态，点击后验证隐藏原生 input 的真实 checked 状态。不直接对隐藏 input 调用 check/uncheck，不使用 force 或 DOM 赋值。组件替身覆盖选中、取消、幂等选择、多选到清空、禁用/隐藏/歧义拒绝及点击未生效时失败；真实浏览器结果仍由上述原生业务门禁判定。

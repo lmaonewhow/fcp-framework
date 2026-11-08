@@ -24,6 +24,28 @@ def settled(page):
     page.wait_for_function("document.getAnimations().every(a => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity)")
 
 
+
+def checkbox_label(scope, text):
+    # Element Plus visually hides its native input. Operate its real visible label.
+    return scope.locator('label.el-checkbox').filter(has_text=re.compile(r'^\s*'+re.escape(text)+r'\s*$'))
+
+
+def set_element_checkbox(label, checked):
+    """Use normal pointer actionability; then assert the native input actually changed."""
+    from playwright.sync_api import expect
+    expect(label).to_have_count(1)
+    expect(label).to_be_visible()
+    control = label.locator('input[type=checkbox]')
+    expect(control).to_have_count(1)
+    expect(control).to_be_enabled()
+    if control.is_checked() != checked:
+        label.click()
+    if checked:
+        expect(control).to_be_checked()
+    else:
+        expect(control).not_to_be_checked()
+
+
 def native_request(base, token, path, method='GET', payload=None):
     require_loopback(base)
     parsed = urllib.parse.urlsplit(path)
@@ -100,15 +122,15 @@ def verify_business(generator, base, build):
                 value = list_action(click)
                 expect(dialog).not_to_be_visible()
                 return value
-            def checkbox(dialog,label): return dialog.locator('.el-checkbox').filter(has_text=label).locator('input[type=checkbox]')
+            def checkbox(dialog,label): return checkbox_label(dialog,label).locator('input[type=checkbox]')
             for index,name in enumerate(names):
                 page.get_by_role('button',name='新增',exact=True).click()
                 dialog = page.get_by_role('dialog')
                 dialog.get_by_placeholder('请输入名称',exact=True).fill(name)
                 field = dialog.get_by_placeholder('请选择业务日期',exact=True)
                 field.fill(dates[index]);field.press('Tab')
-                if index != 2: checkbox(dialog,'正常').check()
-                if index != 1: checkbox(dialog,'停用').check()
+                if index != 2: set_element_checkbox(checkbox_label(dialog,'正常'),True)
+                if index != 1: set_element_checkbox(checkbox_label(dialog,'停用'),True)
                 if index == 0: screenshot('03-business-add-form.png')
                 listed = save('POST')
                 check('browser-created row is persisted and returned',any(row['name'] == name for row in listed['rows']))
@@ -120,21 +142,21 @@ def verify_business(generator, base, build):
             def open_edit(name):
                 row = page.locator('.el-table__body-wrapper tbody tr').filter(has_text=name)
                 expect(row).to_have_count(1)
-                row.get_by_role('checkbox').check()
+                set_element_checkbox(row.locator('label.el-checkbox'),True)
                 page.get_by_role('button',name='修改',exact=True).click()
                 dialog = page.get_by_role('dialog')
                 expect(dialog).to_be_visible()
                 return dialog
             dialog = open_edit(names[0])
             expect(checkbox(dialog,'正常')).to_be_checked();expect(checkbox(dialog,'停用')).to_be_checked()
-            checkbox(dialog,'停用').uncheck()
+            set_element_checkbox(checkbox_label(dialog,'停用'),False)
             dialog.get_by_placeholder('请输入名称',exact=True).fill('合成验收 A（已修改）')
             screenshot('05-business-edit-form.png')
             save('PUT')
             check('browser edit persists name and one checkbox value', sql("SELECT CONCAT(name,'|',tags) FROM fcp_codegen_probe WHERE name='合成验收 A（已修改）';") == '合成验收 A（已修改）|0')
             dialog = open_edit('合成验收 A（已修改）')
             expect(checkbox(dialog,'正常')).to_be_checked();expect(checkbox(dialog,'停用')).not_to_be_checked()
-            checkbox(dialog,'正常').uncheck();save('PUT')
+            set_element_checkbox(checkbox_label(dialog,'正常'),False);save('PUT')
             check('browser clears all checkbox values without array/string errors',sql("SELECT COUNT(*) FROM fcp_codegen_probe WHERE name='合成验收 A（已修改）' AND tags='';") == '1')
             dialog = open_edit('合成验收 A（已修改）')
             expect(checkbox(dialog,'正常')).not_to_be_checked();expect(checkbox(dialog,'停用')).not_to_be_checked()
@@ -159,7 +181,7 @@ def verify_business(generator, base, build):
             native_request(base,token,API,'PUT',dict(id='970001',name='不得跨租户修改',tags='1'))
             native_request(base,token,API+'/970001','DELETE')
             check('native tenant filter prevents foreign update and delete',sql("SELECT CONCAT(name,'|',tags) FROM fcp_codegen_probe WHERE id=970001 AND tenant_id='fcp-other-ci';") == '其他租户合成记录|0')
-            row = page.locator('.el-table__body-wrapper tbody tr').filter(has_text=names[2]);row.get_by_role('checkbox').check()
+            row = page.locator('.el-table__body-wrapper tbody tr').filter(has_text=names[2]);set_element_checkbox(row.locator('label.el-checkbox'),True)
             page.get_by_role('button',name='删除',exact=True).click()
             def delete():
                 with page.expect_response(lambda response: response.request.method == 'DELETE' and urllib.parse.urlsplit(response.url).path.startswith(API+'/')) as received:
