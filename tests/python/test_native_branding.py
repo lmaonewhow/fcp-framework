@@ -64,6 +64,19 @@ class BrandingTests(unittest.TestCase):
             with patch.object(branding,'ROOT',root),self.assertRaisesRegex(RuntimeError,'preimage drift'):
                 branding.apply_branding(projects)
 
+    def test_native_menu_inspection_uses_browser_response_and_rejects_bad_envelopes(self):
+        from ci_branding import menu_response_data
+        from types import SimpleNamespace
+        self.assertEqual(menu_response_data(SimpleNamespace(status=200,json=lambda:{'code':200,'data':[]})),[])
+        for status,body in [(401,{'code':401,'data':[]}),(200,{'code':500,'data':[]}),(200,{'code':200,'data':{}}),(200,[])]:
+            with self.subTest(status=status,body=body),self.assertRaises(AssertionError):
+                menu_response_data(SimpleNamespace(status=status,json=lambda:body))
+        source=(ROOT/'tools/ci_branding.py').read_text()
+        self.assertIn('with page.expect_response(',source)
+        self.assertNotIn('NativeClient(',source)
+        self.assertNotIn('page.route(',source)
+        self.assertNotIn('route.fulfill(',source)
+
     def test_real_authentication_not_replaced(self):
         changes=(ROOT/'integration/branding/admin.patch').read_text()+(ROOT/'integration/branding/teacher.patch').read_text()
         self.assertIn("+  username: ''",changes)

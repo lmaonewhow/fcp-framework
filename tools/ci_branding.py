@@ -3,11 +3,17 @@ from pathlib import Path
 import json
 import os
 import re
-from native_client import NativeClient
 from ci_ingestion import safe_diagnostic
-from native_login import native_token
 
 ROOT=Path(__file__).resolve().parents[1]
+
+
+def menu_response_data(response):
+    """Inspect the browser's real native response; never issue an arbitrary endpoint request."""
+    body=response.json()
+    if response.status!=200 or not isinstance(body,dict) or str(body.get('code'))!='200' or not isinstance(body.get('data'),list):
+        raise AssertionError('Native browser menu response was not a successful route list')
+    return body['data']
 
 
 def verify_branding(fixture, base, build_id):
@@ -43,13 +49,15 @@ def verify_branding(fixture, base, build_id):
                     state=fixture.login(browser,base,role)
                     context=browser.new_context(storage_state=state,viewport={'width':1440,'height':960})
                     try:
-                        page=context.new_page();page.goto(base+'/'+shell+'/fcp/ingestion',wait_until='domcontentloaded')
+                        page=context.new_page()
+                        endpoint='/system/menu/getRouters' if shell=='admin' else '/fcp/ui/soybean-routes'
+                        with page.expect_response(lambda response: response.request.method=='GET' and response.url.split('?',1)[0]==base+endpoint,timeout=30000) as menu_response:
+                            page.goto(base+'/'+shell+'/fcp/ingestion',wait_until='domcontentloaded')
+                        menus=menu_response_data(menu_response.value)
                         expect(page.get_by_test_id('fcp-ingestion')).to_be_visible(timeout=30000)
                         check(shell+' authenticated title uses product name','智慧云校' in page.title())
                         text=page.locator('body').inner_text()
                         check(shell+' no upstream brand, website or demo menu in authenticated UI',not re.search(r'RuoYi|若依|Soybean|PLUS官网|测试菜单|测试单表|测试树表',text,re.I))
-                        client=NativeClient(base,native_token(context.storage_state(),base),'e5cd7e4891bf95d1d19206ce24a7b32e')
-                        menus=client.data('/system/menu/getRouters' if shell=='admin' else '/fcp/ui/soybean-routes')
                         check(shell+' server route tree excludes demo/website',not re.search(r'demo/demo|demo/tree|gitee.com/dromara|测试菜单',json.dumps(menus,ensure_ascii=False)))
                         page.screenshot(path=str(output/(shell+'-workspace.png')),full_page=True)
                         page.reload(wait_until='domcontentloaded');expect(page.get_by_test_id('fcp-ingestion')).to_be_visible(timeout=30000)
