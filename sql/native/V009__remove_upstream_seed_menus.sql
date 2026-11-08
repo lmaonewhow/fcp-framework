@@ -114,6 +114,25 @@ UPDATE sys_tenant_package p JOIN fcp_v009_candidates c ON c.menu_id = 1511
  SET p.menu_ids = TRIM(BOTH ',' FROM REGEXP_REPLACE(CONCAT(',', p.menu_ids, ','), ',1511(?=,)', ''))
  WHERE FIND_IN_SET('1511', p.menu_ids) > 0;
 DELETE m FROM sys_menu m JOIN fcp_v009_candidates c ON c.menu_id = m.menu_id;
+-- The locked workflow seed attaches real leave requests under the old demo root.
+-- Rename the display label only when the entire surviving subtree is untouched.
+-- Snapshot the decision before UPDATE to avoid MySQL target-table subquery rules.
+DELETE FROM fcp_v009_snapshot;
+INSERT INTO fcp_v009_snapshot(menu_id)
+SELECT m.menu_id FROM sys_menu m WHERE
+m.menu_id <=> '5' AND m.menu_name <=> BINARY '测试菜单' AND m.parent_id <=> '0' AND m.order_num <=> '5' AND m.path <=> BINARY 'demo' AND m.component <=> null AND m.query_param <=> BINARY '' AND m.is_frame <=> 1 AND m.is_cache <=> 0 AND m.menu_type <=> BINARY 'M' AND m.visible <=> BINARY '0' AND m.status <=> BINARY '0' AND m.perms <=> BINARY '' AND m.icon <=> BINARY 'star' AND m.create_dept <=> 103 AND m.create_by <=> 1 AND m.update_by <=> null AND m.update_time <=> null AND m.remark <=> BINARY '测试菜单'
+ AND (SELECT COUNT(*) FROM sys_menu w WHERE
+(w.menu_id <=> '11638' AND w.menu_name <=> BINARY '请假申请' AND w.parent_id <=> 5 AND w.order_num <=> 1 AND w.path <=> BINARY 'leave' AND w.component <=> BINARY 'workflow/leave/index' AND w.query_param <=> BINARY '' AND w.is_frame <=> 1 AND w.is_cache <=> 0 AND w.menu_type <=> BINARY 'C' AND w.visible <=> BINARY '0' AND w.status <=> BINARY '0' AND w.perms <=> BINARY 'workflow:leave:list' AND w.icon <=> BINARY '#' AND w.create_dept <=> 103 AND w.create_by <=> 1 AND w.update_by <=> null AND w.update_time <=> null AND w.remark <=> BINARY '请假申请菜单')
+ OR (w.menu_id <=> '11639' AND w.menu_name <=> BINARY '请假申请查询' AND w.parent_id <=> '11638' AND w.order_num <=> 1 AND w.path <=> BINARY '#' AND w.component <=> BINARY '' AND w.query_param <=> BINARY '' AND w.is_frame <=> 1 AND w.is_cache <=> 0 AND w.menu_type <=> BINARY 'F' AND w.visible <=> BINARY '0' AND w.status <=> BINARY '0' AND w.perms <=> BINARY 'workflow:leave:query' AND w.icon <=> BINARY '#' AND w.create_dept <=> 103 AND w.create_by <=> 1 AND w.update_by <=> null AND w.update_time <=> null AND w.remark <=> BINARY '')
+ OR (w.menu_id <=> '11640' AND w.menu_name <=> BINARY '请假申请新增' AND w.parent_id <=> '11638' AND w.order_num <=> 2 AND w.path <=> BINARY '#' AND w.component <=> BINARY '' AND w.query_param <=> BINARY '' AND w.is_frame <=> 1 AND w.is_cache <=> 0 AND w.menu_type <=> BINARY 'F' AND w.visible <=> BINARY '0' AND w.status <=> BINARY '0' AND w.perms <=> BINARY 'workflow:leave:add' AND w.icon <=> BINARY '#' AND w.create_dept <=> 103 AND w.create_by <=> 1 AND w.update_by <=> null AND w.update_time <=> null AND w.remark <=> BINARY '')
+ OR (w.menu_id <=> '11641' AND w.menu_name <=> BINARY '请假申请修改' AND w.parent_id <=> '11638' AND w.order_num <=> 3 AND w.path <=> BINARY '#' AND w.component <=> BINARY '' AND w.query_param <=> BINARY '' AND w.is_frame <=> 1 AND w.is_cache <=> 0 AND w.menu_type <=> BINARY 'F' AND w.visible <=> BINARY '0' AND w.status <=> BINARY '0' AND w.perms <=> BINARY 'workflow:leave:edit' AND w.icon <=> BINARY '#' AND w.create_dept <=> 103 AND w.create_by <=> 1 AND w.update_by <=> null AND w.update_time <=> null AND w.remark <=> BINARY '')
+ OR (w.menu_id <=> '11642' AND w.menu_name <=> BINARY '请假申请删除' AND w.parent_id <=> '11638' AND w.order_num <=> 4 AND w.path <=> BINARY '#' AND w.component <=> BINARY '' AND w.query_param <=> BINARY '' AND w.is_frame <=> 1 AND w.is_cache <=> 0 AND w.menu_type <=> BINARY 'F' AND w.visible <=> BINARY '0' AND w.status <=> BINARY '0' AND w.perms <=> BINARY 'workflow:leave:remove' AND w.icon <=> BINARY '#' AND w.create_dept <=> 103 AND w.create_by <=> 1 AND w.update_by <=> null AND w.update_time <=> null AND w.remark <=> BINARY '')
+ OR (w.menu_id <=> '11643' AND w.menu_name <=> BINARY '请假申请导出' AND w.parent_id <=> '11638' AND w.order_num <=> 5 AND w.path <=> BINARY '#' AND w.component <=> BINARY '' AND w.query_param <=> BINARY '' AND w.is_frame <=> 1 AND w.is_cache <=> 0 AND w.menu_type <=> BINARY 'F' AND w.visible <=> BINARY '0' AND w.status <=> BINARY '0' AND w.perms <=> BINARY 'workflow:leave:export' AND w.icon <=> BINARY '#' AND w.create_dept <=> 103 AND w.create_by <=> 1 AND w.update_by <=> null AND w.update_time <=> null AND w.remark <=> BINARY '')) = 6
+ AND NOT EXISTS (SELECT 1 FROM sys_menu child WHERE child.parent_id = 5 AND child.menu_id <> 11638)
+ AND NOT EXISTS (SELECT 1 FROM sys_menu child WHERE child.parent_id = 11638 AND child.menu_id NOT IN (11639,11640,11641,11642,11643))
+ AND NOT EXISTS (SELECT 1 FROM sys_menu child WHERE child.parent_id IN (11639,11640,11641,11642,11643));
+UPDATE sys_menu m JOIN fcp_v009_snapshot approved ON approved.menu_id = m.menu_id
+ SET m.menu_name = '日常事务';
 DROP TEMPORARY TABLE fcp_v009_snapshot;
 DROP TEMPORARY TABLE fcp_v009_candidates;
 COMMIT;

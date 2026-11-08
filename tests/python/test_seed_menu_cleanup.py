@@ -13,6 +13,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 SQL = ROOT / 'sql/native/V009__remove_upstream_seed_menus.sql'
 SEEDS = json.loads((ROOT / 'tests/seed-menu/seeds.json').read_text())
+WORKFLOW_SEEDS = json.loads((ROOT / 'tests/seed-menu/workflow-seeds.json').read_text())
 NUMERIC = {'menu_id', 'parent_id', 'order_num', 'is_frame', 'is_cache', 'create_dept', 'create_by', 'update_by'}
 
 
@@ -32,6 +33,8 @@ def mysql_subset(statement):
         m = re.fullmatch(r'UPDATE sys_tenant_package p JOIN fcp_v009_candidates c ON c.menu_id = (\d+)\s+SET p.menu_ids = (.*?)\s+WHERE (.*)', statement, re.S)
         assert m, statement
         statement = f'UPDATE sys_tenant_package AS p SET menu_ids = {m[2]} WHERE EXISTS (SELECT 1 FROM fcp_v009_candidates WHERE menu_id = {m[1]}) AND {m[3]}'
+    elif statement.startswith('UPDATE sys_menu m JOIN fcp_v009_snapshot'):
+        statement = "UPDATE sys_menu SET menu_name = '日常事务' WHERE menu_id IN (SELECT menu_id FROM fcp_v009_snapshot)"
     return statement
 
 
@@ -138,6 +141,89 @@ class CleanupTest(unittest.TestCase):
         self.run_sql()
         self.assertEqual(len(self.ids()), 14)
         self.assertEqual(self.db.execute('SELECT menu_ids FROM sys_tenant_package').fetchone()[0], '4,5,1500\n')
+
+    def add_workflow(self):
+        for row in WORKFLOW_SEEDS:
+            values = [None if v == 'null' else '2026-01-01' if v == 'sysdate()' else v.strip("'") for v in row.values()]
+            self.db.execute('INSERT INTO sys_menu VALUES (' + ','.join('?' for _ in values) + ')', values)
+            self.db.execute('INSERT INTO sys_role_menu VALUES(7,?)', (int(row['menu_id'].strip("'")),))
+        self.db.execute("INSERT INTO sys_tenant_package VALUES(7,'5,11638,11639,11640,11641,11642,11643')")
+        self.db.executescript("CREATE TABLE test_leave(id INTEGER,reason TEXT); INSERT INTO test_leave VALUES(81,'business leave');")
+
+    def root_name(self):
+        row = self.db.execute('SELECT menu_name FROM sys_menu WHERE menu_id=5').fetchone()
+        return row[0] if row else None
+
+    def run_in_savepoint(self):
+        sql = re.sub(r'(?m)^--.*$', '', SQL.read_text())
+        for stmt in sql.split(';'):
+            if stmt.strip() and stmt.strip() not in ('START TRANSACTION', 'COMMIT'):
+                self.db.execute(mysql_subset(stmt.strip()))
+
+    def test_original_workflow_rename_preserves_routes_refs_data_and_rerun(self):
+        self.add_workflow()
+        original = self.db.execute('SELECT * FROM sys_menu WHERE menu_id BETWEEN 11638 AND 11643 ORDER BY menu_id').fetchall()
+        self.run_sql()
+        self.assertEqual(self.ids(), {5,*range(11638,11644)})
+        self.assertEqual(self.root_name(), '日常事务')
+        self.assertEqual(self.db.execute('SELECT path FROM sys_menu WHERE menu_id=5').fetchone()[0], 'demo')
+        self.assertEqual(self.db.execute('SELECT * FROM sys_menu WHERE menu_id BETWEEN 11638 AND 11643 ORDER BY menu_id').fetchall(), original)
+        self.assertEqual(self.db.execute('SELECT menu_id FROM sys_role_menu ORDER BY menu_id').fetchall(), [(5,), *[(i,) for i in range(11638,11644)]])
+        self.assertEqual(self.db.execute('SELECT menu_ids FROM sys_tenant_package WHERE package_id=7').fetchone()[0], '5,11638,11639,11640,11641,11642,11643')
+        self.assertEqual(self.db.execute('SELECT * FROM test_leave').fetchall(), [(81,'business leave')])
+        snapshot = self.db.execute('SELECT * FROM sys_menu ORDER BY menu_id').fetchall()
+        self.run_sql()
+        self.assertEqual(self.db.execute('SELECT * FROM sys_menu ORDER BY menu_id').fetchall(), snapshot)
+
+    def test_workflow_custom_branch_at_every_level_prevents_rename(self):
+        self.add_workflow()
+        for parent in [5,11638,*range(11639,11644),1500]:
+            with self.subTest(parent=parent):
+                self.db.execute('SAVEPOINT custom_branch')
+                self.db.execute("INSERT INTO sys_menu(menu_id,parent_id,menu_name) VALUES(88888,?,'custom business')", (parent,))
+                self.run_in_savepoint()
+                self.assertEqual(self.root_name(), '测试菜单')
+                self.assertIn(88888,self.ids())
+                self.db.execute('ROLLBACK TO custom_branch')
+                self.db.execute('RELEASE custom_branch')
+
+    def test_every_workflow_and_root_identity_mutation_prevents_rename(self):
+        self.add_workflow()
+        for menu_id in [5,*range(11638,11644)]:
+            for field in SEEDS[0]:
+                if field in ('menu_id','create_time'):
+                    continue
+                with self.subTest(menu_id=menu_id,field=field):
+                    self.db.execute('SAVEPOINT workflow_identity')
+                    self.db.execute(f'UPDATE sys_menu SET {field}=? WHERE menu_id=?', (98765 if field in NUMERIC else 'custom',menu_id))
+                    self.run_in_savepoint()
+                    self.assertNotEqual(self.root_name(), '日常事务')
+                    self.assertIn(menu_id,self.ids())
+                    self.db.execute('ROLLBACK TO workflow_identity')
+                    self.db.execute('RELEASE workflow_identity')
+
+    def test_missing_or_reused_workflow_permission_prevents_rename(self):
+        self.add_workflow()
+        for menu_id in range(11639,11644):
+            with self.subTest(menu_id=menu_id):
+                self.db.execute('SAVEPOINT workflow_missing')
+                self.db.execute('DELETE FROM sys_menu WHERE menu_id=?',(menu_id,))
+                self.run_in_savepoint()
+                self.assertEqual(self.root_name(), '测试菜单')
+                self.db.execute('ROLLBACK TO workflow_missing')
+                self.db.execute('RELEASE workflow_missing')
+
+    def test_reassigned_workflow_ids_prevent_rename(self):
+        self.add_workflow()
+        for menu_id in range(11638,11644):
+            with self.subTest(menu_id=menu_id):
+                self.db.execute('SAVEPOINT workflow_reassigned')
+                self.db.execute('UPDATE sys_menu SET menu_id=88888 WHERE menu_id=?',(menu_id,))
+                self.run_in_savepoint()
+                self.assertNotEqual(self.root_name(), '日常事务')
+                self.assertIn(88888,self.ids())
+                self.db.execute('ROLLBACK TO workflow_reassigned')
+                self.db.execute('RELEASE workflow_reassigned')
 
     def test_lock_and_installer_include_nine_stages(self):
         spec = importlib.util.spec_from_file_location('mysql_install', ROOT / 'tools/mysql_install.py')

@@ -26,8 +26,10 @@ def verify_branding(fixture, base, build_id):
         if not value:raise AssertionError(name)
         report['checks'].append({'name':name,'status':'PASS'})
     try:
-        remaining=fixture.sql(f"USE `{fixture.database}`; SELECT COUNT(*) FROM sys_menu WHERE menu_id IN (4,5,1500,1501,1502,1503,1504,1505,1506,1507,1508,1509,1510,1511);").strip()
-        check('fresh MySQL has no upstream demo or website menu seeds',remaining=='0')
+        remaining=fixture.sql(f"USE `{fixture.database}`; SELECT COUNT(*) FROM sys_menu WHERE menu_id IN (4,1500,1501,1502,1503,1504,1505,1506,1507,1508,1509,1510,1511);").strip()
+        check('fresh MySQL has no upstream demo pages or website menu seeds',remaining=='0')
+        check('untouched leave workflow remains under daily affairs without route or permission changes',fixture.sql(f"USE `{fixture.database}`; SELECT COUNT(*) FROM sys_menu root JOIN sys_menu entry ON entry.parent_id=root.menu_id WHERE root.menu_id=5 AND root.menu_name='日常事务' AND root.path='demo' AND entry.menu_id=11638 AND entry.path='leave' AND entry.perms='workflow:leave:list';").strip()=='1')
+        check('original leave action permissions remain intact',fixture.sql(f"USE `{fixture.database}`; SELECT COUNT(*) FROM sys_menu WHERE parent_id=11638 AND menu_id IN (11639,11640,11641,11642,11643);").strip()=='5')
         check('native accounts, business tables and generator menu are retained',fixture.sql(f"USE `{fixture.database}`; SELECT COUNT(*) FROM sys_menu WHERE menu_id=115 AND perms='tool:gen:list';").strip()=='1')
         with sync_playwright() as playwright:
             browser=playwright.chromium.launch()
