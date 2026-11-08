@@ -97,7 +97,7 @@ class Fixture:
         if not result: raise AssertionError(name)
         self.report['checks'].append(dict(name=name, status='PASS'))
 
-    def login(self, browser, base, role):
+    def login(self, browser, base, role, *, observe_login=None):
         from playwright.sync_api import expect
         context = browser.new_context(viewport=dict(width=1440, height=960))
         page = context.new_page()
@@ -116,7 +116,8 @@ class Fixture:
             with page.expect_response(lambda r: r.url.endswith('/auth/login'), timeout=30000) as response:
                 page.locator('.login-form button.el-button--primary').click()
             require_encrypted_login(response.value)
-            state, token = authenticated_storage_state(page, context, base, 'ingestion')
+            state, token = authenticated_storage_state(page, context, base, 'ingestion',
+                                                       before_workspace_navigation=observe_login)
             self.diagnostic_secrets.append(token)
             client = NativeClient(base, token, 'e5cd7e4891bf95d1d19206ce24a7b32e')
             verify_native_identity(client, {'admin':'1','teacher':'950001','viewer':'950002'}[role], '000000')

@@ -13,6 +13,88 @@ import native_branding as branding
 
 
 class BrandingTests(unittest.TestCase):
+    def test_pinned_backend_welcome_patch_only_changes_product_text(self):
+        relative='ruoyi-admin/src/main/java/org/dromara/web/controller/AuthController.java'
+        manifest=json.loads((ROOT/'integration/branding/manifest.json').read_text())
+        entry=manifest['upstreams']['backend']['files'][relative]
+        original=(ROOT/'tests/fixtures/upstream/AuthController.java.txt').read_bytes()
+        self.assertEqual(hashlib.sha256(original).hexdigest(),entry['before'])
+        self.assertEqual(entry['before'],'c9f974254573fc8db83c6490e33d53776b8f16be513832b591fe1c73d9082071')
+        old='好，欢迎登录 RuoYi-Vue-Plus 后台管理系统'.encode()
+        new='好，欢迎登录 智慧云校'.encode()
+        self.assertEqual(original.count(old),1)
+        with tempfile.TemporaryDirectory() as directory:
+            project=Path(directory);target=project/relative;target.parent.mkdir(parents=True)
+            target.write_bytes(original)
+            subprocess.run(['git','apply','--whitespace=error','--include='+relative,
+                            str(ROOT/'integration/branding/backend.patch')],cwd=project,check=True)
+            after=target.read_bytes()
+            self.assertEqual(after,original.replace(old,new,1))
+            self.assertEqual(hashlib.sha256(after).hexdigest(),entry['after'])
+            self.assertIn(b'}, 5, TimeUnit.SECONDS);',after)
+            self.assertIn(b'SseMessageUtils.publishMessage(dto);',after)
+            self.assertIn(b'IAuthStrategy.login(body, client, grantType)',after)
+
+    def test_dynamic_login_brand_requires_the_expected_welcome(self):
+        from ci_branding import login_notice_uses_product_name
+        for greeting in ('早上','上午','中午','下午','晚上'):
+            self.assertTrue(login_notice_uses_product_name('消息\n'+greeting+'好，欢迎登录 智慧云校'))
+        for text in ('', '智慧云校', '消息\n欢迎回来', '好，欢迎登录 RuoYi-Vue-Plus 后台管理系统',
+                     '好，欢迎登录 智慧云校 RuoYi', '好，欢迎登录 智慧云校 若依', '好，欢迎登录 智慧云校 Soybean'):
+            with self.subTest(text=text):self.assertFalse(login_notice_uses_product_name(text))
+
+    def test_native_notice_observer_checks_both_shells_and_never_retries(self):
+        # Control-flow doubles, not browser evidence. Actual SSE remains a native CI gate.
+        from ci_branding import verify_login_notice
+        from types import SimpleNamespace
+        class Timeout(Exception):pass
+        for shell,text,missing in [('admin','中午好，欢迎登录 智慧云校',False),
+                                   ('teacher','中午好，欢迎登录 智慧云校',False),
+                                   ('admin','中午好，欢迎登录 RuoYi-Vue-Plus 后台管理系统',False),
+                                   ('teacher','',True)]:
+            events=[];base='http://127.0.0.1:8080'
+            class Notice:
+                def filter(self,**kwargs):
+                    self_test.assertTrue(kwargs['has_text'].search('欢迎登录'));return self
+                @property
+                def first(self):return self
+                def wait_for(self,**kwargs):
+                    self_test.assertEqual(kwargs,{'state':'visible','timeout':15000});events.append('wait')
+                    if missing:raise Timeout()
+                def inner_text(self):return text
+            class Page:
+                url=base+'/'+shell+'/index'
+                def locator(self,selector):
+                    self_test.assertEqual(selector,'.el-notification' if shell=='admin' else '.n-notification')
+                    return Notice()
+                def screenshot(self,**kwargs):
+                    self_test.assertEqual(kwargs,{'path':'/synthetic-output/'+shell+'-login-notification.png','full_page':True})
+                    events.append('screenshot')
+                def goto(self,*args,**kwargs):raise AssertionError('Observer must not navigate')
+            class Expect:
+                def __init__(self,page):self.page=page
+                def to_have_url(self,pattern,**kwargs):self_test.assertTrue(pattern.fullmatch(self.page.url))
+            def check(name,value):
+                if not value:raise AssertionError(name)
+                events.append('check')
+            self_test=self
+            session={'subject':'1' if shell=='admin' else '950001','scope':'tenant-000000',
+                     'defaultShell':shell,'allowedShells':[shell]}
+            module=SimpleNamespace(expect=Expect,TimeoutError=Timeout)
+            with patch.dict(sys.modules,{'playwright.sync_api':module}):
+                if missing:
+                    with self.assertRaisesRegex(AssertionError,'notification was not observed'):
+                        verify_login_notice(Page(),session,base,shell,Path('/synthetic-output'),check)
+                    self.assertNotIn('screenshot',events)
+                elif 'RuoYi' in text:
+                    with self.assertRaisesRegex(AssertionError,'notification uses product name'):
+                        verify_login_notice(Page(),session,base,shell,Path('/synthetic-output'),check)
+                    self.assertIn('screenshot',events)
+                else:
+                    verify_login_notice(Page(),session,base,shell,Path('/synthetic-output'),check)
+                    self.assertEqual(events,['check','wait','screenshot','check'])
+            self.assertEqual(events.count('wait'),1)
+
     def test_reviewed_manifest_and_patch_integrity(self):
         bundle = ROOT/'integration/branding'
         manifest = json.loads((bundle/'manifest.json').read_text())
@@ -128,6 +210,8 @@ class BrandingTests(unittest.TestCase):
         self.assertIn('toolbar has no GitHub or Gitee shortcut icons',source)
         self.assertIn("page.locator('a[href]')",source)
         self.assertIn("shell+'-toolbar.png'",source)
+        self.assertIn('fixture.login(browser,base,role,observe_login=',source)
+        self.assertIn("shell+'-login-notification.png'",source)
 
     def test_branding_navigation_waits_full_native_window_and_runs_last(self):
         from ci_branding import wait_for_native_tenant_window

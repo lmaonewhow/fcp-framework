@@ -88,6 +88,7 @@ class GeneratorFixture:
                 status, rejected = admin.request('/fcp/generator/plans', {'tableIds': [str(incomplete[0]['tableId'])]})
                 self.check('schema lacking native audit columns is rejected before source application',
                            (status >= 400 or rejected.get('code') != 200) and '审计字段' in rejected.get('msg', '')
+                           and not re.search(r'RuoYi|若依|Soybean', rejected.get('msg', ''), re.I)
                            and not (self.root / 'integration').exists())
                 native('/tool/gen/importTable?tables=fcp_codegen_probe&dataName=master', {})
                 rows = native('/tool/gen/list?tableName=fcp_codegen_probe')['rows']

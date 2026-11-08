@@ -29,7 +29,7 @@ public final class GeneratedSchemaRequirements {
         Set<String> missing = new TreeSet<>(AUDIT_COLUMNS);
         missing.removeAll(names);
         if (!missing.isEmpty()) {
-            throw new IllegalArgumentException("当前 CRUD 模板继承若依审计字段，实际业务表缺少："
+            throw new IllegalArgumentException("当前 CRUD 模板要求审计字段，实际业务表缺少："
                     + String.join(", ", missing) + "；请先审查表结构，或下载后调整实体映射");
         }
     }

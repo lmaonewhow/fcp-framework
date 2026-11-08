@@ -375,6 +375,14 @@ public final class GeneratedSourceWorkspaceRegression {
         GeneratedSchemaRequirements.requireAuditColumns(audit.stream().map(v->v.toUpperCase(Locale.ROOT)).toList());check(true,"database column names are case-insensitive");
         for(String omitted:audit) { List<String> partial=new ArrayList<>(audit);partial.remove(omitted);rejectsArgument(()->GeneratedSchemaRequirements.requireAuditColumns(partial),"missing inherited column "+omitted); }
         rejectsArgument(()->GeneratedSchemaRequirements.requireAuditColumns(null),"unavailable actual schema rejected");
+        try {
+            GeneratedSchemaRequirements.requireAuditColumns(List.of());
+            throw new AssertionError("missing audit columns must fail");
+        } catch (IllegalArgumentException expected) {
+            check(expected.getMessage().startsWith("当前 CRUD 模板要求审计字段，实际业务表缺少：")
+                    && !expected.getMessage().contains("若依")
+                    && !expected.getMessage().contains("RuoYi"),"schema error uses neutral product text");
+        }
         System.out.println("RESULT "+assertions+" generator-workspace checks PASS");
     }
 }

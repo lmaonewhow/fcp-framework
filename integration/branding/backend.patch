@@ -25,3 +25,15 @@ index 8ef33fe..f495d7e 100644
      }
 
  }
+diff --git a/ruoyi-admin/src/main/java/org/dromara/web/controller/AuthController.java b/ruoyi-admin/src/main/java/org/dromara/web/controller/AuthController.java
+--- a/ruoyi-admin/src/main/java/org/dromara/web/controller/AuthController.java
++++ b/ruoyi-admin/src/main/java/org/dromara/web/controller/AuthController.java
+@@ -107,7 +107,7 @@
+         Long userId = LoginHelper.getUserId();
+         scheduledExecutorService.schedule(() -> {
+             SseMessageDto dto = new SseMessageDto();
+-            dto.setMessage(DateUtils.getTodayHour(new Date()) + "好，欢迎登录 RuoYi-Vue-Plus 后台管理系统");
++            dto.setMessage(DateUtils.getTodayHour(new Date()) + "好，欢迎登录 智慧云校");
+             dto.setUserIds(List.of(userId));
+             SseMessageUtils.publishMessage(dto);
+         }, 5, TimeUnit.SECONDS);

@@ -28,12 +28,25 @@ FIELDS = {
 }
 
 
+def reset_roster_table_scroll(page):
+    """Return the real table scroller left after clicking its far-right detail action."""
+    table = page.get_by_test_id('roster-records').locator('.el-table__body-wrapper .el-scrollbar__wrap')
+    # Native scrolling only: do not change content, CSS, viewport, or image pixels.
+    table.evaluate('(node) => node.scrollTo({left:0,top:node.scrollTop,behavior:"instant"})')
+    page.wait_for_function("""() => {
+      const node = document.querySelector('[data-testid="roster-records"] .el-table__body-wrapper .el-scrollbar__wrap');
+      return node && Math.abs(node.scrollLeft) <= 1;
+    }""", timeout=10000)
+
+
 def wait_stable_layout(page):
     return page.evaluate("""async () => {
       const start = performance.now(); let previous = '', stable = 0;
       return await new Promise((resolve, reject) => {
         const sample = () => {
-          const nodes = ['.main-container','.sidebar-container','.app-main','[data-testid="education-roster"]']
+          const nodes = ['.main-container','.sidebar-container','.app-main','[data-testid="education-roster"]',
+            '[data-testid="roster-records"] .el-table__body-wrapper .el-scrollbar__wrap',
+            '[data-testid="roster-records"] .el-table__header-wrapper']
             .map(s => document.querySelector(s)).filter(Boolean);
           const values = [innerWidth, innerHeight, scrollX, scrollY];
           for (const node of nodes) { const r = node.getBoundingClientRect(); values.push(r.x,r.y,r.width,r.height,node.scrollLeft); }
@@ -211,11 +224,15 @@ def verify_browser(fixture, base: str, build_id: str) -> dict:
           const root = document.querySelector('[data-testid="education-roster"]');
           return {scrollX,scrollY,innerWidth,innerHeight,document:rect(document.documentElement),
             sidebar:rect(document.querySelector('.sidebar-container')), heading:rect(root?.querySelector('h1')),
+            tableBody:rect(root?.querySelector('[data-testid="roster-records"] .el-table__body-wrapper .el-scrollbar__wrap')),
+            tableHeader:rect(root?.querySelector('[data-testid="roster-records"] .el-table__header-wrapper')),
             labels:Array.from(root?.querySelectorAll('.el-form-item__label') || []).map(rect)};
         }""")
 
     def geometry(m, label):
         check(label + ' no page horizontal overflow', abs(m['scrollX']) <= 1 and m['document']['scrollWidth'] <= m['document']['clientWidth'] + 1)
+        for key in ('tableBody', 'tableHeader'):
+            check(label + ' ' + key + ' is at left edge', m[key] is not None and abs(m[key]['scrollLeft']) <= 1)
         sidebar = m['sidebar']
         if sidebar and sidebar['display'] != 'none' and sidebar['visibility'] != 'hidden' and sidebar['right'] > 1:
             check(label + ' heading and labels are clear of native sidebar', all(r and r['x'] >= sidebar['right'] - 1 for r in [m['heading'], *m['labels']]))
@@ -232,6 +249,7 @@ def verify_browser(fixture, base: str, build_id: str) -> dict:
         try:
             for position, y in positions:
                 page.evaluate('(y) => window.scrollTo({left:0,top:y,behavior:"instant"})', y)
+                reset_roster_table_scroll(page)
                 wait_stable_layout(page)
                 before = metrics(page)
                 geometry(before, name + '-' + position)

@@ -31,6 +31,36 @@ def wait_for_native_tenant_window(report, *, clock=time.monotonic, sleep=time.sl
         raise RuntimeError('Branding navigation requires a complete native tenant-list window')
 
 
+def login_notice_uses_product_name(text):
+    return '好，欢迎登录 智慧云校' in text and not re.search(r'RuoYi|若依|Soybean', text, re.I)
+
+
+def verify_login_notice(page, session, base, shell, output, check):
+    """Observe the real delayed SSE toast in the original authenticated login page.
+
+    Do not reload, publish a replacement event, intercept SSE or retry the login.
+    Both pinned clients show the shared server welcome for only three seconds.
+    """
+    from playwright.sync_api import expect, TimeoutError as PlaywrightTimeoutError
+    expected_user = {'admin': '1', 'teacher': '950001'}[shell]
+    check(shell+' native login notice session has the expected identity and shell',
+          str(session.get('subject')) == expected_user and session.get('scope') == 'tenant-000000'
+          and session.get('defaultShell') == shell and shell in session.get('allowedShells', []))
+    destination = re.compile(re.escape(base)+r'/'+shell+r'/(?!login(?:[/;?#]|$))[^?#]+(?:[?#].*)?$')
+    expect(page).to_have_url(destination, timeout=30000)
+    selector = '.el-notification' if shell == 'admin' else '.n-notification'
+    notice = page.locator(selector).filter(has_text=re.compile('欢迎登录')).first
+    try:
+        notice.wait_for(state='visible', timeout=15000)
+    except PlaywrightTimeoutError:
+        raise AssertionError(shell+' delayed native login notification was not observed') from None
+    text = notice.inner_text()
+    # At this point the server identity, authenticated route and notification are
+    # verified. Capture no login form, password, token, SSE URL or browser state.
+    page.screenshot(path=str(output/(shell+'-login-notification.png')), full_page=True)
+    check(shell+' delayed native login notification uses product name', login_notice_uses_product_name(text))
+
+
 def verify_branding(fixture, base, build_id):
     if os.environ.get('GITHUB_ACTIONS')!='true' or not re.fullmatch(r'fcp_ci_[a-f0-9]{12}',fixture.database):
         raise RuntimeError('Branding acceptance requires the disposable native fixture')
@@ -64,7 +94,8 @@ def verify_branding(fixture, base, build_id):
                         page.screenshot(path=str(output/(shell+'-login.png')),full_page=True)
                         page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(output/(shell+'-login-mobile.png')),full_page=True)
                     finally:context.close()
-                    state=fixture.login(browser,base,role)
+                    state=fixture.login(browser,base,role,observe_login=lambda page,session:
+                                        verify_login_notice(page,session,base,shell,output,check))
                     context=browser.new_context(storage_state=state,viewport={'width':1440,'height':960})
                     try:
                         page=context.new_page()

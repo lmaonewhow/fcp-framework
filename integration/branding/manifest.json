@@ -4,7 +4,7 @@
   "upstreams": {
     "backend": {
       "commit": "8136a0191a2258c0e1b36a8146a1c5ebc070c139",
-      "patchSha256": "cb2ea2d6ce14edff095eafd18f6abf07c6d55a39668e8a441096c8d04017b5e8",
+      "patchSha256": "624de0626949dc162c5f0c8bd02f13ad48fab961f113493446b3f5c1579e606b",
       "files": {
         "ruoyi-admin/src/main/resources/banner.txt": {
           "before": "6a5c64f3a506a5e2aa0244139d7022b9d4ef59c7e9b9aba1c2949f6e05b92b08",
@@ -13,6 +13,10 @@
         "ruoyi-admin/src/main/java/org/dromara/DromaraApplication.java": {
           "before": "4bca99cef960193f46c3987d94fc1bf678d5f05adcdabe11279ff6b6183790e6",
           "after": "6a1f07d9fb0e01cf365ca919d9fae12baf3b1e8cf73680945f4b364a02f8cec5"
+        },
+        "ruoyi-admin/src/main/java/org/dromara/web/controller/AuthController.java": {
+          "before": "c9f974254573fc8db83c6490e33d53776b8f16be513832b591fe1c73d9082071",
+          "after": "8fdb043e6391edd3f5a416f58ea87cbb8644a13a836a481b13ae3f45c047eee8"
         }
       }
     },

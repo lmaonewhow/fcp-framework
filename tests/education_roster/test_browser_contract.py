@@ -67,6 +67,74 @@ class BrowserReportContract(unittest.TestCase):
         self.assertIn('response.status == 200', source)
 
 
+class BrowserTableScrollContract(unittest.TestCase):
+    def page(self, fail_wait=False):
+        # Owned unit doubles record commands; these are not native browser results.
+        calls = []
+        table = SimpleNamespace(evaluate=lambda script: calls.append(('evaluate', script)))
+        def locator(selector):
+            calls.append(('locator', selector))
+            return table
+        def get_by_test_id(test_id):
+            calls.append(('test_id', test_id))
+            return SimpleNamespace(locator=locator)
+        def wait_for_function(script, **kwargs):
+            calls.append(('wait', script, kwargs))
+            if fail_wait:
+                raise TimeoutError('synthetic scroller did not return left')
+        return SimpleNamespace(get_by_test_id=get_by_test_id, wait_for_function=wait_for_function), calls
+
+    def test_reset_uses_native_table_scroll_and_waits_for_left_edge(self):
+        page, calls = self.page()
+        browser.reset_roster_table_scroll(page)
+        self.assertEqual(['test_id', 'locator', 'evaluate', 'wait'], [call[0] for call in calls])
+        self.assertEqual('roster-records', calls[0][1])
+        self.assertEqual('.el-table__body-wrapper .el-scrollbar__wrap', calls[1][1])
+        self.assertEqual('(node) => node.scrollTo({left:0,top:node.scrollTop,behavior:"instant"})', calls[2][1])
+        self.assertIn('[data-testid="roster-records"] .el-table__body-wrapper .el-scrollbar__wrap', calls[3][1])
+        self.assertIn('Math.abs(node.scrollLeft) <= 1', calls[3][1])
+        self.assertEqual({'timeout': 10000}, calls[3][2])
+        for prohibited in ('innerHTML', 'textContent', '.style', 'remove(', 'setAttribute', 'viewport', 'screenshot'):
+            self.assertNotIn(prohibited, calls[2][1] + calls[3][1])
+
+    def test_reset_failure_is_not_suppressed_or_retried(self):
+        page, calls = self.page(fail_wait=True)
+        with self.assertRaisesRegex(TimeoutError, 'synthetic scroller did not return left'):
+            browser.reset_roster_table_scroll(page)
+        self.assertEqual(['test_id', 'locator', 'evaluate', 'wait'], [call[0] for call in calls])
+
+    def test_each_capture_resets_then_waits_then_measures_before_screenshot(self):
+        tree = ast.parse(SOURCE.read_text())
+        capture = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == 'screenshot')
+        loop = next(node for node in ast.walk(capture) if isinstance(node, ast.For))
+        calls = []
+        for statement in loop.body:
+            value = getattr(statement, 'value', None)
+            if isinstance(value, ast.Call):
+                name = value.func.id if isinstance(value.func, ast.Name) else value.func.attr
+                calls.append(name)
+        self.assertEqual(['evaluate', 'reset_roster_table_scroll', 'wait_stable_layout', 'metrics', 'geometry'], calls[:5])
+        self.assertLess(calls.index('metrics'), calls.index('screenshot'))
+        self.assertEqual(1, calls.count('reset_roster_table_scroll'))
+
+    def test_body_and_header_are_observed_and_exact_detail_assertion_remains(self):
+        source = SOURCE.read_text()
+        tree = ast.parse(source)
+        functions = {node.name: ast.get_source_segment(source, node) for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)}
+        for selector in ('.el-table__body-wrapper .el-scrollbar__wrap', '.el-table__header-wrapper'):
+            self.assertIn(selector, functions['wait_stable_layout'])
+            self.assertIn(selector, functions['metrics'])
+        self.assertIn('node.scrollLeft', functions['wait_stable_layout'])
+        self.assertIn('stable >= 4', functions['wait_stable_layout'])
+        for key in ('tableBody', 'tableHeader'):
+            self.assertIn(key, functions['metrics'])
+            self.assertIn(key, functions['geometry'])
+        self.assertIn("abs(m[key]['scrollLeft']) <= 1", functions['geometry'])
+        self.assertIn("geometry(immediate,", functions['screenshot'])
+        self.assertIn("geometry(after,", functions['screenshot'])
+        self.assertIn("expect(page.get_by_test_id('roster-detail')).to_contain_text(first['id'])", source)
+
+
 class BrowserDiagnosticContract(unittest.TestCase):
     def report(self):
         return dict(status='FAIL', completed=False, checks=[{'name': 'synthetic', 'status': 'PASS'}], screenshots=[])

@@ -27,4 +27,6 @@ work/ci-native/upstream/admin/node_modules/.bin/vitest run \
 
 runner 仅查询，不执行 seed 或数据库变更，不拦截路由、不伪造登录。检查三类响应字段白名单、精确学校隔离、页签权限、详情关闭和切校。固定 1440×1080 viewport，以真实页面滚动获得上下帧，保存捕获前后几何信息，不使用 fullPage 或 CSS 修改规避原生侧栏。API 分页与撤权由原生 HTTP fixture 检查；竞态故障由明确 mock 的组件测试覆盖。
 
+点击最右侧“查看”会使浏览器将表格内部水平滚动到操作列。每张 top/bottom 截图前，runner 对真实表体滚动容器执行 scrollTo 回到左端，保留其垂直位置，并等待表体、表头和页面连续四帧稳定。捕获前、立即捕获后及再次稳定后的几何记录均检查表体和表头 scrollLeft，确保左侧完整 ID 可见；不修改页面内容、样式、viewport 或截图像素，不屏蔽页面错误。完整大整数详情断言与上下帧保留。相关 Python 回归使用明确的命令记录替身与源码结构检查，不能替代真实浏览器截图验收。
+
 本地 Chromium 已知受 Unix socket 环境限制，本次不重试或绕过。浏览器 runner 的语法检查不代表已运行。真实浏览器、MySQL/Redis、隔离角色和最终 CI 必须由集成人在最终源码上实际执行并单独记录 PASS/FAIL/BLOCKED/NOT_RUN。
