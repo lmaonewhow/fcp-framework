@@ -30,14 +30,14 @@ def main():
         for label,command in [('java',['java','-version']),('javac',['javac','-version']),('node',['node','--version']),('tsc',['tsc','--version'])]:
             report['environment'][label]=execute('version-'+label,command).strip()
         classes=BUILD/'component-classes';classes.mkdir(exist_ok=True)
-        classpath=str(classes);java=['java']
+        classpath=str(classes)+os.pathsep+str(ROOT/'core/src/main/resources');java=['java']
         if os.name=='nt':
             if args.windows_file_runtime is None:raise RuntimeError('Windows file-state checks require --windows-file-runtime; prepare with tools/windows_file_state.py')
             from windows_file_state import runtime
             jar,native=runtime(args.windows_file_runtime)
             classpath+=os.pathsep+str(jar);java+=['-Dorg.sqlite.tmpdir='+str(native)]
         files=[]
-        for tree in ['core/src/main/java','business/src/main/java','host/src/main/java','deploy/src/main/java','tests/java']:
+        for tree in ['core/src/main/java','business/src/main/java','host/src/main/java','deploy/src/main/java','tests/java','tests/education_generator']:
             files.extend(sorted((ROOT/tree).rglob('*.java')))
         # Quote paths in the javac argfile, including Windows paths and directories with spaces.
         argfile=BUILD/'component-sources.txt'
@@ -47,6 +47,10 @@ def main():
         count=int(re.search(r'RESULT (\d+) component checks PASS',result)[1])
         report['groups'].append({'name':'Java component + real Python child','checks':count,'status':'PASS','dataStore':'FileRecordStore test fixture; no MySQL'})
         for label,java_class,argument,pattern,meaning in [
+            ('generator-workspace','GeneratedSourceWorkspaceRegression',None,r'RESULT (\d+) generator-workspace',
+             'real temporary source files, plans, safe application, conflicts and rollback; no native Spring/MySQL'),
+            ('education-generator','dev.fcp.generator.EducationGeneratorRegression',ROOT,r'RESULT (\d+) education-generator',
+             'actual locked P042 reconstruction and classpath templates, guarded source application; no native Spring/MySQL/browser'),
             ('process-termination','ProcessTerminationRegression',None,r'RESULT (\d+) process-termination',
              'real non-reading SIGTERM-ignoring Python child, bounded cleanup and quota release'),
             ('process-tree','ProcessTreeRegression',None,r'RESULT (\d+) process-tree',
@@ -77,6 +81,8 @@ def main():
         skip_match=re.search(r'OK \(skipped=(\d+)\)',result)
         skipped=int(skip_match[1]) if skip_match else 0
         report['groups'].append({'name':'assembler and release-gate unit','checks':count-skipped,'executedTests':count,'skipped':skipped,'status':'PASS','upstreamScope':'four complete upstream fixture files verified by Git blob SHA; not whole-repository build'})
+        result=execute('python-education-generator',[sys.executable,'-m','unittest','discover','-s','tests/education_generator','-v'])
+        report['groups'].append({'name':'education generator API/resource source contracts','checks':int(re.search(r'Ran (\d+) tests',result)[1]),'status':'PASS','scope':'closed API and pinned resources, not real HTTP'})
         # Source-launch a real Java key generator. Private material is held in a temporary directory and removed.
         with tempfile.TemporaryDirectory(prefix='fcp-keycheck-') as directory:
             private=Path(directory)/'private'

@@ -23,7 +23,7 @@ export function useSchool(shell:'admin'|'teacher'){
     if(alive)savedRecord.value=committed;
     await refresh();
   });}
-  function analyze(){return run(async()=>{const d=await api.analyze();if(alive)summary.value=`${d.count} 条记录，平均 ${d.average} 分；Python PID ${d.pid}。确定性统计演示。`;});}
+  function analyze(){return run(async()=>{const d=await api.analyze();if(alive)summary.value=`${d.count} 条记录，平均 ${d.average} 分。`;});}
   function toggle(){return run(async()=>{await api.compose(!state.value?.pythonEnabled);await refresh();});}
   onMounted(()=>run(()=>refresh()));onBeforeUnmount(()=>{alive=false;api.clear();});
   return {state,rows,error,summary,busy,form,nextCursor,savedRecord,create,analyze,toggle,reload:()=>run(()=>refresh()),next:()=>run(()=>refresh(nextCursor.value||''))};

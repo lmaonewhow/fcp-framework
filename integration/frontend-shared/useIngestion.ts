@@ -19,7 +19,7 @@ export function useIngestion(){
   const columns=computed(()=>entity.value==='roster'?['studentId','name','classId']:['studentId','classId','day','status']);
   const labels:Record<string,string>={studentId:'学号',name:'姓名',classId:'班级',day:'日期',status:'状态',students:'学生数',classes:'班级数',records:'考勤记录',present:'正常',late:'迟到',absent:'缺勤',leave:'请假',attendanceRate:'出勤率 (%)'};
   async function request<T>(path:string,input?:unknown):Promise<T>{
-    const token=readToken();if(!token)throw new Error('请先完成若依宿主登录');
+    const token=readToken();if(!token)throw new Error('请先登录智慧云校');
     const clientId=String(import.meta.env.VITE_APP_CLIENT_ID||'');if(!clientId)throw new Error('构建缺少宿主客户端标识');
     const response=await fetch('/fcp/ingestion'+path,{method:input===undefined?'GET':'POST',cache:'no-store',credentials:'same-origin',redirect:'error',signal:controller.signal,
       headers:{Authorization:`Bearer ${token}`,clientid:clientId,'Content-Type':'application/json'},body:input===undefined?undefined:JSON.stringify(input)});

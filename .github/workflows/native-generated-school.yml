@@ -1,0 +1,176 @@
+name: Native generated smart school acceptance
+on:
+  pull_request:
+    branches: [dev, main, 'feat/runtime-*', 'feat/education-*']
+  push:
+    branches: [dev, feat/ruoyi-5.6-plugin-ingestion]
+    paths:
+      - '.github/workflows/native-generated-school.yml'
+      - 'tools/**'
+      - 'tests/**'
+      - 'core/**'
+      - 'business/**'
+      - 'host/**'
+      - 'development-host/**'
+      - 'deploy/**'
+      - 'integration/**'
+      - 'runtime/**'
+      - 'sql/**'
+      - 'config/**'
+      - 'locks/**'
+      - 'upstreams.lock.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-generated-school-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: FcpDisposableCi_2026_only
+        ports: ['127.0.0.1:33306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pFcpDisposableCi_2026_only"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+      redis:
+        image: redis:7.4
+        ports: ['127.0.0.1:36379:6379']
+        options: --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=3s --health-retries=12
+    env:
+      FCP_CI_MYSQL_PASSWORD: FcpDisposableCi_2026_only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/cache/restore@v4
+        id: dependencies
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.npm
+            ~/.local/share/pnpm/store
+          key: fcp-native56-pnpm10-${{ runner.os }}-${{ hashFiles('upstreams.lock.json', 'integration/plus-ui/compat-5.6/manifest.json') }}
+          restore-keys: fcp-native56-${{ runner.os }}-
+      - name: Install verification tools
+        run: |
+          npm install --global pnpm@10.5.2 typescript@5.8.3
+          test "$(pnpm --version)" = '10.5.2'
+          python3 -m pip install --break-system-packages -r e2e/requirements.txt bcrypt==4.3.0
+          python3 -m playwright install --with-deps chromium
+      - name: Render SQL and apply sources in an isolated exact-commit clone
+        id: codegen
+        shell: bash
+        run: |
+          mkdir -p work
+          python3 tools/ci_education_codegen.py --clone-dir "$GITHUB_WORKSPACE/work/education-generated-source"
+      - name: Install generated-clone component test dependencies
+        working-directory: ${{ steps.codegen.outputs.generated_root }}
+        run: npm ci --prefix tests/frontend --no-audit --no-fund
+      - name: Verify the committed and accepted dependency lock
+        working-directory: ${{ steps.codegen.outputs.generated_root }}
+        run: python3 tools/check_ingestion_lock.py
+      - name: Component checks and real native acceptance from applied sources
+        working-directory: ${{ steps.codegen.outputs.generated_root }}
+        shell: bash
+        run: |
+          mkdir -p reports
+          git rev-parse HEAD > reports/native-source-commit.txt
+          python3 tools/verify_components.py
+          python3 tools/verify_ingestion.py
+          python3 tools/verify_devhost_shell.py
+          python3 tools/verify_education_contracts.py
+          python3 tools/verify_education_foundation.py --java-home "$JAVA_HOME"
+          python3 tools/verify_education_roster.py --java-home "$JAVA_HOME"
+          python3 tools/ci_education_codegen.py --native-root "$PWD" 2>&1 | tee reports/native-ci-console.log
+      - name: Education components against the actual assembled admin
+        if: always() && steps.codegen.outputs.generated_root != ''
+        working-directory: ${{ steps.codegen.outputs.generated_root }}
+        shell: bash
+        run: |
+          mkdir -p reports/education-frontend
+          git rev-parse HEAD > reports/education-frontend/source-commit.txt
+          if [ ! -f work/ci-native/upstream/admin/node_modules/vitest/vitest.mjs ]; then
+            printf '%s\n' '{"status":"NOT_RUN","reason":"Native admin dependencies were not assembled"}' > reports/education-frontend/result.json
+            exit 1
+          fi
+          export FCP_ADMIN_PROJECT="$PWD/work/ci-native/upstream/admin"
+          export FCP_COMPONENT_TOOLS="$PWD/tests/frontend"
+          node "$FCP_ADMIN_PROJECT/node_modules/vitest/vitest.mjs" run --config "$PWD/tests/education/vitest.config.mjs" education generator-entry-ui --reporter=default --reporter=json --outputFile.json="$PWD/reports/education-frontend/result.json" 2>&1 | tee reports/education-frontend/test.log
+      - name: Generated application state and template regression
+        if: always() && steps.codegen.outputs.generated_root != ''
+        working-directory: ${{ steps.codegen.outputs.generated_root }}
+        shell: bash
+        run: |
+          mkdir -p reports/education-generator-ui
+          node tests/generator/ui-state.test.mjs "$PWD/work/ci-native/upstream/admin/node_modules/@vue/compiler-sfc" "$PWD/work/ci-native/upstream/admin/node_modules/typescript" 2>&1 | tee reports/education-generator-ui/generic-state.log
+          node tests/generator/education-ui-state.test.mjs "$PWD/work/ci-native/upstream/admin/node_modules/@vue/compiler-sfc" "$PWD/work/ci-native/upstream/admin/node_modules/typescript" 2>&1 | tee reports/education-generator-ui/education-state.log
+      - name: Roster components against the actual assembled admin
+        if: always() && steps.codegen.outputs.generated_root != ''
+        working-directory: ${{ steps.codegen.outputs.generated_root }}
+        shell: bash
+        run: |
+          mkdir -p reports/education-roster-frontend
+          git rev-parse HEAD > reports/education-roster-frontend/source-commit.txt
+          if [ ! -f work/ci-native/upstream/admin/node_modules/vitest/vitest.mjs ]; then
+            printf '%s\n' '{"status":"NOT_RUN","reason":"Native admin dependencies were not assembled"}' > reports/education-roster-frontend/result.json
+            exit 1
+          fi
+          export FCP_ADMIN_PROJECT="$PWD/work/ci-native/upstream/admin"
+          export FCP_COMPONENT_TOOLS="$PWD/tests/frontend"
+          node "$FCP_ADMIN_PROJECT/node_modules/vitest/vitest.mjs" run --config "$PWD/tests/education_roster/vitest.config.mjs" --reporter=default --reporter=json --outputFile.json="$PWD/reports/education-roster-frontend/result.json" 2>&1 | tee reports/education-roster-frontend/test.log
+      - uses: actions/cache/save@v4
+        if: always() && steps.dependencies.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.npm
+            ~/.local/share/pnpm/store
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-generated-school-evidence
+          path: |
+            reports/education-codegen/
+            work/education-generated-source/reports/native-source-commit.txt
+            work/education-generated-source/reports/ci-native.json
+            work/education-generated-source/reports/native-build.json
+            work/education-generated-source/reports/native-ci-console.log
+            work/education-generated-source/reports/native-startup-redacted.log
+            work/education-generated-source/reports/components.json
+            work/education-generated-source/reports/ingestion.json
+            work/education-generated-source/reports/native-ingestion/
+            work/education-generated-source/reports/education-contracts/
+            work/education-generated-source/reports/education-foundation/
+            work/education-generated-source/reports/education-frontend/
+            work/education-generated-source/reports/education-native/
+            work/education-generated-source/reports/education-roster/
+            work/education-generated-source/reports/education-roster-native/
+            work/education-generated-source/reports/education-roster-frontend/
+            work/education-generated-source/reports/runtime-native/
+            work/education-generated-source/reports/runtime-failure-boundaries/
+            work/education-generated-source/reports/runtime-portability/
+            work/education-generated-source/reports/runtime-crash/
+            work/education-generated-source/reports/runtime-crash-mysql/
+            work/education-generated-source/reports/runtime-exchange/
+            work/education-generated-source/reports/runtime-exchange-native/
+            work/education-generated-source/reports/development-business/
+            work/education-generated-source/reports/development-host/
+            work/education-generated-source/work/ci-native/release/BUILD-EVIDENCE.json
+            work/education-generated-source/work/ci-native/release/admin-package-lock.json
+            work/education-generated-source/work/ci-native/release/teacher-pnpm-lock.yaml
+            work/education-generated-source/reports/education-codegen/
+            work/education-generated-source/reports/education-codegen-native/
+            work/education-generated-source/reports/education-generator-ui/
+            work/education-generated-source/reports/generator-native/
+            work/education-generated-source/reports/generator/
+            work/education-generated-source/reports/native-branding/
+          retention-days: 14

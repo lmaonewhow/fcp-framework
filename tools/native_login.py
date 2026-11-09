@@ -299,7 +299,7 @@ def native_token(state, base):
     return tokens[0]
 
 
-def authenticated_storage_state(page, context, base, workspace, timeout_ms=30000):
+def authenticated_storage_state(page, context, base, workspace, timeout_ms=30000, *, before_workspace_navigation=None):
     """Respect native login's home, then navigate through the real FCP route guard.
 
     Native login may choose /admin/index instead of preserving a redirect query.
@@ -319,6 +319,10 @@ def authenticated_storage_state(page, context, base, workspace, timeout_ms=30000
     shell = session.get('defaultShell')
     if shell not in ('admin', 'teacher') or shell not in session.get('allowedShells', []):
         raise AssertionError('Native session did not authorize a known default shell')
+    # Observe one-shot native login notifications before the explicit reload below.
+    # The observer receives verified server session metadata, never login credentials.
+    if before_workspace_navigation is not None:
+        before_workspace_navigation(page, session)
     target = origin+'/'+shell+'/fcp/'+workspace
     page.goto(target, wait_until='domcontentloaded', timeout=timeout_ms)
     destination = re.compile(re.escape(target)+r'/?(?:[?#].*)?$')

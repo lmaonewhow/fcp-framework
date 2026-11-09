@@ -1,0 +1,388 @@
+import dev.fcp.generator.GeneratedSourceWorkspace;
+import dev.fcp.generator.RuoYiGeneratedMetadata;
+import dev.fcp.generator.GeneratedSchemaRequirements;
+import java.io.*;
+import java.nio.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.zip.*;
+
+public final class GeneratedSourceWorkspaceRegression {
+    private static int assertions;
+    private static final String SOURCE="main/java/demo/Thing.java", TARGET="integration/ruoyi/src/main/java/demo/Thing.java";
+    private static final String OWNER="tenant:1:user:1";
+    @FunctionalInterface interface Throwing { void run() throws Exception; }
+    static void check(boolean condition,String label) { assertions++;if(!condition)throw new AssertionError(label); }
+    static void rejects(Throwing work,String label) throws Exception { try{work.run();throw new AssertionError("Accepted: "+label);}catch(IOException expected){assertions++;} }
+    static void rejectsArgument(Throwing work,String label) throws Exception { try{work.run();throw new AssertionError("Accepted: "+label);}catch(IllegalArgumentException expected){assertions++;} }
+    static byte[] zip(String... entries) throws Exception {
+        ByteArrayOutputStream out=new ByteArrayOutputStream();try(ZipOutputStream z=new ZipOutputStream(out)){for(int i=0;i<entries.length;i+=2){z.putNextEntry(new ZipEntry(entries[i]));z.write(entries[i+1].getBytes(StandardCharsets.UTF_8));z.closeEntry();}}return out.toByteArray();
+    }
+    static Map<String,Object> plan(GeneratedSourceWorkspace w,String value)throws Exception{return w.plan(OWNER,List.of("1"),zip(SOURCE,value));}
+    static Map<String,Object> apply(GeneratedSourceWorkspace w,String value)throws Exception{return w.apply(OWNER,(String)plan(w,value).get("planId"));}
+    static String id(Map<String,Object> m){return (String)m.get("operationId");}
+    static String status(Map<String,Object> p){return (String)((Map<?,?>)((List<?>)p.get("files")).get(0)).get("status");}
+    static Path root()throws Exception{return Files.createTempDirectory("fcp-generator-regression-");}
+    static String menu(long first, String parent, String name) {
+        String header="insert into sys_menu (menu_id, menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_dept, create_by, create_time, update_by, update_time, remark)";
+        String[] actions={"list","query","add","edit","remove","export"};
+        StringBuilder sql=new StringBuilder("-- 菜单 SQL\n");
+        for(int i=0;i<6;i++) {
+            if(i==1)sql.append("-- 按钮 SQL\n");
+            sql.append(header).append("\nvalues(").append(first+i).append(", '").append(name).append(i==0?"":"按钮"+i).append("', ");
+            sql.append(i==0?"'"+parent+"'":Long.toString(first));
+            sql.append(", '").append(i==0?1:i).append("', ").append(i==0?"'demo200', 'module/demo200/index'":"'#', ''");
+            sql.append(", 1, 0, '").append(i==0?'C':'F').append("', '0', '0', 'module200:demo:").append(actions[i]);
+            sql.append("', '#', 103, 1, sysdate(), null, null, '").append(i==0?name+"菜单":"").append("');\n\n");
+        }
+        return sql.toString();
+    }
+    static String stable(String path,String candidate,String baseline) {
+        return new String(RuoYiGeneratedMetadata.stabilize(path,candidate.getBytes(StandardCharsets.UTF_8),baseline==null?null:baseline.getBytes(StandardCharsets.UTF_8)),StandardCharsets.UTF_8);
+    }
+    static Path write(Path root, String path, String value) throws Exception {
+        Path file = root.resolve(path); Files.createDirectories(file.getParent()); Files.writeString(file, value); return file;
+    }
+    static String sha(byte[] bytes) throws Exception { return HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes)); }
+    static String planId(Map<String,Object> plan) { return (String)plan.get("planId"); }
+    static void markPending(Path root, Map<String,Object> operation, boolean marker) throws Exception {
+        Path manifest = root.resolve(".fcp-generator/operations/" + id(operation) + "/manifest.properties");
+        Properties p = new Properties(); try (InputStream in = Files.newInputStream(manifest)) { p.load(in); }
+        p.setProperty("status", "pending"); try (OutputStream out = Files.newOutputStream(manifest)) { p.store(out, "simulated persisted crash cut point"); }
+        if (marker) Files.writeString(root.resolve(".fcp-generator/active"), id(operation));
+    }
+    static void adoptionRegression() throws Exception {
+        Path fresh = root(), target = write(fresh, TARGET, "checked-in generated source");
+        var oldTime = java.nio.file.attribute.FileTime.fromMillis(946684800000L);
+        Files.setLastModifiedTime(target, oldTime);
+        GeneratedSourceWorkspace workspace = new GeneratedSourceWorkspace(fresh);
+        Map<String,Object> preview = plan(workspace, "checked-in generated source");
+        check(status(preview).equals("adopt_generated"), "fresh clone identical candidate explicitly adopts generated baseline");
+        Map<String,Object> adopted = workspace.apply(OWNER, planId(preview));
+        check(adopted.get("status").equals("applied") && ((List<?>)adopted.get("files")).equals(List.of(TARGET)), "adoption journal contains registration");
+        check(Files.readString(target).equals("checked-in generated source") && Files.getLastModifiedTime(target).equals(oldTime), "adoption leaves source bytes and mtime untouched");
+        Path baseline = fresh.resolve(".fcp-generator/baseline/" + TARGET), ownership = fresh.resolve(".fcp-generator/ownership/" + TARGET);
+        check(Files.readString(baseline).equals("checked-in generated source") && Files.exists(ownership), "adoption persists baseline and ownership");
+        check(workspace.apply(OWNER, planId(preview)).equals(adopted), "adoption replay returns existing operation");
+        check(status(plan(workspace, "checked-in generated source")).equals("unchanged"), "adopted exact candidate subsequently unchanged");
+        Map<String,Object> next = plan(workspace, "generated v2"); check(status(next).equals("update"), "adoption enables safe subsequent update");
+        Map<String,Object> updated = workspace.apply(OWNER, planId(next)); check(Files.readString(target).equals("generated v2"), "subsequent update writes candidate");
+        rejects(() -> workspace.rollback(OWNER, id(adopted)), "adoption rollback cannot overwrite later generation");
+        workspace.rollback(OWNER, id(updated)); Files.setLastModifiedTime(target, oldTime);
+        check(!(Boolean)workspace.plan("another-user", Map.of("1", zip(SOURCE, "checked-in generated source"))).get("applicable"), "adopted source cannot cross owners");
+        check(!(Boolean)workspace.plan(OWNER, Map.of("another-table", zip(SOURCE, "checked-in generated source"))).get("applicable"), "adopted source cannot cross tables");
+        workspace.rollback(OWNER, id(adopted));
+        check(Files.readString(target).equals("checked-in generated source") && Files.getLastModifiedTime(target).equals(oldTime), "registration rollback never rewrites source");
+        check(!Files.exists(baseline) && !Files.exists(ownership), "registration rollback removes only new metadata");
+        check(workspace.rollback(OWNER, id(adopted)).get("status").equals("rolled_back"), "registration rollback replays safely");
+        check(status(plan(workspace, "checked-in generated source")).equals("adopt_generated"), "rolled back clone can register again");
+
+        Files.writeString(target, "manual first edit");
+        Map<String,Object> manual = plan(workspace, "checked-in generated source");
+        check(status(manual).equals("conflict"), "fresh clone manual change is not adopted");
+        rejects(() -> workspace.apply(OWNER, planId(manual)), "fresh clone manual apply blocked");
+        check(Files.readString(target).equals("manual first edit") && !Files.exists(baseline), "manual bytes remain without fake baseline");
+        Files.writeString(target, "checked-in generated source");
+        check(status(plan(workspace, "new candidate")).equals("conflict"), "fresh clone differing new candidate cannot adopt historical files");
+        Map<String,Object> raced = plan(workspace, "checked-in generated source"); Files.writeString(target, "later edit");
+        rejects(() -> workspace.apply(OWNER, planId(raced)), "adoption snapshots source before registration");
+        check(!Files.exists(baseline) && !Files.exists(ownership), "stale adoption leaves no metadata");
+
+        // Even an exactly matching source must not silently repair half-missing metadata.
+        for (boolean missingBaseline : List.of(false, true)) {
+            Path partial = root(); write(partial, TARGET, "exact"); GeneratedSourceWorkspace w = new GeneratedSourceWorkspace(partial);
+            Map<String,Object> op = apply(w, "exact");
+            Path missing = partial.resolve(".fcp-generator/" + (missingBaseline ? "baseline/" : "ownership/") + TARGET);
+            Files.delete(missing);
+            Map<String,Object> plan = plan(w, "exact"); check(status(plan).equals("conflict"), "half-missing metadata rejects identical candidate " + missingBaseline);
+            rejects(() -> w.apply(OWNER, planId(plan)), "half-missing metadata refuses apply " + missingBaseline);
+            rejects(() -> w.rollback(OWNER, id(op)), "completed adoption rollback rejects removed metadata " + missingBaseline);
+            check(!Files.exists(missing), "damaged metadata not automatically repaired " + missingBaseline);
+        }
+        for (String changed : List.of(TARGET, ".fcp-generator/baseline/" + TARGET, ".fcp-generator/ownership/" + TARGET)) {
+            Path modified = root(); write(modified, TARGET, "exact"); GeneratedSourceWorkspace w = new GeneratedSourceWorkspace(modified);
+            Map<String,Object> op = apply(w, "exact"); Files.writeString(modified.resolve(changed), "later manual edit");
+            rejects(() -> w.rollback(OWNER, id(op)), "adoption rollback rejects later source/baseline/origin changes " + changed);
+            check(Files.readString(modified.resolve(changed)).equals("later manual edit"), "failed rollback preserves later change " + changed);
+        }
+        // Real temporary journals at each interrupted registration cut point. This is not a power-loss test.
+        for (int cut = 0; cut <= 2; cut++) {
+            Path interrupted = root(), source = write(interrupted, TARGET, "exact"); Files.setLastModifiedTime(source, oldTime);
+            GeneratedSourceWorkspace w = new GeneratedSourceWorkspace(interrupted); Map<String,Object> op = apply(w, "exact");
+            if (cut < 2) Files.delete(interrupted.resolve(".fcp-generator/ownership/" + TARGET));
+            if (cut < 1) Files.delete(interrupted.resolve(".fcp-generator/baseline/" + TARGET));
+            markPending(interrupted, op, cut != 0);
+            GeneratedSourceWorkspace reopened = new GeneratedSourceWorkspace(interrupted);
+            rejects(() -> plan(reopened, "exact"), "interrupted registration blocks new plan " + cut);
+            check((Boolean)reopened.history(OWNER).get("recoveryRequired"), "interrupted registration visible " + cut);
+            reopened.rollback(OWNER, id(op));
+            check(Files.readString(source).equals("exact") && Files.getLastModifiedTime(source).equals(oldTime), "registration recovery never writes source " + cut);
+            check(!Files.exists(interrupted.resolve(".fcp-generator/baseline/" + TARGET)) && !Files.exists(interrupted.resolve(".fcp-generator/ownership/" + TARGET)), "registration recovery removes only metadata " + cut);
+            check(!(Boolean)reopened.history(OWNER).get("recoveryRequired"), "registration recovery clears journal " + cut);
+        }
+        // Whole-batch rollback validation also protects a registration preceding a newly created file.
+        Path mixed = root(), source = write(mixed, TARGET, "exact"); Files.setLastModifiedTime(source, oldTime);
+        GeneratedSourceWorkspace mixedWorkspace = new GeneratedSourceWorkspace(mixed);
+        Map<String,Object> mixedPlan = mixedWorkspace.plan(OWNER, Map.of("1", zip(SOURCE, "exact", "vue/api/new.ts", "new")));
+        Map<String,Object> mixedOp = mixedWorkspace.apply(OWNER, planId(mixedPlan));
+        check(Files.getLastModifiedTime(source).equals(oldTime), "mixed batch registration leaves source untouched");
+        Files.writeString(mixed.resolve("integration/plus-ui/src/api/new.ts"), "manual");
+        rejects(() -> mixedWorkspace.rollback(OWNER, id(mixedOp)), "mixed batch validates all files before metadata rollback");
+        check(Files.exists(mixed.resolve(".fcp-generator/baseline/" + TARGET)), "later mixed conflict leaves adopted metadata intact");
+        Files.writeString(mixed.resolve("integration/plus-ui/src/api/new.ts"), "new"); mixedWorkspace.rollback(OWNER, id(mixedOp));
+        check(!Files.exists(mixed.resolve("integration/plus-ui/src/api/new.ts")) && Files.getLastModifiedTime(source).equals(oldTime), "mixed rollback removes new file and retains registered source");
+    }
+    static void adoptionRecoveryAndQuotaRegression() throws Exception {
+        var oldTime = java.nio.file.attribute.FileTime.fromMillis(946684800000L);
+        Path mixed = root(), source = write(mixed, TARGET, "exact"); Files.setLastModifiedTime(source, oldTime);
+        GeneratedSourceWorkspace workspace = new GeneratedSourceWorkspace(mixed);
+        Map<String,Object> preview = workspace.plan(OWNER, Map.of("1", zip(SOURCE, "exact", "vue/api/new.ts", "new")));
+        Map<String,Object> op = workspace.apply(OWNER, planId(preview));
+        Files.delete(mixed.resolve(".fcp-generator/ownership/" + TARGET)); markPending(mixed, op, true);
+        workspace.rollback(OWNER, id(op));
+        check(Files.readString(source).equals("exact") && Files.getLastModifiedTime(source).equals(oldTime), "mixed registration crash recovery retains source bytes and mtime");
+        check(!Files.exists(mixed.resolve("integration/plus-ui/src/api/new.ts")), "mixed crash recovery removes operation-created source");
+        check(!Files.exists(mixed.resolve(".fcp-generator/baseline/" + TARGET)), "mixed crash recovery removes registration metadata");
+        Path pending = root(); write(pending, TARGET, "exact"); GeneratedSourceWorkspace interrupted = new GeneratedSourceWorkspace(pending);
+        Map<String,Object> pendingOp = apply(interrupted, "exact"); markPending(pending, pendingOp, true); Files.writeString(pending.resolve(TARGET), "manual");
+        rejects(() -> interrupted.rollback(OWNER, id(pendingOp)), "registration recovery refuses post-crash source changes");
+        check(Files.readString(pending.resolve(TARGET)).equals("manual") && Files.exists(pending.resolve(".fcp-generator/baseline/" + TARGET)), "refused recovery has zero partial rollback");
+        for (boolean storage : List.of(false, true)) {
+            Path capped = root(), cappedSource = write(capped, TARGET, "exact"); Files.setLastModifiedTime(cappedSource, oldTime);
+            GeneratedSourceWorkspace w = new GeneratedSourceWorkspace(capped); Map<String,Object> plan = plan(w, "exact");
+            if (storage) {
+                try (var file = java.nio.channels.FileChannel.open(capped.resolve(".fcp-generator/quota-fixture"), StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
+                    file.position(256L*1024*1024-1); file.write(ByteBuffer.wrap(new byte[]{0}));
+                }
+            } else {
+                Files.createDirectories(capped.resolve(".fcp-generator/operations"));
+                for (int i = 0; i < 256; i++) Files.createDirectory(capped.resolve(".fcp-generator/operations/unused-" + i));
+            }
+            rejects(() -> w.apply(OWNER, planId(plan)), "registration obeys " + (storage ? "state byte" : "operation count") + " limit");
+            check(Files.getLastModifiedTime(cappedSource).equals(oldTime) && !Files.exists(capped.resolve(".fcp-generator/baseline/" + TARGET)), "quota failure cannot partially adopt " + storage);
+        }
+        // Existing manifests predate the action field and must keep source-restoring rollback.
+        Path legacy = root(); GeneratedSourceWorkspace oldWorkspace = new GeneratedSourceWorkspace(legacy); Map<String,Object> oldOperation = apply(oldWorkspace, "legacy");
+        Path manifest = legacy.resolve(".fcp-generator/operations/" + id(oldOperation) + "/manifest.properties"); Properties old = new Properties();
+        try (InputStream in = Files.newInputStream(manifest)) { old.load(in); } old.remove("file.0.action");
+        try (OutputStream out = Files.newOutputStream(manifest)) { old.store(out, "legacy manifest fixture"); }
+        oldWorkspace.rollback(OWNER, id(oldOperation)); check(!Files.exists(legacy.resolve(TARGET)), "legacy manifest without action still restores source");
+    }
+    static void inputGuardRegression() throws Exception {
+        String input = "contracts/education/model.json", value = "controlled input";
+        Path root = root(), file = write(root, input, value); GeneratedSourceWorkspace w = new GeneratedSourceWorkspace(root);
+        Map<String,byte[]> archives = Map.of("education:student", zip(SOURCE, "candidate"));
+        Map<String,String> guards = Map.of(input, sha(value.getBytes(StandardCharsets.UTF_8)));
+        Map<String,Object> first = w.plan(OWNER, archives, guards);
+        check((Boolean)first.get("applicable"), "valid controlled input hashes accepted");
+        Files.writeString(file, "changed input");
+        rejects(() -> w.apply(OWNER, planId(first)), "changed controlled input rejects apply");
+        check(!Files.exists(root.resolve(TARGET)) && !Files.exists(root.resolve(".fcp-generator/operations")), "stale input writes zero source or operation journals");
+        rejects(() -> w.plan(OWNER, archives, guards), "stale input rejects planning");
+        Files.writeString(file, value); Map<String,Object> valid = w.plan(OWNER, archives, guards);
+        Map<String,Object> applied = w.apply(OWNER, planId(valid)); Files.writeString(file, "changed after success");
+        check(w.apply(OWNER, planId(valid)).equals(applied), "successful guarded apply replays despite changed input");
+        check(new GeneratedSourceWorkspace(root).apply(OWNER, planId(valid)).equals(applied), "guarded replay survives process instance restart");
+        rejects(() -> w.apply(OWNER, UUID.randomUUID().toString()), "unknown guarded plan never bypasses checks");
+        Files.writeString(file, value);
+        Map<String,String> mutable = new HashMap<>(guards); Map<String,Object> snapshot = w.plan(OWNER, archives, mutable); mutable.clear();
+        Files.writeString(file, "later change"); rejects(() -> w.apply(OWNER, planId(snapshot)), "guard map defensively copied");
+        check(Files.readString(root.resolve(TARGET)).equals("candidate"), "rejected unchanged candidate still preserves source");
+        Files.writeString(file, value);
+        for (String path : List.of("../outside", "/etc/passwd", "contracts/../outside", "C:/outside", "a\\b", "a//b", "./a", "a/", "", ".fcp-generator/lock")) {
+            rejects(() -> w.plan(OWNER, archives, Map.of(path, guards.get(input))), "unsafe controlled input path " + path);
+        }
+        rejects(() -> w.plan(OWNER, archives, null), "null input guards rejected");
+        rejects(() -> w.plan(OWNER, archives, Map.of(input, "bad hash")), "invalid controlled input hash rejected");
+        rejects(() -> w.plan(OWNER, archives, Map.of("missing.json", guards.get(input))), "missing controlled input rejected");
+        Map<String,String> excessive = new HashMap<>(); for (int i = 0; i < 33; i++) excessive.put("input" + i, guards.get(input));
+        rejects(() -> w.plan(OWNER, archives, excessive), "controlled input count bounded");
+        Path outside = root(), outsideFile = write(outside, "model.json", value);
+        Files.createSymbolicLink(root.resolve("input-link.json"), outsideFile);
+        rejects(() -> w.plan(OWNER, archives, Map.of("input-link.json", guards.get(input))), "controlled input file symlink rejected");
+        Files.createSymbolicLink(root.resolve("linked"), outside);
+        rejects(() -> w.plan(OWNER, archives, Map.of("linked/model.json", guards.get(input))), "controlled input ancestor symlink rejected");
+        Map<String,Object> swapped = w.plan(OWNER, archives, guards); Files.delete(file); Files.createSymbolicLink(file, outsideFile);
+        rejects(() -> w.apply(OWNER, planId(swapped)), "controlled input swapped to identical symlink rejected before apply");
+        Files.delete(file); Files.writeString(file, value);
+        Map<String,Object> deleted = w.plan(OWNER, archives, guards); Files.delete(file);
+        rejects(() -> w.apply(OWNER, planId(deleted)), "controlled input deletion rejects apply");
+        byte[] big = new byte[2 * 1024 * 1024 + 1]; Files.write(file, big);
+        rejects(() -> w.plan(OWNER, archives, Map.of(input, sha(big))), "controlled input per-file size bounded");
+        byte[] sized = new byte[2 * 1024 * 1024]; Map<String,String> total = new LinkedHashMap<>();
+        for (int i = 0; i < 5; i++) { String path = "input-" + i; Files.write(root.resolve(path), sized); total.put(path, sha(sized)); }
+        rejects(() -> w.plan(OWNER, archives, total), "controlled input total bytes bounded");
+        Map<String,Object> growth = w.plan(OWNER, archives, Map.of("input-0", sha(sized))); Files.write(root.resolve("input-0"), big);
+        rejects(() -> w.apply(OWNER, planId(growth)), "controlled input size rechecked before apply");
+        Path batchRoot = root(), batchInput = write(batchRoot, input, value); GeneratedSourceWorkspace batch = new GeneratedSourceWorkspace(batchRoot);
+        apply(batch, "v1"); Path adoptedSource = write(batchRoot, "integration/plus-ui/src/api/adopt.ts", "exact");
+        var originalTime = java.nio.file.attribute.FileTime.fromMillis(946684800000L);
+        Files.setLastModifiedTime(batchRoot.resolve(TARGET), originalTime); Files.setLastModifiedTime(adoptedSource, originalTime);
+        Map<String,Object> batchPlan = batch.plan(OWNER, Map.of("1", zip(SOURCE, "v2", "vue/api/adopt.ts", "exact", "vue/views/new/index.vue", "created")), guards);
+        Files.writeString(batchInput, "later input"); rejects(() -> batch.apply(OWNER, planId(batchPlan)), "stale guard rejects mixed create/update/adopt batch");
+        check(Files.readString(batchRoot.resolve(TARGET)).equals("v1") && Files.getLastModifiedTime(batchRoot.resolve(TARGET)).equals(originalTime), "stale batch does not write earlier update");
+        check(Files.getLastModifiedTime(adoptedSource).equals(originalTime) && !Files.exists(batchRoot.resolve(".fcp-generator/baseline/integration/plus-ui/src/api/adopt.ts")), "stale batch does not adopt existing file");
+        check(!Files.exists(batchRoot.resolve("integration/plus-ui/src/views/new/index.vue")) && ((List<?>)batch.history(OWNER).get("operations")).size() == 1, "stale batch creates no file or new operation");
+        // Only candidate backups, not controlled source text, are stored in the operation.
+        String inputSecretMarker = "UNIQUE_INPUT_BODY_NEVER_JOURNALED_825173";
+        Path privateRoot = root(); write(privateRoot, input, inputSecretMarker); GeneratedSourceWorkspace privateWorkspace = new GeneratedSourceWorkspace(privateRoot);
+        Map<String,Object> privatePlan = privateWorkspace.plan(OWNER, archives, Map.of(input, sha(inputSecretMarker.getBytes(StandardCharsets.UTF_8))));
+        Map<String,Object> privateOp = privateWorkspace.apply(OWNER, planId(privatePlan));
+        try (var paths = Files.walk(privateRoot.resolve(".fcp-generator/operations/" + id(privateOp)))) {
+            for (Path path : paths.filter(Files::isRegularFile).toList()) check(!Files.readString(path).contains(inputSecretMarker), "controlled source content is never journaled " + path.getFileName());
+        }
+    }
+    static void previewRegression() throws Exception {
+        Path root = root(); GeneratedSourceWorkspace w = new GeneratedSourceWorkspace(root);
+        String large = "a".repeat(65536) + "tail"; write(root, TARGET, large);
+        Map<?,?> file = (Map<?,?>)((List<?>)plan(w, large).get("files")).get(0);
+        check(file.get("currentPreviewTruncated").equals(true) && file.get("candidatePreviewTruncated").equals(true), "oversized current/candidate preview explicitly truncated");
+        check(file.get("currentBytes").equals(65540) && file.get("candidateBytes").equals(65540), "previews report full byte lengths");
+        check(((String)file.get("currentPreview")).length() == 65536 && ((String)file.get("candidatePreview")).length() == 65536, "preview bounded to 64 KiB");
+        Map<?,?> exact = (Map<?,?>)((List<?>)plan(new GeneratedSourceWorkspace(root()), "a".repeat(65536)).get("files")).get(0);
+        check(exact.get("currentBytes").equals(0) && exact.get("currentPreviewTruncated").equals(false), "absent source has zero-byte complete preview");
+        check(exact.get("candidatePreviewTruncated").equals(false), "exact preview boundary is complete");
+        Map<?,?> unicode = (Map<?,?>)((List<?>)plan(new GeneratedSourceWorkspace(root()), "教育").get("files")).get(0);
+        check(unicode.get("candidateBytes").equals(6), "reported length counts UTF-8 bytes instead of characters");
+    }
+    public static void main(String[] args)throws Exception {
+        adoptionRegression();
+        adoptionRecoveryAndQuotaRegression();
+        inputGuardRegression();
+        previewRegression();
+        Path root=root();GeneratedSourceWorkspace w=new GeneratedSourceWorkspace(root);Path target=root.resolve(TARGET);
+        Map<String,Object> p=plan(w,"v1");check(status(p).equals("create"),"create preview");
+        Map<String,Object> first=w.apply(OWNER,(String)p.get("planId"));check(Files.readString(target).equals("v1"),"first apply");
+        check(w.apply(OWNER,(String)p.get("planId")).equals(first),"idempotent apply");
+        rejects(()->w.apply("other",(String)first.get("planId")),"owner bound");
+        check(((List<?>)w.history("other").get("operations")).isEmpty(),"owner filtered history");
+        p=plan(w,"v2");check(status(p).equals("update"),"baseline update");Map<String,Object> second=w.apply(OWNER,(String)p.get("planId"));
+        check(Files.readString(target).equals("v2"),"updated");w.rollback(OWNER,id(second));check(Files.readString(target).equals("v1"),"rollback restores before");
+        check(w.rollback(OWNER,id(second)).get("status").equals("rolled_back"),"rollback idempotent");
+        Files.writeString(target,"manual");check(status(plan(w,"v1")).equals("preserve_manual"),"manual preservation");
+        check(apply(w,"v1").get("status").equals("noop"),"manual not rewritten");check(Files.readString(target).equals("manual"),"manual intact");
+        p=plan(w,"v3");check(!(Boolean)p.get("applicable"),"manual candidate conflict");final String conflict=(String)p.get("planId");rejects(()->w.apply(OWNER,conflict),"conflict atomic rejection");
+        rejects(()->w.rollback(OWNER,id(first)),"rollback manual protected");Files.writeString(target,"v1");
+        p=plan(w,"v4");final String stale=(String)p.get("planId");Files.writeString(target,"late");rejects(()->w.apply(OWNER,stale),"preview apply race");Files.writeString(target,"v1");
+        GeneratedSourceWorkspace reopened=new GeneratedSourceWorkspace(root);check(status(plan(reopened,"v5")).equals("update"),"persistent baseline");check(!((List<?>)reopened.history(OWNER).get("operations")).isEmpty(),"persistent history");
+        check(reopened.apply(OWNER,(String)first.get("planId")).equals(first),"persistent idempotency");
+        Map<String,Object> multi=reopened.plan(OWNER,Map.of("1",zip(SOURCE,"v6","vue/api/demo.ts","api","vue/views/demo/index.vue","view","main/resources/mapper/demo.xml","mapper"),"2",zip("demoMenu.sql","sql")));
+        Map<String,Object> multiApplied=reopened.apply(OWNER,(String)multi.get("planId"));check(((List<?>)multiApplied.get("files")).size()==5,"all native mappings");check(Files.readString(root.resolve("generated/sql/demoMenu.sql")).equals("sql"),"sql write only");reopened.rollback(OWNER,id(multiApplied));check(!Files.exists(root.resolve("generated/sql/demoMenu.sql")),"rollback new file removed");
+        Path unowned=root.resolve("integration/plus-ui/src/api/hand.ts");Files.createDirectories(unowned.getParent());Files.writeString(unowned,"hand");
+        p=w.plan(OWNER,List.of("1"),zip(SOURCE,"new","vue/api/hand.ts","generated"));final String batch=(String)p.get("planId");rejects(()->w.apply(OWNER,batch),"whole batch conflict");check(Files.readString(target).equals("v1"),"no partial conflict apply");
+        rejects(()->w.plan(OWNER,List.of("1"),zip("../escape","x")),"traversal");rejects(()->w.plan(OWNER,List.of("1"),zip("main/java/../escape","x")),"nested traversal");
+        rejects(()->w.plan(OWNER,List.of("1"),zip("/main/java/X.java","x")),"absolute path");rejects(()->w.plan(OWNER,List.of("1"),zip("vue\\api\\x","x")),"backslash");rejects(()->w.plan(OWNER,List.of("1"),zip("README.md","x")),"unknown entry");rejects(()->w.plan(OWNER,List.of("1"),new byte[30]),"bad ZIP");
+        byte[] symlink=zip(SOURCE,"dest");ByteBuffer buf=ByteBuffer.wrap(symlink).order(ByteOrder.LITTLE_ENDIAN);for(int i=0;i<symlink.length-46;i++)if(buf.getInt(i)==0x02014b50){buf.putInt(i+38,0120777<<16);break;}
+        rejects(()->w.plan(OWNER,List.of("1"),symlink),"ZIP symlink");
+        byte[] duplicate=zip("main/java/a","1","main/java/b","2");byte[] from="main/java/b".getBytes(StandardCharsets.UTF_8);for(int i=0;i<=duplicate.length-from.length;i++){boolean same=true;for(int j=0;j<from.length;j++)if(duplicate[i+j]!=from[j])same=false;if(same)duplicate[i+from.length-1]='a';}rejects(()->w.plan(OWNER,List.of("1"),duplicate),"duplicate entry");
+        rejects(()->w.plan(OWNER,List.of("1"),zip(SOURCE,"x".repeat(2*1024*1024+1))),"expansion bomb");
+        Path linkRoot=root(),outside=root();Files.createSymbolicLink(linkRoot.resolve("integration"),outside);GeneratedSourceWorkspace linked=new GeneratedSourceWorkspace(linkRoot);rejects(()->plan(linked,"x"),"target symlink");
+        Path stateRoot=root();Files.createSymbolicLink(stateRoot.resolve(".fcp-generator"),outside);GeneratedSourceWorkspace linkedState=new GeneratedSourceWorkspace(stateRoot);rejects(()->plan(linkedState,"x"),"state symlink");
+        // Simulate interruption after one target replacement and before baseline replacement.
+        Path recoveryRoot=root();GeneratedSourceWorkspace recovery=new GeneratedSourceWorkspace(recoveryRoot);Map<String,Object> operation=apply(recovery,"crash");String operationId=id(operation);Path manifest=recoveryRoot.resolve(".fcp-generator/operations/"+operationId+"/manifest.properties");Properties props=new Properties();try(InputStream in=Files.newInputStream(manifest)){props.load(in);}props.setProperty("status","pending");try(OutputStream out=Files.newOutputStream(manifest)){props.store(out,"");}
+        Files.delete(recoveryRoot.resolve(".fcp-generator/baseline/"+TARGET));Files.writeString(recoveryRoot.resolve(".fcp-generator/active"),operationId);
+        GeneratedSourceWorkspace crashed=new GeneratedSourceWorkspace(recoveryRoot);rejects(()->plan(crashed,"anything"),"pending journal blocks planning");rejects(()->crashed.apply(OWNER,(String)operation.get("planId")),"pending journal blocks apply");check((Boolean)crashed.history(OWNER).get("recoveryRequired"),"recovery visible");crashed.rollback(OWNER,operationId);check(!Files.exists(recoveryRoot.resolve(TARGET)),"partial crash rollback");check(!(Boolean)crashed.history(OWNER).get("recoveryRequired"),"recovery clears journal");
+        Path concurrentRoot=root();GeneratedSourceWorkspace a=new GeneratedSourceWorkspace(concurrentRoot),b=new GeneratedSourceWorkspace(concurrentRoot);String pa=(String)plan(a,"a").get("planId"),pb=(String)plan(b,"b").get("planId");ExecutorService pool=Executors.newFixedThreadPool(2);CountDownLatch start=new CountDownLatch(1);List<Future<Boolean>> futures=new ArrayList<>();
+        futures.add(pool.submit(()->{start.await();try{a.apply(OWNER,pa);return true;}catch(IOException expected){return false;}}));futures.add(pool.submit(()->{start.await();try{b.apply(OWNER,pb);return true;}catch(IOException expected){return false;}}));start.countDown();int success=0;for(Future<Boolean> f:futures)if(f.get())success++;pool.shutdown();check(success==1,"concurrent stale plan rejected");
+        rejects(()->w.plan(OWNER,List.of("1"),zip("main/java/a","x","main/java/a/B.java","y")),"file directory collision");
+        Path blockedRoot=root();Files.writeString(blockedRoot.resolve("integration"),"not a directory");GeneratedSourceWorkspace blocked=new GeneratedSourceWorkspace(blockedRoot);rejects(()->plan(blocked,"x"),"non-directory ancestor");
+        GeneratedSourceWorkspace bounded=new GeneratedSourceWorkspace(root());String evicted=(String)plan(bounded,"old").get("planId");for(int i=0;i<32;i++)plan(bounded,"new"+i);rejects(()->bounded.apply(OWNER,evicted),"plan capacity eviction");
+        rejects(()->w.rollback("other",id(first)),"rollback owner bound");
+        check(status(plan(w,"v1")).equals("unchanged"),"unchanged preview");
+        // Per-table provenance remains stable across split and combined batches.
+        Path ownedRoot=root();GeneratedSourceWorkspace owned=new GeneratedSourceWorkspace(ownedRoot);
+        Map<String,Object> ownedFirst=apply(owned,"owned-v1");
+        Map<String,Object> wrongTable=owned.plan(OWNER,Map.of("2",zip(SOURCE,"owned-v2")));
+        check(!(Boolean)wrongTable.get("applicable"),"cross-table overwrite blocked");
+        check(!((String)((Map<?,?>)((List<?>)wrongTable.get("files")).get(0)).get("reason")).isEmpty(),"source conflict explained");
+        rejects(()->owned.apply(OWNER,(String)wrongTable.get("planId")),"cross-table apply blocked");
+        check(!(Boolean)owned.plan("different-owner",Map.of("1",zip(SOURCE,"owned-v1"))).get("applicable"),"cross-owner identical target blocked");
+        check(!(Boolean)owned.plan(OWNER,List.of("1","2"),zip(SOURCE,"owned-v2")).get("applicable"),"compatibility group change blocked");
+        rejects(()->owned.plan(OWNER,Map.of("1",zip(SOURCE,"same"),"2",zip(SOURCE,"same"))),"same batch source collision");
+        Map<String,Object> combined=owned.plan(OWNER,Map.of("1",zip(SOURCE,"owned-v2"),"2",zip("vue/api/other.ts","other-v1")));
+        check((Boolean)combined.get("applicable"),"single to combined source stable");Map<String,Object> combinedOp=owned.apply(OWNER,(String)combined.get("planId"));
+        check((Boolean)owned.plan(OWNER,Map.of("2",zip("vue/api/other.ts","other-v2"))).get("applicable"),"combined to single source stable");
+        owned.rollback(OWNER,id(combinedOp));check((Boolean)plan(owned,"owned-v2").get("applicable"),"rollback restores ownership");
+        Path ownership=ownedRoot.resolve(".fcp-generator/ownership/"+TARGET);byte[] origin=Files.readAllBytes(ownership);Files.delete(ownership);
+        check(!(Boolean)plan(owned,"owned-v2").get("applicable"),"unattributed legacy baseline blocked");Files.write(ownership,origin);
+        String ownerStale=(String)plan(owned,"owned-v2").get("planId");Files.writeString(ownership,"changed");rejects(()->owned.apply(OWNER,ownerStale),"ownership snapshot stale");Files.write(ownership,origin);
+        if(Files.getFileAttributeView(ownedRoot,java.nio.file.attribute.PosixFileAttributeView.class)!=null) {
+            check(Files.getPosixFilePermissions(ownedRoot.resolve(".fcp-generator")).equals(java.nio.file.attribute.PosixFilePermissions.fromString("rwx------")),"private state directory permissions");
+            check(Files.getPosixFilePermissions(ownedRoot.resolve(".fcp-generator/operations/"+id(ownedFirst)+"/0.after")).equals(java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")),"private backup file permissions");
+        }
+        Path cappedRoot=root();GeneratedSourceWorkspace capped=new GeneratedSourceWorkspace(cappedRoot);Map<String,Object> cappedFirst=apply(capped,"cap");
+        for(int i=0;i<255;i++)Files.createDirectory(cappedRoot.resolve(".fcp-generator/operations/unused-"+i));
+        String capPlan=(String)plan(capped,"cap2").get("planId");rejects(()->capped.apply(OWNER,capPlan),"operation count limit");
+        check(((List<?>)capped.history(OWNER).get("operations")).size()==1,"history available at operation cap");capped.rollback(OWNER,id(cappedFirst));check(!Files.exists(cappedRoot.resolve(TARGET)),"rollback available at operation cap");
+        Path storageRoot=root();GeneratedSourceWorkspace storage=new GeneratedSourceWorkspace(storageRoot);Map<String,Object> storageFirst=apply(storage,"storage");
+        try(var file=java.nio.channels.FileChannel.open(storageRoot.resolve(".fcp-generator/quota-fixture"),StandardOpenOption.CREATE,StandardOpenOption.WRITE)){file.position(256L*1024*1024-1);file.write(ByteBuffer.wrap(new byte[]{0}));}
+        String storagePlan=(String)plan(storage,"storage2").get("planId");rejects(()->storage.apply(OWNER,storagePlan),"state bytes limit");
+        check(((List<?>)storage.history(OWNER).get("operations")).size()==1,"history available at storage cap");storage.rollback(OWNER,id(storageFirst));check(!Files.exists(storageRoot.resolve(TARGET)),"rollback available at storage cap");
+        // A manifest persisted before the active marker is also a recovery blocker.
+        Path orphanRoot=root();GeneratedSourceWorkspace orphan=new GeneratedSourceWorkspace(orphanRoot);Map<String,Object> orphanOp=apply(orphan,"orphan");
+        Path orphanManifest=orphanRoot.resolve(".fcp-generator/operations/"+id(orphanOp)+"/manifest.properties");Properties orphanProps=new Properties();try(InputStream in=Files.newInputStream(orphanManifest)){orphanProps.load(in);}orphanProps.setProperty("status","pending");try(OutputStream out=Files.newOutputStream(orphanManifest)){orphanProps.store(out,"");}
+        rejects(()->plan(orphan,"next"),"orphan pending blocks planning");check((Boolean)orphan.history(OWNER).get("recoveryRequired"),"orphan pending visible");orphan.rollback(OWNER,id(orphanOp));check(!Files.exists(orphanRoot.resolve(TARGET)),"orphan pending recoverable");
+        String javaOld="/**\n * @date 2026-11-08\n */\nclass Thing { String businessDate = \"2026-11-08\"; }\n";
+        String javaNext=javaOld.replace("@date 2026-11-08","@date 2026-11-09");
+        check(stable(TARGET,javaNext,javaOld).equals(javaOld),"template generation date stable across days");
+        check(stable(TARGET,javaNext,null).equals(javaNext),"first generation date retained");
+        check(stable(TARGET,javaNext+" * @date 2026-11-10\n",javaOld).equals(javaNext+" * @date 2026-11-10\n"),"ambiguous date untouched");
+        check(stable(TARGET,javaNext.replace("2026-11-09","2026-99-99"),javaOld).contains("2026-99-99"),"invalid date untouched");
+        Path dateRoot=root();GeneratedSourceWorkspace dates=new GeneratedSourceWorkspace(dateRoot);apply(dates,javaOld);
+        check(status(plan(dates,javaNext)).equals("unchanged"),"cross-day regeneration unchanged");
+        Files.writeString(dateRoot.resolve(TARGET),javaOld+"// user customization\n");
+        check(status(plan(dates,javaNext)).equals("preserve_manual"),"cross-day manual Java preserved");
+        apply(dates,javaNext);check(Files.readString(dateRoot.resolve(TARGET)).endsWith("// user customization\n"),"cross-day apply keeps manual bytes");
+        check(status(plan(dates,javaNext.replace("businessDate", "businessDateChanged"))).equals("conflict"),"cross-day business code conflict retained");
+        check(status(plan(dates,javaNext.replace("\"2026-11-08\"", "\"2026-11-10\""))).equals("conflict"),"business date change not suppressed");
+        String sqlPath="generated/sql/demoMenu.sql",sqlBase=menu(100,"1","菜单200"),sqlNext=menu(200,"1","菜单200");
+        check(stable(sqlPath,sqlNext,sqlBase).equals(sqlBase),"six generated IDs and internal parents stable");
+        check(stable(sqlPath,sqlNext,null).equals(sqlNext),"first generated IDs retained");
+        check(stable(sqlPath,sqlNext,sqlBase).contains("'菜单200'") && stable(sqlPath,sqlNext,sqlBase).contains("'module200:demo:list'"),"numeric text and permission names not replaced");
+        check(stable(sqlPath,menu(200,"9","菜单200"),sqlBase).equals(menu(100,"9","菜单200")),"external parent changes retained");
+        String malformed=menu(200,"1","有'引号");check(stable(sqlPath,malformed,sqlBase).equals(malformed),"unrecognized quoted SQL name untouched");
+        String fiveRows=sqlNext.substring(0,sqlNext.lastIndexOf("insert into"));check(stable(sqlPath,fiveRows,sqlBase).equals(fiveRows),"non-six-row SQL untouched");
+        String differentHeader=sqlNext.replace("create_dept", "department");check(stable(sqlPath,differentHeader,sqlBase).equals(differentHeader),"changed SQL template untouched");
+        String duplicateIds=sqlNext.replace("values(201,", "values(200,");check(stable(sqlPath,duplicateIds,sqlBase).equals(duplicateIds),"duplicate SQL IDs untouched");
+        check(stable("generated/sql/other.sql",sqlNext,sqlBase).equals(sqlNext),"non-menu SQL untouched");
+        Path sqlRoot=root();GeneratedSourceWorkspace sqlWorkspace=new GeneratedSourceWorkspace(sqlRoot);
+        Map<String,Object> sqlInitial=sqlWorkspace.plan(OWNER,Map.of("1",zip("demoMenu.sql",sqlBase)));sqlWorkspace.apply(OWNER,(String)sqlInitial.get("planId"));
+        check(status(sqlWorkspace.plan(OWNER,Map.of("1",zip("demoMenu.sql",sqlNext)))).equals("unchanged"),"new random IDs produce unchanged plan");
+        Files.writeString(sqlRoot.resolve(sqlPath),sqlBase+"-- manual permission adjustment\n");
+        Map<String,Object> sqlPreserved=sqlWorkspace.plan(OWNER,Map.of("1",zip("demoMenu.sql",sqlNext)));check(status(sqlPreserved).equals("preserve_manual"),"random IDs do not conflict with manual SQL");sqlWorkspace.apply(OWNER,(String)sqlPreserved.get("planId"));
+        check(Files.readString(sqlRoot.resolve(sqlPath)).endsWith("-- manual permission adjustment\n"),"SQL manual adjustment retained");
+        check(status(sqlWorkspace.plan(OWNER,Map.of("1",zip("demoMenu.sql",menu(200,"1","业务名称变更"))))).equals("conflict"),"SQL business name change still conflicts");
+        check(status(sqlWorkspace.plan(OWNER,Map.of("1",zip("demoMenu.sql",menu(200,"9","菜单200"))))).equals("conflict"),"SQL external parent change still conflicts");
+        // ISO Instant strings have variable fractional precision; sort actual instants.
+        Path orderingRoot=root();GeneratedSourceWorkspace ordering=new GeneratedSourceWorkspace(orderingRoot);
+        Map<String,Object> oldOrder=apply(ordering,"v1"),newOrder=apply(ordering,"v2");
+        for(var value:List.of(oldOrder,newOrder)) {
+            Path m=orderingRoot.resolve(".fcp-generator/operations/"+id(value)+"/manifest.properties");Properties orderProps=new Properties();
+            try(InputStream in=Files.newInputStream(m)){orderProps.load(in);}
+            orderProps.setProperty("createdAt",id(value).equals(id(oldOrder))?"2026-01-01T00:00:00Z":"2026-01-01T00:00:00.001Z");
+            try(OutputStream out=Files.newOutputStream(m)){orderProps.store(out,"");}
+        }
+        check(((Map<?,?>)((List<?>)ordering.history(OWNER).get("operations")).get(0)).get("operationId").equals(id(newOrder)),"history uses chronological instant ordering");
+        GeneratedSchemaRequirements.requirePrimary("master","master");check(true,"primary datasource accepted");
+        GeneratedSchemaRequirements.requirePrimary("business","business");check(true,"configured primary accepted");
+        rejectsArgument(()->GeneratedSchemaRequirements.requirePrimary("slave","master"),"generated mapper cannot route non-primary");
+        rejectsArgument(()->GeneratedSchemaRequirements.requirePrimary(null,"master"),"missing selected datasource rejected");
+        rejectsArgument(()->GeneratedSchemaRequirements.requirePrimary("",""),"empty primary rejected");
+        List<String> audit=List.of("create_dept","create_by","create_time","update_by","update_time");
+        GeneratedSchemaRequirements.requireAuditColumns(audit);check(true,"all inherited mapped audit columns exist");
+        GeneratedSchemaRequirements.requireAuditColumns(audit.stream().map(v->v.toUpperCase(Locale.ROOT)).toList());check(true,"database column names are case-insensitive");
+        for(String omitted:audit) { List<String> partial=new ArrayList<>(audit);partial.remove(omitted);rejectsArgument(()->GeneratedSchemaRequirements.requireAuditColumns(partial),"missing inherited column "+omitted); }
+        rejectsArgument(()->GeneratedSchemaRequirements.requireAuditColumns(null),"unavailable actual schema rejected");
+        try {
+            GeneratedSchemaRequirements.requireAuditColumns(List.of());
+            throw new AssertionError("missing audit columns must fail");
+        } catch (IllegalArgumentException expected) {
+            check(expected.getMessage().startsWith("当前 CRUD 模板要求审计字段，实际业务表缺少：")
+                    && !expected.getMessage().contains("若依")
+                    && !expected.getMessage().contains("RuoYi"),"schema error uses neutral product text");
+        }
+        System.out.println("RESULT "+assertions+" generator-workspace checks PASS");
+    }
+}

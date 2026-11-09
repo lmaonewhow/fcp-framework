@@ -21,6 +21,15 @@ from native_login import authenticated_storage_state, native_token, require_encr
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# Fixed synthetic identities, never aliases for business authorization. The branding
+# teacher is seeded separately after education/roster checks have expanded 950001.
+NATIVE_LOGIN_ACCOUNTS = {
+    'admin': ('1', 'admin'),
+    'teacher': ('950001', 'fcp_teacher_ci'),
+    'viewer': ('950002', 'fcp_viewer_ci'),
+    'branding_teacher': ('950003', 'fcp_brand_teacher_ci'),
+}
+
 
 def fixture_password() -> str:
     # 144 random bits encoded as 24 URL-safe characters; native DTO allows 5..30.
@@ -64,6 +73,7 @@ class Fixture:
             raise RuntimeError('This fixture only accepts a freshly created disposable CI database')
         import bcrypt
         self.database, self.sql, self.private_dir = database, sql, private_dir
+        self._owned_database = database
         self.redis_password, self.redis_prefix = redis_password, redis_prefix
         self.password = fixture_password()
         self.diagnostic_secrets = [self.password]
@@ -97,11 +107,49 @@ class Fixture:
         if not result: raise AssertionError(name)
         self.report['checks'].append(dict(name=name, status='PASS'))
 
-    def login(self, browser, base, role):
+    def seed_branding_teacher(self):
+        """Create one reserved pure-teacher identity in this run's owned CI database.
+
+        Never reuse/reset the education/roster account, alter roles or grant menus.
+        Refuse collisions and teacher-role drift before making any new write.
+        """
+        if (os.environ.get('GITHUB_ACTIONS') != 'true'
+                or not re.fullmatch(r'fcp_ci_[a-f0-9]{12}', self.database)
+                or self.database != getattr(self, '_owned_database', None)):
+            raise RuntimeError('Branding teacher requires this fixture owned disposable CI database')
+        subject, username = NATIVE_LOGIN_ACCOUNTS['branding_teacher']
+        prefix = f"USE `{self.database}`; "
+        collisions = self.sql(prefix +
+            f"SELECT (SELECT COUNT(*) FROM sys_user WHERE user_id={subject} OR user_name='{username}') + "
+            f"(SELECT COUNT(*) FROM sys_user_role WHERE user_id={subject}) + "
+            f"(SELECT COUNT(*) FROM fcp_eval_assignment WHERE subject_id='{subject}');").strip()
+        if collisions != '0':
+            raise RuntimeError('Branding teacher reserved identity or association already exists')
+        role = self.sql(prefix + "SELECT COUNT(*) FROM sys_role WHERE role_id=942102 "
+            "AND tenant_id='000000' AND role_key='fcp_teacher' AND status='0' AND del_flag='0';").strip()
+        if role != '1':
+            raise RuntimeError('Branding requires the unchanged active existing teacher role')
+        admin = self.sql(prefix + "SELECT COUNT(*) FROM sys_role_menu rm JOIN sys_menu m ON m.menu_id=rm.menu_id "
+            "WHERE rm.role_id=942102 AND m.perms REGEXP '(^|,)[[:space:]]*(fcp:ui:admin|[*]:[*]:[*])[[:space:]]*(,|$)';").strip()
+        if admin != '0':
+            raise RuntimeError('Branding teacher role unexpectedly includes an admin permission')
+        import bcrypt
+        hashed = bcrypt.hashpw(self.password.encode(), bcrypt.gensalt(rounds=10, prefix=b'2a')).decode()
+        self.sql(prefix +
+            "INSERT INTO sys_user(user_id,tenant_id,dept_id,user_name,nick_name,password,create_time) "
+            f"VALUES({subject},'000000',103,'{username}','Synthetic branding teacher','{hashed}',NOW()); "
+            f"INSERT INTO sys_user_role VALUES({subject},942102); "
+            f"INSERT INTO fcp_eval_assignment VALUES('tenant-000000','{subject}','class-a');")
+        # This is the expected fixture contract; verify_login_notice checks the real
+        # server session and teacher route independently before capturing actual SSE.
+        return dict(subject=subject, scope='tenant-000000', roleId=942102,
+                    defaultShell='teacher', allowedShells=['teacher'])
+
+    def login(self, browser, base, role, *, observe_login=None):
         from playwright.sync_api import expect
         context = browser.new_context(viewport=dict(width=1440, height=960))
         page = context.new_page()
-        username = {'admin': 'admin', 'teacher': 'fcp_teacher_ci', 'viewer': 'fcp_viewer_ci'}[role]
+        subject, username = NATIVE_LOGIN_ACCOUNTS[role]
         try:
             captcha = open_native_login(page, base, 'ingestion', wait_events=self.report.setdefault('captchaRateLimitWaits', []))
             self.check(role+' native captcha remains enabled', captcha.get('captchaEnabled', True) and bool(captcha.get('uuid')))
@@ -116,10 +164,11 @@ class Fixture:
             with page.expect_response(lambda r: r.url.endswith('/auth/login'), timeout=30000) as response:
                 page.locator('.login-form button.el-button--primary').click()
             require_encrypted_login(response.value)
-            state, token = authenticated_storage_state(page, context, base, 'ingestion')
+            state, token = authenticated_storage_state(page, context, base, 'ingestion',
+                                                       before_workspace_navigation=observe_login)
             self.diagnostic_secrets.append(token)
             client = NativeClient(base, token, 'e5cd7e4891bf95d1d19206ce24a7b32e')
-            verify_native_identity(client, {'admin':'1','teacher':'950001','viewer':'950002'}[role], '000000')
+            verify_native_identity(client, subject, '000000')
             self.check(role+' uses native encrypted login and verified server identity', True)
             # The genuine login state remains in memory only, never in an artifact or log.
             return state

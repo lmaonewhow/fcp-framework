@@ -12,6 +12,9 @@ const { default: vue } = await import(pathToFileURL(appRequire.resolve('@vitejs/
 export default defineConfig({
   root: app,
   plugins: [vue()],
+  // Derived education/roster configs share these owned test/overlay files.
+  // Keep Vite's strict file boundary, with explicit paths instead of fs.strict=false.
+  server: { fs: { allow: [app, path.join(root, 'tests'), path.join(root, 'integration'), tools] } },
   resolve: {
     alias: [
       { find: '@', replacement: path.join(app, 'src') },

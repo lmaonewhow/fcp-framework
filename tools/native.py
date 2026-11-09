@@ -20,6 +20,9 @@ import uuid
 import urllib.parse
 import zipfile
 from native_trace_frontend import apply_frontend_trace
+from native_generator_frontend import apply_generator_frontend
+from native_generator_templates import apply_generator_templates
+from native_branding import apply_branding, apply_generator_branding
 
 ROOT = Path(__file__).resolve().parents[1]
 PINS = json.loads((ROOT / 'upstreams.lock.json').read_text())['upstreams']
@@ -144,6 +147,16 @@ def copy_files(source: Path, destination: Path) -> None:
             if target.exists(): raise BuildError(f'Refusing to overwrite an existing upstream file: {target}')
             target.parent.mkdir(parents=True,exist_ok=True)
             shutil.copy2(path,target)
+
+def copy_core_resources(root: Path, destination: Path) -> None:
+    """Package reviewed generator templates as classpath data, never scripts."""
+    source = root / 'core/src/main/resources'
+    generator = root / 'core/src/main/java/dev/fcp/generator/EducationSqlRenderer.java'
+    if source.is_symlink():
+        raise BuildError('Core resource root must not be a symlink')
+    if generator.is_file() and not (source / 'education-generator').is_dir():
+        raise BuildError('Education generator classpath resources are required')
+    copy_files(source, destination)
 
 def doctor(check_network: bool=True) -> dict:
     checks=[]
@@ -288,16 +301,20 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
     # Each edit has a verified pinned-blob precondition, before *any* project edits.
     for name,project in projects.items():
         for path,blob in BLOBS[name].items(): check_blob(project/path,blob)
+    apply_generator_templates(backend)
     apply_native_trace_patch(backend)
     redact_auth_failure_log(backend)
     invalidate_deleted_auth_cache(backend)
     apply_compatibility_patch(admin,ROOT/'integration/plus-ui/compat-5.6',PINS['admin']['commit'])
+    apply_branding(projects)
     java=backend/'ruoyi-admin/src/main/java'
     for tree in ['core','business','host']:
         copy_files(ROOT/tree/'src/main/java',java)
     copy_files(ROOT/'integration/ruoyi/src/main/java',java)
     copy_files(ROOT/'integration/ruoyi/src/test/java',backend/'ruoyi-admin/src/test/java')
     resources=backend/'ruoyi-admin/src/main/resources'
+    copy_core_resources(ROOT, resources)
+    copy_files(ROOT/'integration/ruoyi/src/main/resources', resources)
     if (resources/'application-fcp.yml').exists(): raise BuildError('fcp profile already exists')
     shutil.copy2(ROOT/'config/application-fcp.yml',resources/'application-fcp.yml')
     edit(resources/'application.yml','    active: @profiles.active@', '    active: @profiles.active@,fcp')
@@ -312,6 +329,7 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
          'return "redirect:/admin/";')
     for name,project,overlay in [('admin',admin,'plus-ui'),('teacher',teacher,'soybean')]:
         copy_files(ROOT/f'integration/{overlay}/src', project/'src')
+        if name == 'admin': apply_generator_frontend(project)
         for file in ['trace.ts','release-session.ts','session.ts','session-sync.ts','env.d.ts','useIngestion.ts','IngestionWorkspace.vue','usePlugins.ts','PluginWorkspace.vue','usePluginManager.ts','PluginManager.vue','useVersionManager.ts','VersionManager.vue','pluginReleaseManager.ts','PluginReleaseManager.vue']:
             target=project/'src/fcp'/file
             if target.exists(): raise BuildError('FCP session module already present')
@@ -354,6 +372,7 @@ def adapt_projects(projects: dict[str,Path], env: dict[str,str]) -> dict:
     for language, labels in [('en-us', ('School', 'Student evaluation', 'Data ingestion', 'Configuration plugins')),
                              ('zh-cn', ('学校业务', '学生评价', '数据接入', '配置插件'))]:
         add_school_locale(teacher/'src/locales/langs'/f'{language}.ts', *labels)
+    apply_generator_branding(admin)
     common=f"VITE_FCP_BUILD_ID={build_id}\nVITE_APP_CLIENT_ID='{env['FCP_CLIENT_ID']}'\nVITE_APP_RSA_PUBLIC_KEY='{env['FCP_REQUEST_PUBLIC_KEY']}'\nVITE_APP_RSA_PRIVATE_KEY='{env['FCP_RESPONSE_PRIVATE_KEY']}'\n"
     (admin/'.env.production.local').write_text(common+"VITE_APP_CONTEXT_PATH=/admin/\nVITE_APP_BASE_API=\nVITE_APP_ENCRYPT=true\nVITE_APP_SSE=true\n",encoding='utf-8')
     (teacher/'.env.prod.local').write_text(common+"VITE_BASE_URL=/teacher/\nVITE_APP_BASE_API=\nVITE_SERVICE_BASE_URL=\nVITE_APP_ENCRYPT=Y\nVITE_ROUTE_HOME=fcp_school\nVITE_AUTH_ROUTE_MODE=dynamic\nVITE_HTTP_PROXY=N\nVITE_AUTOMATICALLY_DETECT_UPDATE=N\n",encoding='utf-8')
@@ -431,6 +450,9 @@ def build(projects: dict[str,Path], work: Path, resolve_admin_lock: bool, admin_
         run(['npm','run','build:prod'] if name=='admin' else ['pnpm','run','build'],cwd=project,clean_vite=True)
         run(['npm','exec','--','vue-tsc','--noEmit'] if name=='admin' else ['pnpm','run','typecheck'],cwd=project,clean_vite=True)
         run(['node',ROOT/'tests/frontend-runtime/verify-field-label.mjs',project,name],cwd=ROOT,clean_vite=True)
+        if name == 'admin':
+            run(['node',ROOT/'tests/generator/ui-state.test.mjs',project/'node_modules/@vue/compiler-sfc',project/'node_modules/typescript'],cwd=ROOT)
+            run(['node',ROOT/'tests/generator/template-contract.test.mjs',project/'node_modules/typescript'],cwd=ROOT)
         dist=project/'dist'; validate_dist(dist,name)
         from ui_release_bundle import build_bundle
         bundle=build_bundle(dist,output/'ui-bundles',name)
@@ -449,7 +471,7 @@ def build(projects: dict[str,Path], work: Path, resolve_admin_lock: bool, admin_
         (resources/'static'/name/'release-loader.mjs').write_text(launcher,encoding='utf-8')
         # Fixed same-origin module: identical response-only diagnostics as the dev host.
         shutil.copy2(ROOT/'development-host/src/main/resources/dev-ui/trace.js',resources/'static'/name/'release-trace.mjs')
-        (resources/'static'/name/'index.html').write_text(f'<!doctype html><html><head><meta charset="UTF-8"><title>FCP</title></head><body><p>正在校验系统版本…</p><script type="module" src="/{name}/release-loader.mjs"></script></body></html>',encoding='utf-8')
+        (resources/'static'/name/'index.html').write_text(f'<!doctype html><html><head><meta charset="UTF-8"><title>智慧云校</title></head><body><p>正在校验系统版本…</p><script type="module" src="/{name}/release-loader.mjs"></script></body></html>',encoding='utf-8')
         lock=project/('package-lock.json' if name=='admin' else 'pnpm-lock.yaml')
         evidence['frontend'][name]={'lockPolicy':policy,'lockSha256':sha(lock.read_bytes()),'typecheck':'PASS','productionBuild':'PASS','uiBundle':bundle['manifest']}
     test_runtime_config=validate_test_runtime(test_runtime_config,existing_redis_no_password=existing_redis_no_password)

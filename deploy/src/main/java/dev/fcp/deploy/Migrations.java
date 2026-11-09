@@ -62,8 +62,9 @@ public final class Migrations {
                 if(!hash.equals(hashes.get(name))||!versions.add(version))throw new IllegalArgumentException("Migration drift or duplicate version");
                 // Baseline tables and native grant scripts are checksum-checked, never executed by this DDL-only runner.
                 boolean grants=name.equals("V004__ingestion_permissions.sql")||name.equals("V006__runtime_plugin_permissions.sql")||name.equals("V007__system_release_permissions.sql");
-                List<String> commands=version>=3&&!grants?statements(new String(bytes,java.nio.charset.StandardCharsets.UTF_8)):List.of();
-                if(version>=3&&!grants&&commands.isEmpty())throw new IllegalArgumentException("Empty migration");
+                boolean nativeCleanup=name.equals("V009__remove_upstream_seed_menus.sql");
+                List<String> commands=version>=3&&!grants&&!nativeCleanup?statements(new String(bytes,java.nio.charset.StandardCharsets.UTF_8)):List.of();
+                if(version>=3&&!grants&&!nativeCleanup&&commands.isEmpty())throw new IllegalArgumentException("Empty migration");
                 result.add(new Script(version,name,hash,commands));
             }
         }
@@ -102,6 +103,10 @@ public final class Migrations {
                 throw new SQLException("Migration history is dirty or changed; operator review required");
             if(script.version()<3||script.name().equals("V004__ingestion_permissions.sql")||script.name().equals("V006__runtime_plugin_permissions.sql")||script.name().equals("V007__system_release_permissions.sql")){
                 if(row==null)throw new SQLException("Native baseline/grants must be installed by the reviewed deployment installer");continue;
+            }
+            if(script.name().equals("V009__remove_upstream_seed_menus.sql") && row==null){
+                actions.add(Json.obj("version",script.version(),"name",script.name(),"sha256",script.sha256(),
+                    "action","REVIEW_NATIVE_DATA_ONLY","statements",0));continue;
             }
             actions.add(Json.obj("version",script.version(),"name",script.name(),"sha256",script.sha256(),
                 "action",current?"ALREADY_APPLIED":row!=null?"ADOPT_VERIFIED_INSTALL":"APPLY","statements",script.statements().size()));
@@ -158,6 +163,10 @@ public final class Migrations {
                 System.out.println(Json.write(Json.obj("mode",expected==null?"PLAN_ONLY":"APPLY","planSha256",digest,"plan",Json.parse(encoded))));
                 if(expected==null)return;
                 if(!expected.equals(digest))throw new SQLException("Approved plan changed; review the new plan");
+                // Native-data cleanup is plan-only here, even with an approved digest.
+                // Never broaden the DDL parser to permit native deletes or execute an empty success.
+                if(plan.stream().map(Schema::map).anyMatch(a -> "REVIEW_NATIVE_DATA_ONLY".equals(a.get("action"))))
+                    throw new SQLException("Native menu cleanup requires a separate reviewed deployment; no changes applied");
                 execute(connection,"CREATE TABLE IF NOT EXISTS fcp_migration_history(version_num INT PRIMARY KEY,script_name VARCHAR(180) NOT NULL,sha256 CHAR(64) NOT NULL,state VARCHAR(16) NOT NULL,updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)) ENGINE=InnoDB");
                 for(Object value:plan){
                     Map<String,Object> action=Schema.map(value);String mode=Schema.str(action.get("action"));if(mode.equals("ALREADY_APPLIED"))continue;

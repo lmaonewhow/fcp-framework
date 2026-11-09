@@ -7,7 +7,7 @@ const kindNames={business:'业务模块',connector:'API 连接器',adapter:'CSV 
 </script>
 <template>
   <main class="ingestion" data-testid="fcp-ingestion" :data-shell="shell" :data-build-id="buildId" :aria-busy="busy">
-    <header class="heading"><div><small>FCP · 数据接入</small><h1>学生名册与考勤</h1><p>统一校验、按班级隔离、整批提交。业务模块与输入插件分别启停。</p></div><button :disabled="busy" @click="reload">刷新状态</button></header>
+    <header class="heading"><div><small>智慧云校 · 数据接入</small><h1>学生名册与考勤</h1><p>统一校验、按班级隔离、整批提交。业务模块与输入插件分别启停。</p></div><button :disabled="busy" @click="reload">刷新状态</button></header>
     <p v-if="error" class="message error" role="alert" data-testid="ingestion-error">{{error}}</p>
     <p v-if="notice" class="message success" role="status" data-testid="ingestion-receipt">{{notice}}</p>
     <section v-if="pending" class="message warning"><p>本页保留了一次尚未确认的导入请求。重试会使用原始内容、版本和幂等键，避免重复提交。</p><button :disabled="busy" @click="retry">重试同一请求</button><button :disabled="busy" @click="abandon">放弃重试信息</button></section>

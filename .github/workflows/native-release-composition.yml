@@ -1,7 +1,7 @@
 name: Native release composition acceptance
 on:
   pull_request:
-    branches: [dev, 'feat/runtime-*']
+    branches: [dev, 'feat/runtime-*', 'feat/education-*']
   push:
     branches: [dev]
     paths:
@@ -99,6 +99,7 @@ jobs:
             reports/components.json
             reports/ingestion.json
             reports/native-ingestion/
+            reports/native-branding/
             reports/native-release-composition/
             reports/native-login-probe/
             reports/runtime-portability/

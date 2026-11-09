@@ -62,7 +62,7 @@ def main():
  if not a.defaults_file.is_file() or a.defaults_file.is_symlink(): raise ValueError('Invalid credential file')
  if os.name!='nt' and a.defaults_file.stat().st_mode & 0o077: raise ValueError('Credential file must have permissions 0600')
  paths=[a.backend/'script/sql/ry_vue_5.X.sql',a.backend/'script/sql/ry_workflow.sql',
-        ROOT/'sql/native/V001__fcp_tables.sql',ROOT/'sql/native/V002__fcp_permissions.sql',ROOT/'sql/native/V003__persistent_plugin_state.sql',ROOT/'sql/native/V004__ingestion_permissions.sql',ROOT/'sql/native/V005__runtime_plugins.sql',ROOT/'sql/native/V006__runtime_plugin_permissions.sql',ROOT/'sql/native/V007__system_release_permissions.sql',ROOT/'sql/native/V008__plugin_version_grants.sql']
+        ROOT/'sql/native/V001__fcp_tables.sql',ROOT/'sql/native/V002__fcp_permissions.sql',ROOT/'sql/native/V003__persistent_plugin_state.sql',ROOT/'sql/native/V004__ingestion_permissions.sql',ROOT/'sql/native/V005__runtime_plugins.sql',ROOT/'sql/native/V006__runtime_plugin_permissions.sql',ROOT/'sql/native/V007__system_release_permissions.sql',ROOT/'sql/native/V008__plugin_version_grants.sql',ROOT/'sql/native/V009__remove_upstream_seed_menus.sql']
  for rel,blob in BLOBS['backend'].items():
   if rel.startswith('script/sql/'): check_blob(a.backend/rel,blob)
  stages=checked_stages(paths,json.loads((ROOT/'sql/native/migrations.lock.json').read_text()))

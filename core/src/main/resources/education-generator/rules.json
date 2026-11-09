@@ -1,0 +1,1340 @@
+{
+  "profileId": "education-p042-v1",
+  "version": "1",
+  "schemaVersion": "P042",
+  "scope": "LOCKED_P042_ONLY",
+  "personDisplayPolicy": "PENDING",
+  "deniedOperations": [
+    "delete",
+    "statusChange",
+    "identityBinding",
+    "personDisplay"
+  ],
+  "modules": [
+    {
+      "id": "foundation",
+      "label": "基础资料",
+      "resources": [
+        {
+          "id": "schools",
+          "table": "ed_education_org_unit",
+          "label": "学校",
+          "list": [
+            {
+              "name": "id",
+              "column": "id",
+              "label": "编号"
+            },
+            {
+              "name": "name",
+              "column": "name",
+              "label": "名称"
+            },
+            {
+              "name": "rowVersion",
+              "column": "row_version",
+              "label": "版本"
+            }
+          ],
+          "detail": [
+            {
+              "name": "id",
+              "column": "id",
+              "label": "编号"
+            },
+            {
+              "name": "name",
+              "column": "name",
+              "label": "名称"
+            },
+            {
+              "name": "rowVersion",
+              "column": "row_version",
+              "label": "版本"
+            }
+          ],
+          "create": [
+            {
+              "name": "intentId",
+              "column": "intent_id",
+              "label": "操作意图编号",
+              "table": "ed_core_command_request",
+              "required": true
+            },
+            {
+              "name": "parentId",
+              "column": "parent_id",
+              "label": "上级组织",
+              "required": true
+            },
+            {
+              "name": "orgCode",
+              "column": "org_code",
+              "label": "组织编码",
+              "required": true
+            },
+            {
+              "name": "orgKind",
+              "column": "org_kind",
+              "label": "组织类型",
+              "required": true,
+              "options": [
+                "SCHOOL"
+              ]
+            },
+            {
+              "name": "name",
+              "column": "name",
+              "label": "名称",
+              "required": true
+            },
+            {
+              "name": "validFrom",
+              "column": "valid_from",
+              "label": "生效时刻（UTC）",
+              "required": true
+            }
+          ],
+          "rename": [],
+          "allowedOperations": [
+            "schoolList",
+            "schoolCreate"
+          ]
+        },
+        {
+          "id": "organizations",
+          "table": "ed_education_org_unit",
+          "label": "组织",
+          "list": [
+            {
+              "name": "id",
+              "column": "id",
+              "label": "编号"
+            },
+            {
+              "name": "parentId",
+              "column": "parent_id",
+              "label": "上级组织"
+            },
+            {
+              "name": "orgCode",
+              "column": "org_code",
+              "label": "组织编码"
+            },
+            {
+              "name": "orgKind",
+              "column": "org_kind",
+              "label": "组织类型"
+            },
+            {
+              "name": "name",
+              "column": "name",
+              "label": "名称"
+            },
+            {
+              "name": "validFrom",
+              "column": "valid_from",
+              "label": "生效时刻（UTC）"
+            },
+            {
+              "name": "validTo",
+              "column": "valid_to",
+              "label": "失效时刻（UTC）"
+            },
+            {
+              "name": "createdAt",
+              "column": "created_at",
+              "label": "创建时刻（UTC）"
+            },
+            {
+              "name": "rowVersion",
+              "column": "row_version",
+              "label": "版本"
+            }
+          ],
+          "detail": [
+            {
+              "name": "id",
+              "column": "id",
+              "label": "编号"
+            },
+            {
+              "name": "parentId",
+              "column": "parent_id",
+              "label": "上级组织"
+            },
+            {
+              "name": "orgCode",
+              "column": "org_code",
+              "label": "组织编码"
+            },
+            {
+              "name": "orgKind",
+              "column": "org_kind",
+              "label": "组织类型"
+            },
+            {
+              "name": "name",
+              "column": "name",
+              "label": "名称"
+            },
+            {
+              "name": "validFrom",
+              "column": "valid_from",
+              "label": "生效时刻（UTC）"
+            },
+            {
+              "name": "validTo",
+              "column": "valid_to",
+              "label": "失效时刻（UTC）"
+            },
+            {
+              "name": "createdAt",
+              "column": "created_at",
+              "label": "创建时刻（UTC）"
+            },
+            {
+              "name": "rowVersion",
+              "column": "row_version",
+              "label": "版本"
+            }
+          ],
+          "create": [
+            {
+              "name": "intentId",
+              "column": "intent_id",
+              "label": "操作意图编号",
+              "table": "ed_core_command_request",
+              "required": true
+            },
+            {
+              "name": "parentId",
+              "column": "parent_id",
+              "label": "上级组织",
+              "required": true
+            },
+            {
+              "name": "orgCode",
+              "column": "org_code",
+              "label": "组织编码",
+              "required": true
+            },
+            {
+              "name": "orgKind",
+              "column": "org_kind",
+              "label": "组织类型",
+              "required": true,
+              "options": [
+                "CAMPUS",
+                "DEPARTMENT"
+              ]
+            },
+            {
+              "name": "name",
+              "column": "name",
+              "label": "名称",
+              "required": true
+            },
+            {
+              "name": "validFrom",
+              "column": "valid_from",
+              "label": "生效时刻（UTC）",
+              "required": true
+            }
+          ],
+          "rename": [
+            {
+              "name": "intentId",
+              "column": "intent_id",
+              "label": "操作意图编号",
+              "table": "ed_core_command_request",
+              "required": true
+            },
+            {
+              "name": "expectedRowVersion",
+              "column": "row_version",
+              "label": "预期版本",
+              "required": true
+            },
+            {
+              "name": "name",
+              "column": "name",
+              "label": "名称",
+              "required": true
+            }
+          ],
+          "allowedOperations": [
+            "orgList",
+            "orgDetail",
+            "orgCreate",
+            "orgRename"
+          ]
+        },
+        {
+          "id": "classes",
+          "table": "ed_education_class",
+          "label": "班级",
+          "list": [
+            {
+              "name": "id",
+              "column": "id",
+              "label": "编号"
+            },
+            {
+              "name": "schoolId",
+              "column": "school_id",
+              "label": "学校"
+            },
+            {
+              "name": "termId",
+              "column": "term_id",
+              "label": "学期"
+            },
+            {
+              "name": "classCode",
+              "column": "class_code",
+              "label": "班级编码"
+            },
+            {
+              "name": "name",
+              "column": "name",
+              "label": "名称"
+            },
+            {
+              "name": "gradeCode",
+              "column": "grade_code",
+              "label": "年级编码"
+            },
+            {
+              "name": "createdAt",
+              "column": "created_at",
+              "label": "创建时刻（UTC）"
+            },
+            {
+              "name": "rowVersion",
+              "column": "row_version",
+              "label": "版本"
+            }
+          ],
+          "detail": [
+            {
+              "name": "id",
+              "column": "id",
+              "label": "编号"
+            },
+            {
+              "name": "schoolId",
+              "column": "school_id",
+              "label": "学校"
+            },
+            {
+              "name": "termId",
+              "column": "term_id",
+              "label": "学期"
+            },
+            {
+              "name": "classCode",
+              "column": "class_code",
+              "label": "班级编码"
+            },
+            {
+              "name": "name",
+              "column": "name",
+              "label": "名称"
+            },
+            {
+              "name": "gradeCode",
+              "column": "grade_code",
+              "label": "年级编码"
+            },
+            {
+              "name": "createdAt",
+              "column": "created_at",
+              "label": "创建时刻（UTC）"
+            },
+            {
+              "name": "rowVersion",
+              "column": "row_version",
+              "label": "版本"
+            }
+          ],
+          "create": [
+            {
+              "name": "intentId",
+              "column": "intent_id",
+              "label": "操作意图编号",
+              "table": "ed_core_command_request",
+              "required": true
+            },
+            {
+              "name": "termId",
+              "column": "term_id",
+              "label": "学期",
+              "required": true
+            },
+            {
+              "name": "classCode",
+              "column": "class_code",
+              "label": "班级编码",
+              "required": true
+            },
+            {
+              "name": "name",
+              "column": "name",
+              "label": "名称",
+              "required": true
+            },
+            {
+              "name": "gradeCode",
+              "column": "grade_code",
+              "label": "年级编码",
+              "required": true
+            }
+          ],
+          "rename": [
+            {
+              "name": "intentId",
+              "column": "intent_id",
+              "label": "操作意图编号",
+              "table": "ed_core_command_request",
+              "required": true
+            },
+            {
+              "name": "expectedRowVersion",
+              "column": "row_version",
+              "label": "预期版本",
+              "required": true
+            },
+            {
+              "name": "name",
+              "column": "name",
+              "label": "名称",
+              "required": true
+            }
+          ],
+          "allowedOperations": [
+            "classList",
+            "classDetail",
+            "classCreate",
+            "classRename"
+          ]
+        },
+        {
+          "id": "terms",
+          "table": "ed_education_term",
+          "label": "学期",
+          "list": [
+            {
+              "name": "id",
+              "column": "id",
+              "label": "编号"
+            },
+            {
+              "name": "schoolId",
+              "column": "school_id",
+              "label": "学校"
+            },
+            {
+              "name": "termCode",
+              "column": "term_code",
+              "label": "学期编码"
+            },
+            {
+              "name": "startsOn",
+              "column": "starts_on",
+              "label": "开始日期（学校时区）"
+            },
+            {
+              "name": "endsOn",
+              "column": "ends_on",
+              "label": "结束日期（学校时区）"
+            },
+            {
+              "name": "status",
+              "column": "status",
+              "label": "状态"
+            },
+            {
+              "name": "rowVersion",
+              "column": "row_version",
+              "label": "版本"
+            }
+          ],
+          "detail": [
+            {
+              "name": "id",
+              "column": "id",
+              "label": "编号"
+            },
+            {
+              "name": "schoolId",
+              "column": "school_id",
+              "label": "学校"
+            },
+            {
+              "name": "termCode",
+              "column": "term_code",
+              "label": "学期编码"
+            },
+            {
+              "name": "startsOn",
+              "column": "starts_on",
+              "label": "开始日期（学校时区）"
+            },
+            {
+              "name": "endsOn",
+              "column": "ends_on",
+              "label": "结束日期（学校时区）"
+            },
+            {
+              "name": "status",
+              "column": "status",
+              "label": "状态"
+            },
+            {
+              "name": "rowVersion",
+              "column": "row_version",
+              "label": "版本"
+            }
+          ],
+          "create": [],
+          "rename": [],
+          "allowedOperations": [
+            "termList"
+          ]
+        }
+      ],
+      "basePath": "/fcp/education/foundation",
+      "endpoints": [
+        {
+          "name": "capabilities",
+          "method": "GET",
+          "path": "/capabilities",
+          "parameters": [
+            {
+              "name": "parameters",
+              "source": "query",
+              "type": "Map"
+            }
+          ],
+          "query": []
+        },
+        {
+          "name": "schools",
+          "method": "GET",
+          "path": "/schools",
+          "parameters": [
+            {
+              "name": "parameters",
+              "source": "query",
+              "type": "Map"
+            }
+          ],
+          "query": [
+            "afterId",
+            "limit"
+          ]
+        },
+        {
+          "name": "list",
+          "method": "GET",
+          "path": "/schools/{schoolId}/{kind:organizations|classes|terms}",
+          "parameters": [
+            {
+              "name": "schoolId",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "kind",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "parameters",
+              "source": "query",
+              "type": "Map"
+            }
+          ],
+          "query": [
+            "afterId",
+            "limit",
+            "termId"
+          ]
+        },
+        {
+          "name": "detail",
+          "method": "GET",
+          "path": "/{kind:organizations|classes}/{id}",
+          "parameters": [
+            {
+              "name": "kind",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "id",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "parameters",
+              "source": "query",
+              "type": "Map"
+            }
+          ],
+          "query": []
+        },
+        {
+          "name": "school",
+          "method": "POST",
+          "path": "/schools",
+          "parameters": [
+            {
+              "name": "body",
+              "source": "body",
+              "type": "String"
+            }
+          ],
+          "query": [],
+          "command": {
+            "resource": "schools",
+            "action": "create"
+          }
+        },
+        {
+          "name": "create",
+          "method": "POST",
+          "path": "/schools/{schoolId}/{kind:organizations|classes}",
+          "parameters": [
+            {
+              "name": "schoolId",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "kind",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "body",
+              "source": "body",
+              "type": "String"
+            }
+          ],
+          "query": [],
+          "command": {
+            "resource": "$kind",
+            "action": "create"
+          }
+        },
+        {
+          "name": "rename",
+          "method": "POST",
+          "path": "/{kind:organizations|classes}/{id}/rename",
+          "parameters": [
+            {
+              "name": "kind",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "id",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "body",
+              "source": "body",
+              "type": "String"
+            }
+          ],
+          "query": [],
+          "command": {
+            "resource": "$kind",
+            "action": "rename"
+          }
+        },
+        {
+          "name": "operation",
+          "method": "GET",
+          "path": "/schools/{schoolId}/operations/{kind:organizations|classes}/{action:create|rename}/{intentId}",
+          "parameters": [
+            {
+              "name": "schoolId",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "kind",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "action",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "intentId",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "parameters",
+              "source": "query",
+              "type": "Map"
+            }
+          ],
+          "query": []
+        },
+        {
+          "name": "schoolOperation",
+          "method": "GET",
+          "path": "/operations/schools/create/{intentId}",
+          "parameters": [
+            {
+              "name": "intentId",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "parameters",
+              "source": "query",
+              "type": "Map"
+            }
+          ],
+          "query": []
+        }
+      ],
+      "clientEndpoints": [
+        {
+          "name": "getCapabilities",
+          "method": "GET",
+          "path": "/fcp/education/foundation/capabilities"
+        },
+        {
+          "name": "listSchools",
+          "method": "GET",
+          "path": "/fcp/education/foundation/schools",
+          "resource": "schools",
+          "operation": "schoolList"
+        },
+        {
+          "name": "listOrganizations",
+          "method": "GET",
+          "path": "/fcp/education/foundation/schools/{schoolId}/organizations",
+          "resource": "organizations",
+          "operation": "orgList"
+        },
+        {
+          "name": "getOrganization",
+          "method": "GET",
+          "path": "/fcp/education/foundation/organizations/{id}",
+          "resource": "organizations",
+          "operation": "orgDetail"
+        },
+        {
+          "name": "createOrganization",
+          "method": "POST",
+          "path": "/fcp/education/foundation/schools/{schoolId}/organizations",
+          "resource": "organizations",
+          "operation": "orgCreate"
+        },
+        {
+          "name": "renameOrganization",
+          "method": "POST",
+          "path": "/fcp/education/foundation/organizations/{id}/rename",
+          "resource": "organizations",
+          "operation": "orgRename"
+        },
+        {
+          "name": "listClasses",
+          "method": "GET",
+          "path": "/fcp/education/foundation/schools/{schoolId}/classes",
+          "resource": "classes",
+          "operation": "classList"
+        },
+        {
+          "name": "getClass",
+          "method": "GET",
+          "path": "/fcp/education/foundation/classes/{id}",
+          "resource": "classes",
+          "operation": "classDetail"
+        },
+        {
+          "name": "createClass",
+          "method": "POST",
+          "path": "/fcp/education/foundation/schools/{schoolId}/classes",
+          "resource": "classes",
+          "operation": "classCreate"
+        },
+        {
+          "name": "renameClass",
+          "method": "POST",
+          "path": "/fcp/education/foundation/classes/{id}/rename",
+          "resource": "classes",
+          "operation": "classRename"
+        },
+        {
+          "name": "listTerms",
+          "method": "GET",
+          "path": "/fcp/education/foundation/schools/{schoolId}/terms",
+          "resource": "terms",
+          "operation": "termList"
+        },
+        {
+          "name": "createSchool",
+          "method": "POST",
+          "path": "/fcp/education/foundation/schools",
+          "resource": "schools",
+          "operation": "schoolCreate"
+        },
+        {
+          "name": "lookupSchoolOperation",
+          "method": "GET",
+          "path": "/fcp/education/foundation/operations/schools/create/{intentId}",
+          "resource": "schools",
+          "operation": "schoolCreate"
+        },
+        {
+          "name": "lookupOperation",
+          "method": "GET",
+          "path": "/fcp/education/foundation/schools/{schoolId}/operations/{kind}/{action}/{intentId}"
+        }
+      ]
+    },
+    {
+      "id": "roster",
+      "label": "关系名册",
+      "resources": [
+        {
+          "id": "enrollments",
+          "table": "ed_education_enrollment",
+          "label": "学籍关系",
+          "list": [
+            {
+              "name": "id",
+              "column": "id",
+              "label": "编号"
+            },
+            {
+              "name": "schoolId",
+              "column": "school_id",
+              "label": "学校"
+            },
+            {
+              "name": "validFrom",
+              "column": "valid_from",
+              "label": "生效时刻（UTC）"
+            },
+            {
+              "name": "validTo",
+              "column": "valid_to",
+              "label": "失效时刻（UTC）"
+            },
+            {
+              "name": "createdAt",
+              "column": "created_at",
+              "label": "创建时刻（UTC）"
+            },
+            {
+              "name": "rowVersion",
+              "column": "row_version",
+              "label": "版本"
+            },
+            {
+              "name": "admissionKey",
+              "column": "admission_key",
+              "label": "入学记录键"
+            },
+            {
+              "name": "status",
+              "column": "status",
+              "label": "状态"
+            }
+          ],
+          "detail": [
+            {
+              "name": "id",
+              "column": "id",
+              "label": "编号"
+            },
+            {
+              "name": "schoolId",
+              "column": "school_id",
+              "label": "学校"
+            },
+            {
+              "name": "validFrom",
+              "column": "valid_from",
+              "label": "生效时刻（UTC）"
+            },
+            {
+              "name": "validTo",
+              "column": "valid_to",
+              "label": "失效时刻（UTC）"
+            },
+            {
+              "name": "createdAt",
+              "column": "created_at",
+              "label": "创建时刻（UTC）"
+            },
+            {
+              "name": "rowVersion",
+              "column": "row_version",
+              "label": "版本"
+            },
+            {
+              "name": "admissionKey",
+              "column": "admission_key",
+              "label": "入学记录键"
+            },
+            {
+              "name": "status",
+              "column": "status",
+              "label": "状态"
+            }
+          ],
+          "create": [],
+          "rename": [],
+          "allowedOperations": [
+            "enrollmentList",
+            "enrollmentDetail"
+          ]
+        },
+        {
+          "id": "memberships",
+          "table": "ed_education_membership",
+          "label": "入班历史",
+          "list": [
+            {
+              "name": "id",
+              "column": "id",
+              "label": "编号"
+            },
+            {
+              "name": "schoolId",
+              "column": "school_id",
+              "label": "学校"
+            },
+            {
+              "name": "validFrom",
+              "column": "valid_from",
+              "label": "生效时刻（UTC）"
+            },
+            {
+              "name": "validTo",
+              "column": "valid_to",
+              "label": "失效时刻（UTC）"
+            },
+            {
+              "name": "createdAt",
+              "column": "created_at",
+              "label": "创建时刻（UTC）"
+            },
+            {
+              "name": "rowVersion",
+              "column": "row_version",
+              "label": "版本"
+            },
+            {
+              "name": "enrollmentId",
+              "column": "enrollment_id",
+              "label": "学籍关系编号"
+            },
+            {
+              "name": "classId",
+              "column": "class_id",
+              "label": "班级编号"
+            },
+            {
+              "name": "termId",
+              "column": "term_id",
+              "label": "学期",
+              "table": "ed_education_class"
+            },
+            {
+              "name": "className",
+              "column": "name",
+              "label": "班级名称",
+              "table": "ed_education_class"
+            },
+            {
+              "name": "termCode",
+              "column": "term_code",
+              "label": "学期编码",
+              "table": "ed_education_term"
+            },
+            {
+              "name": "termStatus",
+              "column": "status",
+              "label": "学期状态",
+              "table": "ed_education_term"
+            }
+          ],
+          "detail": [
+            {
+              "name": "id",
+              "column": "id",
+              "label": "编号"
+            },
+            {
+              "name": "schoolId",
+              "column": "school_id",
+              "label": "学校"
+            },
+            {
+              "name": "validFrom",
+              "column": "valid_from",
+              "label": "生效时刻（UTC）"
+            },
+            {
+              "name": "validTo",
+              "column": "valid_to",
+              "label": "失效时刻（UTC）"
+            },
+            {
+              "name": "createdAt",
+              "column": "created_at",
+              "label": "创建时刻（UTC）"
+            },
+            {
+              "name": "rowVersion",
+              "column": "row_version",
+              "label": "版本"
+            },
+            {
+              "name": "enrollmentId",
+              "column": "enrollment_id",
+              "label": "学籍关系编号"
+            },
+            {
+              "name": "classId",
+              "column": "class_id",
+              "label": "班级编号"
+            },
+            {
+              "name": "termId",
+              "column": "term_id",
+              "label": "学期",
+              "table": "ed_education_class"
+            },
+            {
+              "name": "className",
+              "column": "name",
+              "label": "班级名称",
+              "table": "ed_education_class"
+            },
+            {
+              "name": "termCode",
+              "column": "term_code",
+              "label": "学期编码",
+              "table": "ed_education_term"
+            },
+            {
+              "name": "termStatus",
+              "column": "status",
+              "label": "学期状态",
+              "table": "ed_education_term"
+            }
+          ],
+          "create": [],
+          "rename": [],
+          "allowedOperations": [
+            "membershipList",
+            "membershipDetail"
+          ]
+        },
+        {
+          "id": "assignments",
+          "table": "ed_education_assignment",
+          "label": "任教关系",
+          "list": [
+            {
+              "name": "id",
+              "column": "id",
+              "label": "编号"
+            },
+            {
+              "name": "schoolId",
+              "column": "school_id",
+              "label": "学校",
+              "table": "ed_education_class"
+            },
+            {
+              "name": "validFrom",
+              "column": "valid_from",
+              "label": "生效时刻（UTC）"
+            },
+            {
+              "name": "validTo",
+              "column": "valid_to",
+              "label": "失效时刻（UTC）"
+            },
+            {
+              "name": "createdAt",
+              "column": "created_at",
+              "label": "创建时刻（UTC）"
+            },
+            {
+              "name": "rowVersion",
+              "column": "row_version",
+              "label": "版本"
+            },
+            {
+              "name": "classId",
+              "column": "class_id",
+              "label": "班级编号"
+            },
+            {
+              "name": "roleCode",
+              "column": "role_code",
+              "label": "任职类型"
+            },
+            {
+              "name": "termId",
+              "column": "term_id",
+              "label": "学期",
+              "table": "ed_education_class"
+            },
+            {
+              "name": "className",
+              "column": "name",
+              "label": "班级名称",
+              "table": "ed_education_class"
+            },
+            {
+              "name": "termCode",
+              "column": "term_code",
+              "label": "学期编码",
+              "table": "ed_education_term"
+            },
+            {
+              "name": "termStatus",
+              "column": "status",
+              "label": "学期状态",
+              "table": "ed_education_term"
+            }
+          ],
+          "detail": [
+            {
+              "name": "id",
+              "column": "id",
+              "label": "编号"
+            },
+            {
+              "name": "schoolId",
+              "column": "school_id",
+              "label": "学校",
+              "table": "ed_education_class"
+            },
+            {
+              "name": "validFrom",
+              "column": "valid_from",
+              "label": "生效时刻（UTC）"
+            },
+            {
+              "name": "validTo",
+              "column": "valid_to",
+              "label": "失效时刻（UTC）"
+            },
+            {
+              "name": "createdAt",
+              "column": "created_at",
+              "label": "创建时刻（UTC）"
+            },
+            {
+              "name": "rowVersion",
+              "column": "row_version",
+              "label": "版本"
+            },
+            {
+              "name": "classId",
+              "column": "class_id",
+              "label": "班级编号"
+            },
+            {
+              "name": "roleCode",
+              "column": "role_code",
+              "label": "任职类型"
+            },
+            {
+              "name": "termId",
+              "column": "term_id",
+              "label": "学期",
+              "table": "ed_education_class"
+            },
+            {
+              "name": "className",
+              "column": "name",
+              "label": "班级名称",
+              "table": "ed_education_class"
+            },
+            {
+              "name": "termCode",
+              "column": "term_code",
+              "label": "学期编码",
+              "table": "ed_education_term"
+            },
+            {
+              "name": "termStatus",
+              "column": "status",
+              "label": "学期状态",
+              "table": "ed_education_term"
+            }
+          ],
+          "create": [],
+          "rename": [],
+          "allowedOperations": [
+            "assignmentList",
+            "assignmentDetail"
+          ]
+        }
+      ],
+      "basePath": "/fcp/education/roster",
+      "endpoints": [
+        {
+          "name": "capabilities",
+          "method": "GET",
+          "path": "/capabilities",
+          "parameters": [
+            {
+              "name": "parameters",
+              "source": "query",
+              "type": "MultiValueMap"
+            }
+          ],
+          "query": []
+        },
+        {
+          "name": "schools",
+          "method": "GET",
+          "path": "/schools",
+          "parameters": [
+            {
+              "name": "parameters",
+              "source": "query",
+              "type": "MultiValueMap"
+            }
+          ],
+          "query": [
+            "afterId",
+            "limit"
+          ]
+        },
+        {
+          "name": "list",
+          "method": "GET",
+          "path": "/schools/{schoolId}/{kind:enrollments|memberships|assignments}",
+          "parameters": [
+            {
+              "name": "schoolId",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "kind",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "parameters",
+              "source": "query",
+              "type": "MultiValueMap"
+            }
+          ],
+          "query": [
+            "afterId",
+            "limit"
+          ]
+        },
+        {
+          "name": "detail",
+          "method": "GET",
+          "path": "/schools/{schoolId}/{kind:enrollments|memberships|assignments}/{id}",
+          "parameters": [
+            {
+              "name": "schoolId",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "kind",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "id",
+              "source": "path",
+              "type": "String"
+            },
+            {
+              "name": "parameters",
+              "source": "query",
+              "type": "MultiValueMap"
+            }
+          ],
+          "query": []
+        }
+      ],
+      "clientEndpoints": [
+        {
+          "name": "getCapabilities",
+          "method": "GET",
+          "path": "/fcp/education/roster/capabilities"
+        },
+        {
+          "name": "listSchools",
+          "method": "GET",
+          "path": "/fcp/education/roster/schools",
+          "resource": "schools",
+          "operation": "schoolList"
+        },
+        {
+          "name": "listEnrollments",
+          "method": "GET",
+          "path": "/fcp/education/roster/schools/{schoolId}/enrollments",
+          "resource": "enrollments",
+          "operation": "enrollmentList"
+        },
+        {
+          "name": "getEnrollment",
+          "method": "GET",
+          "path": "/fcp/education/roster/schools/{schoolId}/enrollments/{id}",
+          "resource": "enrollments",
+          "operation": "enrollmentDetail"
+        },
+        {
+          "name": "listMemberships",
+          "method": "GET",
+          "path": "/fcp/education/roster/schools/{schoolId}/memberships",
+          "resource": "memberships",
+          "operation": "membershipList"
+        },
+        {
+          "name": "getMembership",
+          "method": "GET",
+          "path": "/fcp/education/roster/schools/{schoolId}/memberships/{id}",
+          "resource": "memberships",
+          "operation": "membershipDetail"
+        },
+        {
+          "name": "listAssignments",
+          "method": "GET",
+          "path": "/fcp/education/roster/schools/{schoolId}/assignments",
+          "resource": "assignments",
+          "operation": "assignmentList"
+        },
+        {
+          "name": "getAssignment",
+          "method": "GET",
+          "path": "/fcp/education/roster/schools/{schoolId}/assignments/{id}",
+          "resource": "assignments",
+          "operation": "assignmentDetail"
+        }
+      ]
+    }
+  ]
+}

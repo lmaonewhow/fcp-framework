@@ -1,8 +1,16 @@
-# FCP 0.6.0-dev.1：若依宿主、跨语言插件与数据接入
+# 智慧云校：学校业务、跨语言插件与数据接入
 
 本分支 `feat/ruoyi-5.6-plugin-ingestion` 在既有 FCP 基线上增加可启停的业务插件、API 连接器与文件适配器，固定使用 RuoYi-Vue-Plus 5.6.2 作为真实宿主。管理端固定 plus-ui 5.6.2-v2.6.2，教师端固定 ruoyi-plus-soybean 1.1.3，精确提交见 [upstreams.lock.json](upstreams.lock.json)。宿主保留原生登录、验证码、租户、权限、MySQL 和 Redis。
 
 **指定小型场景已通过真实原生验收，生产发布仍未验收。** 被测源码为 `9bf4031a38a065139d016903cfdb59179055c9a4`，通过 240 项组件检查、105 项保留回归、76 项输入检查和 61 项原生场景检查；检查组存在交叉。详情、构建摘要、录屏与限制见 [本次验收记录](docs/INGESTION_ACCEPTANCE.md)。组件与原生流水线分别输出结果，原生报告位于对应运行的 `native-ingestion-evidence` 产物。原 0.5 本地验收的历史结果继续保留在 [docs/LOCAL_ACCEPTANCE_STATUS.md](docs/LOCAL_ACCEPTANCE_STATUS.md)，不代表 0.6 或新宿主已经验收。原源码快照不含旧 Git 历史；本功能分支的后续修改使用普通提交记录。
+
+## 产品品牌与默认菜单
+
+双端产品名称为“智慧云校”，登录、侧栏、图标、首页与默认菜单采用独立受校验覆盖层。原生认证、上游许可证和技术兼容标识保留。默认网站/测试菜单只在精确匹配未修改 seed 时清理，既有安装须先审查迁移计划，不删除业务记录。覆盖范围与验证边界见 [品牌与菜单说明](docs/BRANDING.md)。
+
+## 教育 SQL 生成与融合范围
+
+本融合分支保留 PR12/13/14/15 的功能，并新增固定 `education-p042-v1` 生成模式。原 PR14/15 页面是手写的；现在旧页面已转为模板，经仓库锁定 P042 SQL/model 与受审规则真正生成页面、schema/API、溯源清单和路由，再通过安全应用引擎落盘。权限与事务业务内核仍手工维护。基础资料支持学校/组织/班级受限创建和名称版本校验，学期及关系名册只读；不是全 54 表 CRUD。快速调整、保护手改及真实生成后构建验收见 [教育生成使用说明](docs/EDUCATION_GENERATED_FRONTEND.md)、[融合链路](docs/SMART_SCHOOL_FUSION.md) 和 [验收方法](tests/education_codegen/README.md)。历史独立 PR 的 PASS 不代表此融合分支已通过原生验收，生产仍未部署。
 
 ## 当前实现
 
@@ -75,6 +83,10 @@ java -jar ruoyi-admin.jar --spring.profiles.active=prod,fcp
 原生证据包含 `reports/native-source-commit.txt`、`reports/ci-native.json`、构建标识、原始日志以及 `reports/native-ingestion/` 中的验收报告、截图和录像。验收报告必须绑定同一被测源码和构建产物。失败记录也应保留，测试未运行记为 NOT_RUN，环境阻断记为 BLOCKED，观察到缺陷记为 FAIL。仓库中的流程或测试代码本身不构成通过证据。
 
 演示平台位于 `tests/ingestion/platform.py`，CSV 样例位于 `fixtures/ingestion/`。完整场景从三人名册 API 同步开始，经 CSV 更新为四人名册，再导入和校正考勤，检查停用、权限与重启持久化。详细操作和业务口径见 [数据接入说明](docs/INGESTION.md)。
+
+## 代码生成与安全应用
+
+管理端原生代码生成页新增“生成并应用”，可将 Java、Mapper XML 和 plus-ui 页面直接写入配置好的 FCP 开发源码覆盖层。默认关闭；预览确认、生成基线保护、整批冲突拒绝与操作撤销避免手工覆盖。菜单 SQL 仍需审查，不自动执行、不热加载或部署生产。配置、使用方式和验收边界见 [生成代码后直接应用](docs/GENERATOR_APPLY.md)。
 
 ## 请求问题追踪
 

@@ -25,6 +25,12 @@ def failure_status(error:Exception)->str:
  # A compiler/test failure is observed failure, even before a JAR exists.
  return 'BLOCKED' if isinstance(error,PrerequisiteError) else 'FAIL'
 
+def mysql_failure_summary(stderr:str)->str:
+ # Preserve only structured diagnostic coordinates, never SQL text, values,
+ # credentials or arbitrary server messages in an exported acceptance report.
+ found=re.search(r'(?m)^ERROR ([0-9]{1,6}) \(([A-Z0-9]{5})\)(?: at line ([0-9]{1,9}))?:',stderr)
+ return (found.group(1)+':'+found.group(2)+(('@line'+found.group(3)) if found.group(3) else '')) if found else 'unclassified client failure'
+
 def command(args,cwd=ROOT,env=None,timeout=2400):
  result=subprocess.run([str(x) for x in args],cwd=cwd,env=env,timeout=timeout,check=False)
  if result.returncode:raise RuntimeError(str(args[0])+' failed: '+str(result.returncode))
@@ -34,20 +40,46 @@ def private(path:Path,content:str):
 
 def parse_args(argv=None):
  parser=argparse.ArgumentParser(description=__doc__)
- parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');parser.add_argument('--plugin-releases',action='store_true',help='Real dual-UI and multi-plugin composite release acceptance; requires --ingestion, excludes --exchange');a=parser.parse_args(argv)
+ parser.add_argument('--education-generator',action='store_true',help='Verify the actual P042-generated clone and native safe-apply UI; requires --ingestion --education --roster --generator')
+ parser.add_argument('--roster',action='store_true',help='School roster acceptance; requires --education and genuine ingestion')
+ parser.add_argument('--education',action='store_true',help='Fresh isolated education schema and foundation acceptance; requires --ingestion')
+ parser.add_argument('--generator-business',action='store_true',help='Package and run generated synthetic business CRUD in the owned disposable database; requires --generator and --ingestion');parser.add_argument('--generator',action='store_true',help='Real generator source-application acceptance; requires --ingestion');parser.add_argument('--resolve-admin-lock',action='store_true');parser.add_argument('--ingestion',action='store_true');parser.add_argument('--exchange',action='store_true',help='Explicit synthetic exchange acceptance; requires --ingestion');parser.add_argument('--plugin-releases',action='store_true',help='Real dual-UI and multi-plugin composite release acceptance; requires --ingestion, excludes --exchange');a=parser.parse_args(argv)
+ if a.education_generator and not (a.ingestion and a.education and a.roster and a.generator):parser.error('--education-generator requires --ingestion --education --roster --generator')
+ if a.generator_business and not (a.generator and a.ingestion):parser.error('--generator-business requires --generator and --ingestion')
+ if a.generator and not a.ingestion:parser.error('--generator requires genuine --ingestion login fixture')
+ if a.generator_business and (a.education or a.roster):parser.error('--generator-business must run separately from education/roster until the rebuilt JAR digest is rebound')
  if a.exchange and not a.ingestion:parser.error('--exchange requires genuine --ingestion login fixture')
  if a.plugin_releases and not a.ingestion:parser.error('--plugin-releases requires genuine --ingestion login fixture')
  if a.plugin_releases and a.exchange:parser.error('--plugin-releases is isolated from the legacy --exchange execution port')
+ if a.roster and not a.education:parser.error('--roster requires --education isolated schema and native foundation regression')
+ if a.education and not a.ingestion:parser.error('--education requires genuine --ingestion login fixture')
+ if a.education and (a.exchange or a.plugin_releases):parser.error('--education uses its own isolated composition, not exchange or release mutation scenarios')
  return a
+
+def wait_fused_generator_login_window():
+ # Preserve the native 20/IP/60s limit between roster and generator role batches.
+ started=time.monotonic();time.sleep(60)
+ elapsed=time.monotonic()-started
+ if elapsed<60:raise RuntimeError('The complete native generator login window did not elapse')
+ return {'stage':'generator-apply','waitSeconds':round(elapsed,3),'nativeRateLimitChanged':False}
 
 def run()->int:
  a=parse_args()
- report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeStorageLifecycle':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'runtimeComposition':{'status':'NOT_RUN'},'production':'BLOCKED'}
- process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None;failure_fixture=None;storage_lifecycle_fixture=None;composition_fixture=None;deployment_user=None;deployment_password=None
+ report={'status':'BLOCKED','scope':'real native build, actual MySQL state adapter and Java/static UI smoke ONLY','browser':'NOT_RUN','runtimePlugins':{'status':'NOT_RUN'},'runtimeStorageLifecycle':{'status':'NOT_RUN'},'runtimeExchange':{'status':'NOT_RUN'},'runtimeComposition':{'status':'NOT_RUN'},'generatorApply':{'status':'NOT_RUN'},'production':'BLOCKED'}
+ generator_fixture=None;process=None;private_dir=None;private_cleanup=None;fixture=None;runtime_fixture=None;exchange_fixture=None;failure_fixture=None;storage_lifecycle_fixture=None;composition_fixture=None;deployment_user=None;deployment_password=None
+ education_plan=None;education_fixture=None;roster_fixture=None;foundation_browser_result=None
+ report['educationFoundation']={'status':'NOT_RUN'}
+ report['educationRoster']={'status':'NOT_RUN'}
+ report['educationGenerator']={'status':'NOT_RUN'}
  try:
   if os.environ.get('GITHUB_ACTIONS')!='true':raise PrerequisiteError('This orchestration is restricted to its disposable manual GitHub Actions job')
+  if a.education_generator:
+   from ci_education_codegen import validate_prebuild_report
+   # Read-only exact-source/receipt verification precedes any database operation.
+   report['educationGenerationInputs']=validate_prebuild_report(ROOT)
   requirements=doctor()
   if requirements['status']!='READY' or not shutil.which('mysql'):raise PrerequisiteError('Build tools/network/mysql CLI missing')
+  if a.generator_business and not shutil.which('mysqldump'):raise PrerequisiteError('Generated business acceptance requires mysqldump for the reviewed menu backup')
   root_password=os.environ.get('FCP_CI_MYSQL_PASSWORD','')
   if not re.fullmatch('[A-Za-z0-9_-]{16,100}',root_password):raise PrerequisiteError('Explicit CI MySQL fixture password is required')
   private_cleanup=OwnedDisposableDirectory.create();private_dir=private_cleanup.path
@@ -58,11 +90,30 @@ def run()->int:
   mysql_file=private_dir/'mysql.cnf';private(mysql_file,f'[client]\nhost=127.0.0.1\nport=33306\nuser=root\npassword={root_password}\nssl-mode=DISABLED\n')
   def sql(text):
    result=subprocess.run(['mysql','--defaults-extra-file='+str(mysql_file),'--batch','--skip-column-names'],input=text,text=True,capture_output=True,timeout=60)
-   if result.returncode:raise RuntimeError('Isolated CI SQL failed; inspect private database service logs')
+   if result.returncode:raise RuntimeError('Isolated CI SQL failed: '+mysql_failure_summary(result.stderr)+'; SQL and credentials withheld')
    return result.stdout
   sql(f'CREATE DATABASE `{database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;')
+  if a.education:
+   from ci_education import prepare_schema
+   from ci_education_integration import verified_host_plan
+   host_plan=verified_host_plan(sources/'upstream/backend')
+   education_plan=prepare_schema(database,sql,private_dir,ROOT/'reports/education-native',roster=a.roster)
+   (education_plan.output/'host-plan.json').write_text(json.dumps(host_plan,indent=2)+'\n')
   command([sys.executable,ROOT/'tools/mysql_install.py','--backend',sources/'upstream/backend','--database',database,'--defaults-file',mysql_file,'--apply'])
   sql(f"CREATE USER '{runtime_user}'@'%' IDENTIFIED BY '{runtime_password}'; GRANT SELECT,INSERT,UPDATE,DELETE ON `{database}`.* TO '{runtime_user}'@'%';")
+  if education_plan:
+   education_ddl_user='fcpe_'+secrets.token_hex(6);education_ddl_password=secrets.token_hex(24)
+   sql(f"CREATE USER '{education_ddl_user}'@'%' IDENTIFIED BY '{education_ddl_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX,REFERENCES ON `{database}`.* TO '{education_ddl_user}'@'%';")
+   education_options=private_dir/'education-ddl.cnf'
+   private(education_options,f'[client]\nhost=127.0.0.1\nport=33306\nuser={education_ddl_user}\npassword={education_ddl_password}\nssl-mode=REQUIRED\n')
+   def education_ddl_sql(statement):
+    environment={key:value for key,value in os.environ.items() if not key.startswith('MYSQL_')}
+    environment['MYSQL_TEST_LOGIN_FILE']=str(private_dir/'absent-education.mylogin.cnf')
+    value=subprocess.run(['mysql','--defaults-file='+str(education_options),'--default-character-set=utf8mb4','--batch','--raw','--skip-column-names',database],input=statement,text=True,capture_output=True,timeout=180,env=environment)
+    if value.returncode:
+     raise RuntimeError('Education schema SQL failed: '+mysql_failure_summary(value.stderr)+'; SQL and credentials withheld')
+    return value.stdout.strip()
+   report['educationSchema']=education_plan.apply(education_ddl_sql,runtime_user,host_plan['expectedHostTables'])
   # Local disposable Redis service is unconfigured until this step. No production host is accepted here.
   payload=['CONFIG','SET','requirepass',redis_password]
   request='*'+str(len(payload))+'\r\n'+''.join('$'+str(len(v))+'\r\n'+v+'\r\n' for v in payload)
@@ -125,6 +176,11 @@ def run()->int:
     deployment_user='fcpx_'+secrets.token_hex(6);deployment_password=secrets.token_hex(24)
     sql(f"CREATE USER '{deployment_user}'@'%' IDENTIFIED BY '{deployment_password}'; GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX ON `{database}`.* TO '{deployment_user}'@'%';")
     props+=exchange_fixture.properties()+'\nfcp.runtime.storage-deployment.enabled=true\nFCP_STORAGE_DEPLOYMENT_JDBC_URL='+url+'\nFCP_STORAGE_DEPLOYMENT_USER='+deployment_user+'\nFCP_STORAGE_DEPLOYMENT_PASSWORD='+deployment_password+'\n'
+  if a.generator:
+   sys.path.insert(0,str(ROOT/'tests/generator'))
+   from native_acceptance import GeneratorFixture
+   generator_fixture=GeneratorFixture(fixture)
+   props+=generator_fixture.properties()
   private(private_dir/'fcp-runtime.properties',props)
   # @SpringBootTest in the pinned upstream initializes FCP and therefore requires the schema first.
   work=ROOT/'work/ci-native'
@@ -141,6 +197,23 @@ def run()->int:
    composition_fixture.ui_versions=prepare_ui_versions(release/'BUILD-EVIDENCE.json',release/'UI-VARIANT-candidate.json',release/'ui-bundles')
    report['uiVariantBuild']=variant
   jar=release/'ruoyi-admin.jar';driver=private_dir/'mysql-driver.jar'
+  if a.education_generator:
+   verified=validate_prebuild_report(ROOT)
+   if verified!=report['educationGenerationInputs']:raise RuntimeError('Education generation evidence changed during native build')
+   report['educationGenerationBuild']={'sourceCommit':verified['sourceCommit'],'buildId':report['build']['buildId'],
+    'jarSha256':hashlib.sha256(jar.read_bytes()).hexdigest(),'outputDigests':verified['outputDigests'],
+    'rendererSourceSha256':verified['rendererSourceSha256'],'receipt':verified['receipt']}
+  if education_plan:
+   from ci_education import EducationFixture
+   education_fixture=EducationFixture(fixture,education_plan,hashlib.sha256(jar.read_bytes()).hexdigest())
+   # Maven tests used the disabled default. Only the newly packaged native host
+   # receives its exact artifact binding; no build identifier supplied by the UI.
+   props+=education_fixture.properties()
+   if a.roster:
+    from ci_roster import RosterFixture
+    roster_fixture=RosterFixture(education_fixture)
+    props+=roster_fixture.properties()
+   private(private_dir/'fcp-runtime.properties',props)
   if a.plugin_releases:command([sys.executable,ROOT/'tests/runtime-native/verify_plugin_advice.py',jar])
   with zipfile.ZipFile(jar) as archive:
    matches=[n for n in archive.namelist() if re.fullmatch(r'BOOT-INF/lib/mysql-connector-j-[^/]+\.jar',n)]
@@ -193,11 +266,16 @@ def run()->int:
    crash_result=json.loads((ROOT/'reports/runtime-crash-mysql/acceptance.json').read_text())
    if crash_result.get('result')!='PASS' or crash_result.get('journalBackend')!='MYSQL' or crash_result.get('mysqlJournalCrashRecovery')!='PASS' or crash_result.get('crashCases')!=12 or crash_result.get('failedCases')!=0 or crash_result.get('databasePreflight',{}).get('emptyAtStart') is not True:raise RuntimeError('MySQL crash matrix did not produce the required genuine database evidence')
    report['runtimeCrashRecovery']={'status':'PASS','crashCases':crash_result['crashCases'],'databaseIsolation':'separate freshly-created CI database','permissions':'SELECT,INSERT,UPDATE on own state table only'}
+  if roster_fixture:
+   from ci_roster_integration import verify_artifact_mismatch
+   report['educationRosterArtifactBinding']=verify_artifact_mismatch(jar=jar,private_dir=private_dir,
+    output=roster_fixture.output.parent/'artifact-binding',manifest=roster_fixture.digest)
   log_path=private_dir/'native-startup.log';started=time.monotonic()
   def start_host():
    nonlocal process
+   if process is not None and process.poll() is None:raise RuntimeError('Refusing overlapping native JVMs sharing isolated runtime roots')
    with log_path.open('a') as log:
-    process=subprocess.Popen(['java','-Xms128m','-Xmx1024m','-jar',str(jar),'--spring.profiles.active=prod,fcp'],cwd=private_dir,stdout=log,stderr=subprocess.STDOUT)
+    process=subprocess.Popen(['java','-Duser.timezone=UTC','-Xms128m','-Xmx1024m','-jar',str(jar),'--spring.profiles.active=prod,fcp'],cwd=private_dir,stdout=log,stderr=subprocess.STDOUT)
    ready=False;start=time.monotonic()
    while time.monotonic()-start<120 and process.poll() is None:
     try:
@@ -206,9 +284,9 @@ def run()->int:
     except (OSError,UnicodeError):pass
     time.sleep(.5)
    if not ready:raise RuntimeError('Native JVM/static management frontend did not become ready')
+  from ci_native_host import stop_host,replace_host
   def restart():
-   process.terminate()
-   process.wait(timeout=35)
+   stop_host(process)
    start_host()
   start_host()
   with urllib.request.urlopen('http://127.0.0.1:18787/teacher/',timeout=5) as response:teacher=response.read(2_000_000).decode()
@@ -219,6 +297,7 @@ def run()->int:
    result=fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],restart)
    report.update(scope=result['scope'],browser=result['status'],ingestion=result['status'],nativeChecks=result['totalChecks'])
    def native_pid():return process.pid if process and process.poll() is None else None
+   from ci_branding import verify_branding
    modules=[]
    if composition_fixture:
     modules.append(NativeModule('runtimeComposition',lambda:composition_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid),
@@ -240,6 +319,96 @@ def run()->int:
     from development_business import verify_development_business
     modules.append(NativeModule('developmentBusiness',lambda:verify_development_business(private_dir,url,runtime_user,runtime_password,driver,exchange_fixture.endpoint,exchange_fixture.report.get('sharedBusinessContract',{})),
      lambda value:{'status':value['status'],'sameNativeRows':value['sameNativeRows'],'jvmRestartPersistence':value['jvmRestartPersistence']}))
+   if education_fixture:
+    def verify_education():
+     nonlocal foundation_browser_result
+     # Synthetic education roles are installed only after existing role checks,
+     # and education authenticates afresh; do not change those tests' identities.
+     education_fixture.seed()
+     from ci_education_integration import run_native_probe
+     probe=run_native_probe(database=database,url=url,user=runtime_user,password=runtime_password,
+      manifest=education_fixture.digest,driver=driver,output=education_plan.output/'jdbc-probe')
+     report['educationJdbc']=probe
+     result=education_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid)
+     from ci_education_integration import restore_browser_fixture_permission
+     report['educationBrowserFixture']=restore_browser_fixture_permission(education_fixture)
+     sys.path.insert(0,str(ROOT/'tests/education'))
+     from native_browser import verify_browser
+     browser_result=verify_browser(education_fixture,'http://127.0.0.1:18787',report['build']['buildId'])
+     foundation_browser_result=browser_result
+     report['educationBrowser']={'status':browser_result['status'],'totalChecks':browser_result['totalChecks'],
+      'screenshots':browser_result['screenshots'],'unknownCommitFaultInjection':browser_result['unknownCommitFaultInjection']}
+     if native_pid() is None:raise RuntimeError('Native JVM exited during education browser verification')
+     return result
+    modules.append(NativeModule('educationFoundation',verify_education,
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'scope':value['scope'],'concurrentRevocation':value.get('concurrentRevocation','NOT_RUN'),'unknownCommitFaultInjection':value.get('unknownCommitFaultInjection','NOT_RUN')}))
+   if roster_fixture:
+    def verify_roster():
+     if not foundation_browser_result or foundation_browser_result.get('status')!='PASS' or education_fixture.report.get('status')!='PASS':
+      raise RuntimeError('Roster acceptance requires completed real foundation HTTP and browser acceptance')
+     # Preserve the genuine tenantList 20/IP/60s limit. New role logins start only
+     # after a complete quiet window, never by clearing Redis or weakening limits.
+     from ci_roster_integration import wait_native_login_window
+     report['educationRosterLoginWindows']=[wait_native_login_window('foundation-only')]
+     roster_fixture.verify_foundation_only('http://127.0.0.1:18787',report['build']['buildId'])
+     roster_fixture.seed(foundation_browser_report=foundation_browser_result)
+     from ci_roster_integration import run_roster_native_probe
+     report['educationRosterJdbc']=run_roster_native_probe(database=database,url=url,user=runtime_user,password=runtime_password,
+      manifest=roster_fixture.digest,driver=driver,output=roster_fixture.output.parent/'jdbc-probe')
+     report['educationRosterLoginWindows'].append(wait_native_login_window('roster-http'))
+     result=roster_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],native_pid)
+     report['educationRosterLoginWindows'].append(wait_native_login_window('roster-browser'))
+     # Do not reuse the cached foundation module named native_browser.
+     import importlib.util
+     spec=importlib.util.spec_from_file_location('education_roster_native_browser',ROOT/'tests/education_roster/native_browser.py')
+     browser_module=importlib.util.module_from_spec(spec);spec.loader.exec_module(browser_module)
+     browser_result=browser_module.verify_browser(roster_fixture,'http://127.0.0.1:18787',report['build']['buildId'])
+     report['educationRosterBrowser']={'status':browser_result['status'],'totalChecks':browser_result['totalChecks'],
+      'screenshots':browser_result['screenshots']}
+     if native_pid() is None:raise RuntimeError('Native JVM exited during roster verification')
+     return result
+    modules.append(NativeModule('educationRoster',verify_roster,
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'scope':value['scope'],'personDisplayPolicy':value.get('personDisplayPolicy','PENDING')}))
+   def generated_business_pipeline(generated):
+    nonlocal jar
+    from business_database import install_generated_menu
+    from business_runtime import verify_business
+    from native_generated_build import build_generated
+    def prepare():
+     generated.report['menuSqlPlan']=install_generated_menu(fixture,generated.root/'generated/sql/probeMenu.sql',generated.output,mysql_file,database,
+      execution_started=lambda:generated.report.update(generatedSqlExecution='RUNNING'))
+     generated.report['generatedSqlExecution']='PASS'
+     evidence=build_generated(work,private_dir/'fcp-runtime.properties',generated.generated_files,source_commit=generated.report['sourceCommit'])
+     generated.report['generatedBusinessBuild']=evidence
+     return evidence
+    def launch(evidence):
+     nonlocal jar
+     jar=Path(evidence['jarPath'])
+     if hashlib.sha256(jar.read_bytes()).hexdigest()!=evidence['jarSha256']:raise RuntimeError('Generated JAR changed before native launch')
+     generated.report['generatedBusinessRuntime']='RUNNING'
+     start_host()
+     generated.report['generatedJavaPid']=process.pid
+    evidence=replace_host(lambda:stop_host(process),prepare,launch)
+    verify_business(generated,'http://127.0.0.1:18787',evidence)
+   if generator_fixture:
+    def verify_generator_apply():
+     if education_fixture:report['generatorLoginWindow']=wait_fused_generator_login_window()
+     return generator_fixture.verify('http://127.0.0.1:18787',report['build']['buildId'],generated_business_pipeline if a.generator_business else None)
+    modules.append(NativeModule('generatorApply',verify_generator_apply,
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'generatedBusinessRuntime':value['generatedBusinessRuntime'],'generatedSqlExecution':value['generatedSqlExecution'],'generatedBusinessBuild':value.get('generatedBusinessBuild')}))
+   if a.education_generator:
+    def verify_education_generation():
+     if report['generatorApply'].get('status')!='PASS':raise RuntimeError('Education generation requires successful generic generator acceptance')
+     import importlib.util
+     spec=importlib.util.spec_from_file_location('education_codegen_native_acceptance',ROOT/'tests/education_codegen/native_acceptance.py')
+     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+     return module.verify_education_codegen(generator_fixture,'http://127.0.0.1:18787',report['build']['buildId'])
+    modules.append(NativeModule('educationGenerator',verify_education_generation,
+     lambda value:{'status':value['status'],'totalChecks':value['totalChecks'],'sourceCommit':value['sourceCommit'],
+      'buildId':value['buildId'],'screenshots':value['screenshots'],'prebuildWebOutputEquality':value['prebuildWebOutputEquality']}))
+   # Added navigation coverage runs last, after its own untouched native rate window.
+   modules.append(NativeModule('branding',lambda:verify_branding(fixture,'http://127.0.0.1:18787',report['build']['buildId']),
+    lambda value:{'status':value['status'],'totalChecks':value['totalChecks']}))
    run_native_modules(report,modules,prerequisites_passed=result.get('status')=='PASS' and bool(report.get('build',{}).get('buildId')),
     host_alive=lambda:process is not None and process.poll() is None,
     secrets_provider=lambda:[*fixture.diagnostic_secrets,fixture.password])

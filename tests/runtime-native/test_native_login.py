@@ -31,7 +31,7 @@ class NativeLoginTests(unittest.TestCase):
         with self.assertRaises(AssertionError):verify_native_identity(Client(),'1','960001')
         with self.assertRaises(AssertionError):verify_native_identity(Client(),'960601','000000')
     def test_native_index_then_explicit_authorized_workspace_navigation(self):
-        for shell in ('admin','teacher'):
+        for shell,observe in ((shell,observe) for shell in ('admin','teacher') for observe in (False,True)):
             events=[]
             class Marker:
                 def wait_for(self,**kwargs):
@@ -58,9 +58,15 @@ class NativeLoginTests(unittest.TestCase):
                     self_test.assertEqual(path,'/fcp/ui/session');events.append('session')
                     return {'defaultShell':shell,'allowedShells':[shell]}
             self_test=self
+            def observer(page,session):
+                self.assertEqual(session['defaultShell'],shell)
+                self.assertEqual(page.url,BASE+'/admin/index')
+                events.append('observe')
             with patch('native_login.NativeClient',Client):
-                saved,token=authenticated_storage_state(Page(),Context(),BASE,'ingestion')
-            self.assertEqual(events,['home','snapshot','session','goto','workspace','visible','snapshot'])
+                saved,token=authenticated_storage_state(Page(),Context(),BASE,'ingestion',
+                    before_workspace_navigation=observer if observe else None)
+            self.assertEqual(events,['home','snapshot','session']+(['observe'] if observe else [])+
+                             ['goto','workspace','visible','snapshot'])
             self.assertEqual(native_token(saved,BASE),token)
     def test_untrusted_server_shell_cannot_choose_arbitrary_destination(self):
         class Page:
@@ -72,7 +78,24 @@ class NativeLoginTests(unittest.TestCase):
             with patch('native_login.NativeClient') as client:
                 client.return_value.data.return_value=session
                 with self.assertRaisesRegex(AssertionError,'known default shell'):
-                    authenticated_storage_state(Page(),Context(),BASE,'plugins')
+                    authenticated_storage_state(Page(),Context(),BASE,'plugins',
+                        before_workspace_navigation=lambda *_:self.fail('Observer must not see an untrusted session'))
+    def test_observer_failure_stops_before_reload_without_retry(self):
+        events=[]
+        class Page:
+            def wait_for_url(self,*args,**kwargs):events.append('native-home')
+            def goto(self,*args,**kwargs):self_test.fail('Failed observation must not reload the page')
+        class Context:
+            def storage_state(self):return state()
+        def observe(page,session):
+            events.append('observe')
+            raise AssertionError('delayed native login notification was not observed')
+        self_test=self
+        with patch('native_login.NativeClient') as client:
+            client.return_value.data.return_value={'defaultShell':'teacher','allowedShells':['teacher']}
+            with self.assertRaisesRegex(AssertionError,'notification was not observed'):
+                authenticated_storage_state(Page(),Context(),BASE,'ingestion',before_workspace_navigation=observe)
+        self.assertEqual(events,['native-home','observe'])
     def test_failed_destination_never_extracts_token(self):
         class Page:
             def wait_for_url(self,*_,**__):raise TimeoutError('route did not authenticate')
